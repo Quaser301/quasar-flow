@@ -1,4 +1,4 @@
-package com.example.campbnb
+package com.example.campbnb.ui.campsite
 
 import android.net.Uri
 import androidx.activity.compose.BackHandler
@@ -28,6 +28,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import com.example.campbnb.Campsite
 
 /**
  * Displays the Form for Campsite Registration

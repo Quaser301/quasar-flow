@@ -1,10 +1,4 @@
-package com.example.campbnb
-
-/**
- * Represents a campsite that is registered by an owner
- * Stores the information of the campsite provided by the owner
- * Displays and updares the campsite listing
- */
+package com.example.campbnb.models
 
 class Campsite(
     val id: String = "",

@@ -20,9 +20,9 @@ class MainActivity : ComponentActivity() {
         setContent {
             CampBNBTheme {
                 Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-                    CampsiteRegistrationForm(
-                        onBack = { },
-                        onUpload = { campsite, image -> }
+                    Greeting(
+                        name = "Android",
+                        modifier = Modifier.padding(innerPadding)
                     )
                 }
             }
