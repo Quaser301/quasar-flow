@@ -28,7 +28,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
-import com.example.campbnb.Campsite
+import com.example.campbnb.models.Campsite
 
 /**
  * Displays the Form for Campsite Registration
