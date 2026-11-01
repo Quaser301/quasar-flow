@@ -25,7 +25,7 @@ import com.example.campbnb.controller.LotteryController
 import com.example.campbnb.models.LotteryModel
 import com.example.campbnb.models.ViewObserver
 
-class LotteryMonitorActivity : ViewObserver<LotteryModel> {
+class LotteryMonitorActivity(private val _navController: NavController) : ViewObserver<LotteryModel> {
     override fun update(model: LotteryModel) {
     }
 
