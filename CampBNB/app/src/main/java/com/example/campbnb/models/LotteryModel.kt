@@ -8,11 +8,11 @@ class LotteryModel : ObservableModel<LotteryModel>(){
 
     fun setLotteries(list: List<Lottery>) {
         lotteryList = list;
-        notifyViews()
+//        notifyViews()
     }
     fun setStatusMessage(msg: String) {
         statusMessage = msg;
-        notifyViews()
+//        notifyViews()
     }
 
 }
