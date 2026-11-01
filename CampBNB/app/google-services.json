@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "170004478788",
+    "project_id": "campbnb-dd0a1",
+    "storage_bucket": "campbnb-dd0a1.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:170004478788:android:a711d25bf7547e9e03b511",
+        "android_client_info": {
+          "package_name": "com.example.campbnb"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCuLP07iKjoYB_3bZNzSE9qATcBHSjvfyk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

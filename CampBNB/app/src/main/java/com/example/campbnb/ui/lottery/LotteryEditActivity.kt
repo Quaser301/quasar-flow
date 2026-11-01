@@ -6,7 +6,8 @@ import com.example.campbnb.controller.LotteryController
 import com.example.campbnb.models.LotteryModel
 import com.example.campbnb.models.ViewObserver
 
-class LotteryEditActivity : ViewObserver<LotteryModel> {
+// CRITICAL: Figure out where that nav controller is supposed to go
+class LotteryEditActivity(private val _navController: NavController) : ViewObserver<LotteryModel> {
     override fun update(model: LotteryModel) {
     }
 

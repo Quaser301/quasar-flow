@@ -25,7 +25,7 @@ import com.example.campbnb.controller.LotteryController
 import com.example.campbnb.models.LotteryModel
 import com.example.campbnb.models.ViewObserver
 
-class LotteryMonitorActivity : ViewObserver<LotteryModel> {
+class LotteryMonitorActivity(private val _navController: NavController) : ViewObserver<LotteryModel> {
     override fun update(model: LotteryModel) {
     }
 
@@ -82,18 +82,18 @@ class LotteryMonitorActivity : ViewObserver<LotteryModel> {
                                 .padding(12.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text(
-                                text = "${lottery.playedDifficulty}",
-                                modifier = Modifier.weight(0.8f),
-                                style = MaterialTheme.typography.bodyMedium,
-                                textAlign = TextAlign.Center
-                            )
-                            Text(
-                                text = lottery.playedInput,
-                                modifier = Modifier.weight(1.2f),
-                                style = MaterialTheme.typography.bodyMedium,
-                                textAlign = TextAlign.Center
-                            )
+//                            Text(
+//                                text = "${lottery.playedDifficulty}",
+//                                modifier = Modifier.weight(0.8f),
+//                                style = MaterialTheme.typography.bodyMedium,
+//                                textAlign = TextAlign.Center
+//                            )
+//                            Text(
+//                                text = lottery.playedInput,
+//                                modifier = Modifier.weight(1.2f),
+//                                style = MaterialTheme.typography.bodyMedium,
+//                                textAlign = TextAlign.Center
+//                            )
                         }
                     }
                 }
