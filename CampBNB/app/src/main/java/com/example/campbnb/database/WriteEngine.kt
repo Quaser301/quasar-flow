@@ -67,6 +67,8 @@ class WriteEngine<T: Identifiable> (
     }
 }
 
+// inject this function directly into Firebase
+
 /**
  * Inlined helper function to automate the passing of various values in the construction of a
  * [WriteEngine].
