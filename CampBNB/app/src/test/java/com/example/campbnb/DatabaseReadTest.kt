@@ -24,7 +24,7 @@ class QueryEngineTest {
     private lateinit var mockQuery: Query
     private lateinit var queryEngine: QueryEngine<TestUser>
 
-    @Before()
+    @Before
     fun setup() {
         mockDb = mockk(relaxed = true)
         mockCollection = mockk(relaxed = true)
@@ -32,9 +32,15 @@ class QueryEngineTest {
 
         every { mockDb.collection("Users") } returns mockCollection
         every { mockCollection.whereEqualTo(any<String>(), any()) } returns mockQuery
+        every { mockQuery.whereEqualTo(any<String>(), any()) } returns mockQuery
+        every { mockCollection.whereGreaterThan(any<String>(), any()) } returns mockQuery
         every { mockQuery.whereGreaterThan(any<String>(), any()) } returns mockQuery
+        every { mockCollection.whereLessThan(any<String>(), any()) } returns mockQuery
+        every { mockQuery.whereLessThan(any<String>(), any()) } returns mockQuery
+        every { mockCollection.orderBy(any<String>(), any<Query.Direction>()) } returns mockQuery
         every { mockQuery.orderBy(any<String>(), any<Query.Direction>()) } returns mockQuery
-        every { mockQuery.limit(any<Long>()) } returns mockQuery
+        every { mockCollection.limit(any()) } returns mockQuery
+        every { mockQuery.limit(any()) } returns mockQuery
 
 
         queryEngine = QueryEngine(mockDb, "Users", TestUser::class.java)
@@ -64,15 +70,17 @@ class QueryEngineTest {
     @Test
     fun test_QueryManyOfSameQuery_WhereEquals() {
         queryEngine.query()
+
             .whereEquals(TestUser::admin, true)
             .whereEquals(TestUser::admin, true)
             .whereEquals(TestUser::admin, true)
             .whereEquals(TestUser::admin, false)
             .whereEquals(TestUser::admin, false)
 
-
-        verify(exactly = 3) { mockCollection.whereEqualTo("admin", true) }
-        verify(exactly = 2) { mockCollection.whereEqualTo("admin", false) }
+        // Assert 1: The very first call hit the base collection reference
+        verify(exactly = 1) { mockCollection.whereEqualTo("admin", true) }
+        verify(exactly = 2) { mockQuery.whereEqualTo("admin", true) }
+        verify(exactly = 2) { mockQuery.whereEqualTo("admin", false) }
     }
 
     @Test
@@ -85,9 +93,9 @@ class QueryEngineTest {
             .limitResults(20)
 
 
-
-        verify(exactly = 3) { mockCollection.limit(10) }
-        verify(exactly = 2) { mockCollection.limit(20) }
+        verify(exactly = 1) { mockCollection.limit(10) }
+        verify(exactly = 2) { mockQuery.limit(10) }
+        verify(exactly = 2) { mockQuery.limit(20) }
     }
 
     @Test
@@ -100,8 +108,9 @@ class QueryEngineTest {
             .whereGreaterThan(TestUser::age, 36)
 
 
-        verify(exactly = 3) { mockCollection.whereGreaterThan("age", 18) }
-        verify(exactly = 2) { mockCollection.whereGreaterThan("age", 36) }
+        verify(exactly = 1) { mockCollection.whereGreaterThan("age", 18) }
+        verify(exactly = 2) { mockQuery.whereGreaterThan("age", 18) }
+        verify(exactly = 2) { mockQuery.whereGreaterThan("age", 36) }
     }
 
     @Test
@@ -114,8 +123,9 @@ class QueryEngineTest {
             .whereLessThan(TestUser::age, 36)
 
 
-        verify(exactly = 3) { mockCollection.whereLessThan("age", 18) }
-        verify(exactly = 2) { mockCollection.whereLessThan("age", 36) }
+        verify(exactly = 1) { mockCollection.whereLessThan("age", 18) }
+        verify(exactly = 2) { mockQuery.whereLessThan("age", 18) }
+        verify(exactly = 2) { mockQuery.whereLessThan("age", 36) }
     }
 
     @Test
@@ -127,9 +137,9 @@ class QueryEngineTest {
             .orderBy(TestUser::age)
             .orderBy(TestUser::age)
 
-
-        verify(exactly = 3) { mockCollection.orderBy("name", Query.Direction.ASCENDING) }
-        verify(exactly = 2) { mockCollection.orderBy("age", Query.Direction.ASCENDING) }
+        verify(exactly = 1) { mockCollection.orderBy("name", Query.Direction.ASCENDING) }
+        verify(exactly = 2) { mockQuery.orderBy("name", Query.Direction.ASCENDING) }
+        verify(exactly = 2) { mockQuery.orderBy("age", Query.Direction.ASCENDING) }
     }
 
     @Test
@@ -141,10 +151,10 @@ class QueryEngineTest {
             .orderBy(TestUser::age, Query.Direction.DESCENDING)
             .orderBy(TestUser::age)
 
-
-        verify(exactly = 2) { mockCollection.orderBy("name", Query.Direction.ASCENDING) }
-        verify(exactly = 1) { mockCollection.orderBy("age", Query.Direction.ASCENDING) }
-        verify(exactly = 1) { mockCollection.orderBy("name", Query.Direction.DESCENDING) }
-        verify(exactly = 1) { mockCollection.orderBy("age", Query.Direction.DESCENDING) }
+        verify(exactly = 1) { mockCollection.orderBy("name", Query.Direction.ASCENDING) }
+        verify(exactly = 1) { mockQuery.orderBy("name", Query.Direction.ASCENDING) }
+        verify(exactly = 1) { mockQuery.orderBy("age", Query.Direction.ASCENDING) }
+        verify(exactly = 1) { mockQuery.orderBy("name", Query.Direction.DESCENDING) }
+        verify(exactly = 1) { mockQuery.orderBy("age", Query.Direction.DESCENDING) }
     }
 }
