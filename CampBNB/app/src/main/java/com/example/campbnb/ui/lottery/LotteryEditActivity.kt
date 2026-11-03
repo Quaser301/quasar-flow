@@ -1,24 +1,200 @@
 package com.example.campbnb.ui.lottery
 
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.Button
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExposedDropdownMenuAnchorType
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import com.example.campbnb.controller.LotteryController
+import com.example.campbnb.models.Campsite
 import com.example.campbnb.models.LotteryModel
 import com.example.campbnb.models.ViewObserver
 
-// CRITICAL: Figure out where that nav controller is supposed to go
-class LotteryEditActivity(private val _navController: NavController) : ViewObserver<LotteryModel> {
+/**
+ * Activity for editing/adding a lottery. Prompted Gemini 3.6 Flash for how to create and format
+ * an interactable dropdown menu to be used for selecting available campsites.
+ */
+
+class LotteryEditActivity(private val navController: NavController) : ViewObserver<LotteryModel> {
     override fun update(model: LotteryModel) {
     }
 
+    @OptIn(ExperimentalMaterial3Api::class)
     @Composable
     fun LotteryEdit(
         model: LotteryModel,
         controller: LotteryController,
-        navController: NavController
+        ownerCampsites: List<Campsite> = emptyList()
     ) {
+        var selectedCampsite by remember { mutableStateOf<Campsite?>(null) }
+        var dropdownExpanded by remember { mutableStateOf(false) }
 
+        var numberOfWinners by remember { mutableStateOf("") }
+        var waitlistCapacity by remember { mutableStateOf("") }
+        var registrationStart by remember { mutableStateOf("") }
+        var registrationEnd by remember { mutableStateOf("") }
 
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Button(
+                    onClick = { navController.popBackStack() },
+                    modifier = Modifier.padding(end = 8.dp)
+                ) {
+                    Text(text = "Back")
+                }
+                Text(
+                    text = "Lottery Form",
+                    style = MaterialTheme.typography.headlineMedium,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // Campsite Dropdown Selection
+            ExposedDropdownMenuBox(
+                expanded = dropdownExpanded,
+                onExpandedChange = { dropdownExpanded = !dropdownExpanded },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                OutlinedTextField(
+                    value = selectedCampsite?.campName ?: "",
+                    onValueChange = {},
+                    readOnly = true,
+                    label = { Text("Pick Campsite") },
+                    trailingIcon = {
+                        ExposedDropdownMenuDefaults.TrailingIcon(expanded = dropdownExpanded)
+                    },
+                    colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors(),
+                    modifier = Modifier
+                        .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable)
+                        .fillMaxWidth()
+                )
+
+                ExposedDropdownMenu(
+                    expanded = dropdownExpanded,
+                    onDismissRequest = { dropdownExpanded = false }
+                ) {
+                    if (ownerCampsites.isEmpty()) {
+                        DropdownMenuItem(
+                            text = { Text("No campsites available") },
+                            onClick = { dropdownExpanded = false }
+                        )
+                    } else {
+                        ownerCampsites.forEach { campsite ->
+                            DropdownMenuItem(
+                                text = {
+                                    Column {
+                                        Text(
+                                            text = campsite.campName,
+                                            style = MaterialTheme.typography.bodyLarge,
+                                            fontWeight = FontWeight.Medium
+                                        )
+                                        if (campsite.campLoc.isNotBlank()) {
+                                            Text(
+                                                text = campsite.campLoc,
+                                                style = MaterialTheme.typography.bodySmall
+                                            )
+                                        }
+                                    }
+                                },
+                                onClick = {
+                                    selectedCampsite = campsite
+                                    dropdownExpanded = false
+                                }
+                            )
+                        }
+                    }
+                }
+            }
+
+            OutlinedTextField(
+                value = numberOfWinners,
+                onValueChange = { numberOfWinners = it },
+                label = { Text("Number of Winners") },
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            OutlinedTextField(
+                value = waitlistCapacity,
+                onValueChange = { waitlistCapacity = it },
+                label = { Text("Waitlist Capacity (leave blank for unlimited)") },
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            OutlinedTextField(
+                value = registrationStart,
+                onValueChange = { registrationStart = it },
+                label = { Text("Registration Start Date") },
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            OutlinedTextField(
+                value = registrationEnd,
+                onValueChange = { registrationEnd = it },
+                label = { Text("Registration End Date") },
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 16.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                OutlinedButton(
+                    onClick = { navController.popBackStack() },
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text("Cancel")
+                }
+                Button(
+                    onClick = {
+                        navController.popBackStack()
+                    },
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text("Save")
+                }
+            }
+        }
     }
-
 }
