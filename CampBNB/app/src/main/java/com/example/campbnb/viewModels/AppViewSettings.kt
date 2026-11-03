@@ -37,7 +37,7 @@ class AppViewSettingController: ViewModel() {
         _viewSetting.value = newView
     }
 
-    // allows any superview to ask for a readonly snapshot of the current setting rather than
+    // allows any superview to ask for a readonly wrapper of the live StateFlow rather than
     // latching on to the controller itself.
     /**
      * Converts the current state of the controller into an [AppViewSetting].
@@ -50,13 +50,15 @@ class AppViewSettingController: ViewModel() {
 }
 
 /**
- * A readonly, immutable [ViewModel] for a single [AppView].
+ * A readonly [ViewModel] wrapping the live [AppView] [StateFlow] of an [AppViewSettingController].
  *
- * Unlike [AppViewSettingController], it cannot change once created and updates nothing on its own:
- * it is a snapshot of one [AppView] for other views to present. Instances are created by
- * [AppViewSettingController.toAppViewSetting].
+ * It holds the [StateFlow] itself rather than its value, so any superview latching on to one of
+ * these re-renders automatically as [AppViewSettingController] changes the current setting.
+ * The class instance itself never changes: the [StateFlow] it holds is immutable.
  *
- * @property setting The [AppView] this class instance presents.
+ * Instances are created by [AppViewSettingController.toAppViewSetting].
+ *
+ * @property setting The live [StateFlow] of [AppView] this class instance presents.
  */
 class AppViewSetting(val setting: StateFlow<AppView>): ViewModel() {}
 
