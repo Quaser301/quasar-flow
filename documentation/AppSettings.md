@@ -34,5 +34,5 @@ classDiagram
     AppViewSetting ..> AppView : presents the live setting via StateFlow
 
     note for AppViewSetting "holds the StateFlow handle itself, not a value: superviews that latch on to it re-render automatically when changeViewTo switches the setting"
-    note for AppView "default is EntrantView because it has the least potential for bad state; OwnerView and EntrantView mirror those users' perspectives"
+    note for AppView "default is EntrantView because it has the least potential for nefarious use"
 ```
