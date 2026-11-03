@@ -3,6 +3,7 @@ package com.example.campbnb.viewModels
 import androidx.lifecycle.ViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.StateFlow
 
 
 
@@ -41,10 +42,10 @@ class AppViewSettingController: ViewModel() {
     /**
      * Converts the current state of the controller into an [AppViewSetting].
      *
-     * @return A readonly [AppViewSetting] instance holding the currently set [AppView].
+     * @return A readonly [AppViewSetting] instance holding the [AppView] [StateFlow].
      */
     fun toAppViewSetting(): AppViewSetting {
-        return AppViewSetting(viewSetting.value)
+        return AppViewSetting(viewSetting)
     }
 }
 
@@ -57,7 +58,7 @@ class AppViewSettingController: ViewModel() {
  *
  * @property setting The [AppView] this class instance presents.
  */
-sealed class AppViewSetting(val setting: AppView): ViewModel()
+class AppViewSetting(val setting: StateFlow<AppView>): ViewModel() {}
 
 /**
  * The views a user can be in, switched via [AppViewSettingController].
