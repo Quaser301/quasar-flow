@@ -1,5 +1,7 @@
 package com.example.campbnb.ui.lottery
 
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -21,6 +23,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -36,10 +39,16 @@ import com.example.campbnb.controller.LotteryController
 import com.example.campbnb.models.Campsite
 import com.example.campbnb.models.LotteryModel
 import com.example.campbnb.models.ViewObserver
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 /**
- * Activity for editing/adding a lottery. Prompted Gemini 3.6 Flash for how to create and format
+ * Activity for editing/adding a lottery.
+ * 03-11-26: Prompted Gemini 3.6 Flash for how to create and format
  * an interactable dropdown menu to be used for selecting available campsites.
+ * 03-11-26 Prompted Gemini 3.6 Flash for how to integrate date range picker file
+ * into this activity for the booking and registration fields.
  */
 
 class LotteryEditActivity(private val navController: NavController) : ViewObserver<LotteryModel> {
@@ -58,8 +67,21 @@ class LotteryEditActivity(private val navController: NavController) : ViewObserv
 
         var numberOfWinners by remember { mutableStateOf("") }
         var waitlistCapacity by remember { mutableStateOf("") }
-        var registrationStart by remember { mutableStateOf("") }
-        var registrationEnd by remember { mutableStateOf("") }
+
+        // Date selection state
+        var regStartMillis by remember { mutableStateOf<Long?>(null) }
+        var regEndMillis by remember { mutableStateOf<Long?>(null) }
+        var showRegDatePicker by remember { mutableStateOf(false) }
+
+        var bookingStartMillis by remember { mutableStateOf<Long?>(null) }
+        var bookingEndMillis by remember { mutableStateOf<Long?>(null) }
+        var showBookingDatePicker by remember { mutableStateOf(false) }
+
+        fun formatDateRange(start: Long?, end: Long?): String {
+            if (start == null || end == null) return ""
+            val formatter = SimpleDateFormat("MMM dd, yyyy", Locale.getDefault())
+            return "${formatter.format(Date(start))} - ${formatter.format(Date(end))}"
+        }
 
         Column(
             modifier = Modifier
@@ -160,18 +182,42 @@ class LotteryEditActivity(private val navController: NavController) : ViewObserv
                 modifier = Modifier.fillMaxWidth()
             )
 
+            // Registration Date Range Picker
             OutlinedTextField(
-                value = registrationStart,
-                onValueChange = { registrationStart = it },
-                label = { Text("Registration Start Date") },
-                modifier = Modifier.fillMaxWidth()
+                value = formatDateRange(regStartMillis, regEndMillis),
+                onValueChange = {},
+                readOnly = true,
+                label = { Text("Registration Period") },
+                trailingIcon = {
+                    TextButton(onClick = { showRegDatePicker = true }) {
+                        Text("Select")
+                    }
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null
+                    ) { showRegDatePicker = true }
             )
 
+            // Booking Date Range Picker
             OutlinedTextField(
-                value = registrationEnd,
-                onValueChange = { registrationEnd = it },
-                label = { Text("Registration End Date") },
-                modifier = Modifier.fillMaxWidth()
+                value = formatDateRange(bookingStartMillis, bookingEndMillis),
+                onValueChange = {},
+                readOnly = true,
+                label = { Text("Booking Period") },
+                trailingIcon = {
+                    TextButton(onClick = { showBookingDatePicker = true }) {
+                        Text("Select")
+                    }
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null
+                    ) { showBookingDatePicker = true }
             )
 
             Row(
@@ -195,6 +241,27 @@ class LotteryEditActivity(private val navController: NavController) : ViewObserv
                     Text("Save")
                 }
             }
+        }
+
+        // Modals for Date Range Pickers
+        if (showRegDatePicker) {
+            DateRangePickerModal(
+                onDateRangeSelected = { (start, end) ->
+                    regStartMillis = start
+                    regEndMillis = end
+                },
+                onDismiss = { showRegDatePicker = false }
+            )
+        }
+
+        if (showBookingDatePicker) {
+            DateRangePickerModal(
+                onDateRangeSelected = { (start, end) ->
+                    bookingStartMillis = start
+                    bookingEndMillis = end
+                },
+                onDismiss = { showBookingDatePicker = false }
+            )
         }
     }
 }
