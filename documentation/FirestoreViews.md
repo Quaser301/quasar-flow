@@ -31,15 +31,15 @@ classDiagram
         -_queryState MutableStateFlow~QueryState~
         +queryState StateFlow~QueryState~
         +fetchAll()
-        +executeQuery(block)
+        +executeQuery(block QueryChain~T~ -> QueryChain~T~)
     }
     class FirestoreWriteViewModel~T~ {
         -engine WriteEngine~T~
         -_writeState MutableStateFlow~WriteState~
         +writeState StateFlow~WriteState~
-        +create(item)
-        +update(item, updatedFields)
-        +delete(item)
+        +create(item T)
+        +update(item T, updatedFields Map~String~)
+        +delete(item T)
         +resetWriteState()
     }
 
@@ -76,6 +76,9 @@ Reading the diagram:
   the flow.
 - Aggregation (open diamond, `o--`): the engines are constructed before and outside
   the ViewModels and passed in, so they are not owned.
+- `updatedFields` is `Map<String, Any?>`, shown narrowed as `Map~String~` because the
+  renderer cannot express a generic containing a comma; `executeQuery`'s block is the
+  Kotlin lambda-with-receiver `QueryChain<T>.() -> QueryChain<T>`.
 - State must be held by a `ViewModel` or Jetpack Compose disposes of it on re-render;
   `viewModelScope.launch` disposes of running work when a view is closed. Both
   ViewModels are Kotlin `open` classes, so subviews may extend them;

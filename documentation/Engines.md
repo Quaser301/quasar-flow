@@ -9,7 +9,7 @@ repository.
 classDiagram
     class QueryEngine~T~ {
         -db FirebaseFirestore
-        -collectionName string
+        -collectionName String
         -classInstance Class~T~
         -collection CollectionReference
         +query() QueryChain~T~
@@ -17,20 +17,20 @@ classDiagram
     class QueryChain~T~ {
         -query Query
         -classInstance Class~T~
-        +whereEquals(property, value) QueryChain~T~
-        +whereGreaterThan(property, value) QueryChain~T~
-        +whereLessThan(property, value) QueryChain~T~
-        +orderBy(property, direction) QueryChain~T~
-        +limitResults(count) QueryChain~T~
-        +execute(onSuccess, onFailure)
+        +whereEquals(property KProperty1~T~, value Any?) QueryChain~T~
+        +whereGreaterThan(property KProperty1~T~, value Any) QueryChain~T~
+        +whereLessThan(property KProperty1~T~, value Any) QueryChain~T~
+        +orderBy(property KProperty1~T~, direction Query.Direction ASCENDING) QueryChain~T~
+        +limitResults(limit Long) QueryChain~T~
+        +execute(onSuccess List~T~ -> Unit, onFailure Exception -> Unit)
     }
     class WriteEngine~T~ {
         -db FirebaseFirestore
         -collectionName string
         -collection CollectionReference
-        +save(item, onComplete)
-        +update(id, fieldMap, onComplete)
-        +delete(id, onComplete)
+        +save(item T, onComplete Result~Exception?~ -> Unit)
+        +update(id String, fieldMap Map~String~, onComplete Result~Exception?~ -> Unit)
+        +delete(id String, onComplete Result~Exception?~ -> Unit)
     }
     class Identifiable <<abstract>>
     Identifiable : +id string
@@ -62,8 +62,12 @@ Reading the diagram:
   the `T` type parameter is constrained to subclasses of `Identifiable`.
 - There are no interface implementations in the engine code, so no dotted
   interface lines appear; the notation (`<|..`) would be used if there were.
-- `whereEquals`/`orderBy` take `KProperty1` references, so the queried property is
-  guaranteed to belong to `T`.
+- Signatures carry the Kotlin parameter types; where the renderer cannot express a type
+  (a generic containing a comma), the narrowed form is shown: `KProperty1(T, *)` appears
+  as `KProperty1~T~`, which is what makes `whereEquals`/`orderBy` take typed property
+  references, so the queried property is guaranteed to belong to `T`.
+- `execute`'s callbacks are `(List<T>) -> Unit` and `(Exception) -> Unit`;
+  `WriteEngine`'s `onComplete` is `(Result<Exception?>) -> Unit`.
 - `Identifiable` is instantiated with a random UUID; Firestore repopulates `id`
   from the `DocumentId` annotation on read, which is why the class is abstract and
   never instantiated by hand.

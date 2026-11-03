@@ -18,7 +18,7 @@ classDiagram
     class AppViewSettingController {
         -_viewSetting MutableStateFlow~AppView~
         +viewSetting StateFlow~AppView~
-        +changeViewTo(newView)
+        +changeViewTo(newView AppView)
         +toAppViewSetting() AppViewSetting
     }
 
