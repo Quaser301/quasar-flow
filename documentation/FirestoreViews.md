@@ -6,9 +6,9 @@ engines they drive (`CampBNB/app/src/main/java/com/example/campbnb/database/`).
 
 ```mermaid
 classDiagram
-    class ViewModel
+    class ViewModel <<abstract>>
 
-    class QueryState~T~ <<abstract>>
+    class QueryState~T~
     class NoQuery
     class Loading
     class Success~T~ {
@@ -18,7 +18,7 @@ classDiagram
         +exception Exception
     }
 
-    class WriteState <<abstract>>
+    class WriteState
     class Idle
     class WriteLoading
     class WriteSuccess
@@ -55,12 +55,30 @@ classDiagram
     ViewModel <|-- FirestoreQueryViewModel
     ViewModel <|-- FirestoreWriteViewModel
 
-    FirestoreQueryViewModel ..> QueryEngine : runs queries through the engine
-    FirestoreWriteViewModel ..> WriteEngine : save/update/delete through the engine
-    FirestoreQueryViewModel ..> QueryState : exposes current via StateFlow
-    FirestoreWriteViewModel ..> WriteState : exposes current via StateFlow
-
-    note for QueryState "sealed in Kotlin: the states shown are exhaustive, none may be added from outside. NoQuery no query run yet; Loading a query running, unresolved; Success carries the entries read, not necessarily any; Fault the reason the engine could not complete"
-    note for WriteState "sealed in Kotlin, same rules: Idle no writes active; WriteLoading running, unresolved; WriteSuccess latest writes executed; WriteFault the reason one could not complete. resetWriteState returns the hierarchy to Idle"
-    note for ViewModel "state must be held by a ViewModel or Jetpack Compose disposes of it on re-render; viewModelScope.launch disposes of running work when a view is closed"
+    FirestoreQueryViewModel o-- QueryEngine : engine injected through the constructor
+    FirestoreWriteViewModel o-- WriteEngine : engine injected through the constructor
+    FirestoreQueryViewModel *-- QueryState : private flow handle created by this class
+    FirestoreWriteViewModel *-- WriteState : private flow handle created by this class
 ```
+
+Reading the diagram:
+
+- Inheritance (solid line, hollow triangle): the state subclasses and both ViewModels
+  extend their bases in Kotlin. `QueryState` and `WriteState` are Kotlin `sealed`, so
+  the hierarchies shown are exhaustive, no state may be added from outside. `NoQuery`
+  and `Idle` mark "nothing run yet", `Loading`/`WriteLoading` mean a query or write is
+  running unresolved, `Success`/`WriteSuccess` report the latest result (an empty list
+  is still a success), `Fault`/`WriteFault` carry the reason the engine could not
+  complete, and `resetWriteState` returns the write hierarchy to `Idle`.
+- Composition (filled diamond, `*--`): the private `MutableStateFlow` handles are
+  created inside the ViewModels and exist only for the view's lifecycle, so the state
+  they carry is composed. The state values themselves are swapped at runtime through
+  the flow.
+- Aggregation (open diamond, `o--`): the engines are constructed before and outside
+  the ViewModels and passed in, so they are not owned.
+- State must be held by a `ViewModel` or Jetpack Compose disposes of it on re-render;
+  `viewModelScope.launch` disposes of running work when a view is closed. Both
+  ViewModels are Kotlin `open` classes, so subviews may extend them;
+  `executeQuery` accepts a `QueryChain` builder block starting at the base query, and
+  `create`/`update`/`delete` mirror the `WriteEngine` operations, moving the exposed
+  state through `Loading` into `Success` or `Fault`.
