@@ -3,7 +3,8 @@
 UML documentation for `TransactionEngine` and its helper class `TransactionChain`, the
 view contract `TransactionView` and its sealed implementation `TransactionViewState`, and
 the `FirestoreTransactionViewModel` that exposes them
-(`CampBNB/app/src/main/java/com/example/campbnb/database/`). The `FirebaseFirestore`,
+(`CampBNB/app/src/main/java/com/example/campbnb/database/`). `Database`, also in that
+directory, hands out the engine against its shared Firestore instance. The `FirebaseFirestore`,
 `Transaction`, `DocumentReference`, `DocumentResult`, and `Result` classes are library
 types, not part of this repository.
 
@@ -37,6 +38,9 @@ classDiagram
         +runTransaction(block TransactionChain -> Any)
         +resetTransactionViewState()
     }
+    class Database {
+        +transactionEngine() TransactionEngine
+    }
     class FirebaseFirestore
     class Transaction
     class DocumentReference
@@ -50,6 +54,7 @@ classDiagram
     TransactionViewState <|-- Fault
     ViewModel <|-- FirestoreTransactionViewModel
 
+    Database o-- FirebaseFirestore : shared instance resolved once at first use and held here
     TransactionEngine o-- FirebaseFirestore : db instance provided on construction
     TransactionChain o-- Transaction : live transaction handed to the chain at commit time
     FirestoreTransactionViewModel o-- TransactionEngine : engine injected through the constructor
@@ -57,6 +62,7 @@ classDiagram
     TransactionEngine ..> TransactionChain : commit() wraps the live transaction in a new chain per call
     TransactionChain ..> DocumentResult : read() relays the transaction get result
     TransactionEngine ..> Result : onComplete receives success(null) or failure(Exception)
+    Database ..> TransactionEngine : transactionEngine() builds one against the shared instance
 ```
 
 Reading the diagram:
@@ -75,7 +81,9 @@ Reading the diagram:
   through the flow.
 - Aggregation (open diamond, `o--`): the engines are constructed before and outside the
   ViewModels and passed in, so they are not owned; the live Firestore `Transaction` is
-  provided by the engine at commit time and exists independently of the chain.
+  provided by the engine at commit time and exists independently of the chain; `Database`
+  resolves the Firestore instance once at first use and holds the same shared instance
+  every engine it hands out is built against.
 - Dependency (dotted arrow, `..>`): `commit()` produces a `TransactionChain` rather than
   holding one, wrapping the live transaction for the duration of the call; `read()` relays
   the engine's get result; `onComplete` receives `success(null)` or `failure(Exception)`,
@@ -94,6 +102,8 @@ Reading the diagram:
   itself happens, so a misordered transaction does no partial work past the mistake and the
   exception surfaces through `onComplete` as a `Result.failure` and through the view as
   `Fault`.
-- Engines are constructed inline via the extension function `db.transactionEngine()`;
-  both ViewModels are Kotlin `open` classes, so subviews may extend them and observe
-  `transactionViewState` through the exposed `StateFlow`.
+- Engines are constructed inline via the extension function `db.transactionEngine()`, or
+  obtained from `Database.transactionEngine()`, which builds one against the single cached
+  Firestore instance rather than a fresh one per call; application code prefers the
+  `Database` accessor. Both ViewModels are Kotlin `open` classes, so subviews may extend
+  them and observe `transactionViewState` through the exposed `StateFlow`.
