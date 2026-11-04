@@ -55,7 +55,7 @@ import com.example.campbnb.database.QueryEngine
  */
 class ReservationController (
     private val lotteryController: LotteryController,
-    private val db: Reservation,
+    //private val db: Reservation,
     private val notifications: NotificationController
 ) {
     public fun checkEligibility() {
