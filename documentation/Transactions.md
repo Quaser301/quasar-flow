@@ -81,7 +81,11 @@ Reading the diagram:
   the engine's get result; `onComplete` receives `success(null)` or `failure(Exception)`,
   the same result contract as the other engines.
 - `commit`'s block is the Kotlin lambda-with-receiver `TransactionChain.() -> Any`, so
-  `read`, `save`, `update`, and `delete` resolve against the chain inside the block.
+  `read`, `save`, `update`, and `delete` resolve against the chain inside the block. Between
+  those calls the block is ordinary Kotlin: read results may be converted and tested against,
+  local values may hold them, and later writes may be derived from what was read, so a
+  repository's own transaction bodies (a conditional close that reads a reservation, checks
+  its status, updates it, and deletes its booked dates) convert unchanged.
 - Unlike the other engines, this engine carries no `T` type parameter: a transaction spans
   however many collections it needs to hold its invariants, so it operates on
   `DocumentReference`s rather than on one schema.

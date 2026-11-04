@@ -7,14 +7,18 @@ import com.google.firebase.firestore.Transaction
 
 
 /**
- * Type safe, generic Transaction Engine for Firestore.
+ * Transaction Engine for Firestore, holding invariants across collections.
  *
- * Unlike the other engines, this engine is not typed to a single schema: a transaction spans
+ * Unlike the other engines, this engine is not typed to a schema at all: a transaction spans
  * however many collections it needs to hold its invariants (a reservation and its booked dates,
- * for example), so it operates on [DocumentReference]s rather than on a schema `T`.
+ * for example), so it operates on [DocumentReference]s rather than on a schema `T`. There is
+ * no single type to be safe about; safety here comes from the transaction rules, not from a
+ * type parameter.
  *
  * A transaction may not commit on its own: all reads must be issued before any write, and if
- * any part of the transaction fails, none of it is written.
+ * any part of the transaction fails, none of it is written. The block given to [commit] is
+ * ordinary Kotlin between the chain calls below, so a body may convert a read result, test it,
+ * and derive later writes from what it read.
  *
  * # Example:
  * ```kotlin
@@ -26,6 +30,15 @@ import com.google.firebase.firestore.Transaction
  *     dateRefs.forEach { check(!read(it).exists()) { "One or more dates are already booked" } }
  *     save(reservationRef, reservation)
  *     dateRefs.forEach { save(it, mapOf("campsiteId" to reservation.campsiteId)) }
+ * }) { result -> ... }
+ *
+ * // A read result can also be converted, tested against, and written out from.
+ * transactionEngine.commit({
+ *     val reservation = read(reservationRef).toObject(ReservationModel::class.java)
+ *         ?: throw NoSuchElementException("No reservation to close")
+ *     check(reservation.status == ReservationStatus.ACTIVE) { "Reservation is already closed" }
+ *     update(reservationRef, mapOf("status" to ReservationStatus.CANCELLED.name))
+ *     reservation.dates.forEach { delete(bookedDates.document("${reservation.campsiteId}_$it")) }
  * }) { result -> ... }
  * ```
  *
@@ -54,7 +67,7 @@ class TransactionEngine (
     }
 
     /**
-     * Internal class helper giving a type safe face to a live Firestore [Transaction].
+     * Internal class helper giving a checked face to a live Firestore [Transaction].
      *
      * The read-before-write rule is enforced here rather than left to the engine: failing at
      * the point the mistake is made keeps a misordered transaction from doing partial work past
