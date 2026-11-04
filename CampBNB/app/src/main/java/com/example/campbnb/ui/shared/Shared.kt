@@ -9,10 +9,10 @@ import com.example.campbnb.viewModels.AppViewSetting
 
 
 @Composable
-fun AppViewModificationIsValidForCurrentWindowChecker(returnTo: () -> Unit, viewSetting: AppViewSetting, goHomeIfAppViewIs:List<AppView>) {
+fun AppViewModificationIsValidForCurrentWindowChecker(returnTo: () -> Unit, viewSetting: AppViewSetting, returnIfAppViewIs:List<AppView>) {
     val currentViewType = viewSetting.setting.collectAsStateWithLifecycle()
     LaunchedEffect(currentViewType) {
-        if (goHomeIfAppViewIs.contains(currentViewType.value)) {
+        if (returnIfAppViewIs.contains(currentViewType.value)) {
             returnTo()
         }
     }
