@@ -1,7 +1,8 @@
 package com.example.campbnb.models
 
+import com.example.campbnb.database.Identifiable
+
 class Campsite(
-    val id: String = "",
     val ownerId: String = "",
     val campName: String = "",
     val campLoc: String = "",
@@ -11,4 +12,4 @@ class Campsite(
     val campImg: String = "",
     val maxOccupancy: Int = 0,
     val tags: List<String> = emptyList()
-) {}
+) : Identifiable()
