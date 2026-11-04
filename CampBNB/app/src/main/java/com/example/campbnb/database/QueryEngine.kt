@@ -78,6 +78,18 @@ class QueryEngine<T: Identifiable> (
         }
 
         /**
+         * Adds a Where In clause to the query, IE Variable is one of Values.
+         *
+         * @param property The Variable to query about.
+         * @param values The list of accepted values. A document matches if the variable equals any
+         * one of them. Firestore limits this list to 30 values.
+         * @return The updated query.
+         */
+        fun whereIn(property: KProperty1<T, *>, values: List<Any>): QueryChain<T> {
+            return QueryChain(query.whereIn(property.name, values), classInstance)
+        }
+
+        /**
          * Adds a Greater Than clause to the query, IE Variable > Value.
          *
          * @param property The Variable to query about.
