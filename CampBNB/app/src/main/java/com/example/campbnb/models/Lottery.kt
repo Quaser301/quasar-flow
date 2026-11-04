@@ -5,6 +5,8 @@ package com.example.campbnb.models
  * 03-11-26: Enum and formatting and statusAt for determining the status
  * suggested by Claude Sonnet 5.5 (prompted for an effective way to store a
  * lottery's status so it can be displayed).
+ * 04-11-26: Used built in gemini flash 3.6 to add a few personal comments and kdoc comments
+ * for functional calrity
  */
 enum class LotteryStatus { UPCOMING, OPEN, DRAWN, BOOKING, CLOSED }
 
