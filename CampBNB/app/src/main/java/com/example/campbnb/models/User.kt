@@ -1,5 +1,7 @@
 package com.example.campbnb.models
 
-class User {
+import com.example.campbnb.database.Identifiable
+
+class User: Identifiable() {
     // A
 }
