@@ -1,6 +1,6 @@
 package com.example.campbnb.controller
 
-import com.example.campbnb.database.ReservationRepository
+import com.example.campbnb.data.ReservationRepository
 import com.example.campbnb.models.Availability
 import com.example.campbnb.models.ReservationModel
 import com.example.campbnb.models.ReservationStatus
@@ -175,7 +175,11 @@ class ReservationController(
                 dates = sorted,
                 startDate = sorted.first(),
                 endDate = sorted.last(),
-                status = ReservationStatus.ACTIVE
+                status = ReservationStatus.ACTIVE,
+                guests = TODO(),
+                refundRecorded = TODO(),
+                createdAt = TODO(),
+                rules = TODO()
             )
 
             reservations.save(reservation, onSuccess = {
