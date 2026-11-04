@@ -25,6 +25,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -34,11 +35,15 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
 import com.example.campbnb.controller.LotteryController
 import com.example.campbnb.models.Campsite
 import com.example.campbnb.models.LotteryModel
 import com.example.campbnb.models.ViewObserver
+import com.example.campbnb.ui.shared.AppViewModificationIsValidForCurrentWindowChecker
+import com.example.campbnb.viewModels.AppView
+import com.example.campbnb.viewModels.AppViewSetting
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -50,18 +55,39 @@ import java.util.Locale
  * 03-11-26 Prompted Gemini 3.6 Flash for how to integrate date range picker file
  * into this activity for the booking and registration fields.
  */
+// Note: injecting temporary comments cause I need to know what I'm doing.
+// remove once actual docs are available.
+// also: why is this a class???? - W
+class LotteryEditActivity(
+    val returnHome: () -> Unit,
+    val navigateBackwards: () -> Unit,
+    val appViewSettings: AppViewSetting
 
-class LotteryEditActivity(private val navController: NavController) : ViewObserver<LotteryModel> {
+) : ViewObserver<LotteryModel> {
+
+
     override fun update(model: LotteryModel) {
     }
 
     @OptIn(ExperimentalMaterial3Api::class)
+    // Editing Lotteries
     @Composable
     fun LotteryEdit(
         model: LotteryModel,
         controller: LotteryController,
-        ownerCampsites: List<Campsite> = emptyList()
+        ownerCampsites: List<Campsite> = emptyList(),
     ) {
+        AppViewModificationIsValidForCurrentWindowChecker(
+            returnHome,
+            appViewSettings,
+            listOf(
+                AppView.EntrantView,
+                // could remove, but afaik admins shouldn't see the lottery unless posing
+                // as an Owner.
+                AppView.AdminView
+            )
+        )
+
         var selectedCampsite by remember { mutableStateOf<Campsite?>(null) }
         var dropdownExpanded by remember { mutableStateOf(false) }
 
@@ -95,7 +121,7 @@ class LotteryEditActivity(private val navController: NavController) : ViewObserv
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Button(
-                    onClick = { navController.popBackStack() },
+                    onClick = { navigateBackwards() },
                     modifier = Modifier.padding(end = 8.dp)
                 ) {
                     Text(text = "Back")
@@ -227,14 +253,14 @@ class LotteryEditActivity(private val navController: NavController) : ViewObserv
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 OutlinedButton(
-                    onClick = { navController.popBackStack() },
+                    onClick = { navigateBackwards() },
                     modifier = Modifier.weight(1f)
                 ) {
                     Text("Cancel")
                 }
                 Button(
                     onClick = {
-                        navController.popBackStack()
+                        navigateBackwards()
                     },
                     modifier = Modifier.weight(1f)
                 ) {
