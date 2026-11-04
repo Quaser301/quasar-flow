@@ -20,24 +20,40 @@ import com.google.firebase.firestore.Transaction
  * ordinary Kotlin between the chain calls below, so a body may convert a read result, test it,
  * and derive later writes from what it read.
  *
- * # Example:
+ * # Example: a reservation repository's two atomic commands, as one reservation and its
+ * booked dates must always change together.
  * ```kotlin
  * val firestore = FirebaseFirestore.getInstance()
  * val transactionEngine = firestore.transactionEngine()
+ *
+ * // Claim a reservation and book all of its dates: each check aborts the whole transaction
+ * // before anything is written, so one lottery entry holds one reservation and no booked
+ * // date is taken twice.
  * transactionEngine.commit({
- *     val existing = read(reservationRef)
+ *     val existing = read(resRef)
  *     check(!existing.exists()) { "Entry already has a reservation" }
  *     dateRefs.forEach { check(!read(it).exists()) { "One or more dates are already booked" } }
- *     save(reservationRef, reservation)
- *     dateRefs.forEach { save(it, mapOf("campsiteId" to reservation.campsiteId)) }
+ *     save(resRef, reservation)
+ *     dateRefs.forEach {
+ *         save(
+ *             it,
+ *             mapOf(
+ *                 "campsiteId" to reservation.campsiteId,
+ *                 "reservationId" to reservation.lotteryEntryId
+ *             )
+ *         )
+ *     }
  * }) { result -> ... }
  *
- * // A read result can also be converted, tested against, and written out from.
+ * // Close a reservation: the read result is converted to a model, tested against, and the
+ * // status write and the deletion of its booked dates are derived from what was read.
  * transactionEngine.commit({
- *     val reservation = read(reservationRef).toObject(ReservationModel::class.java)
+ *     val reservation = read(resRef).toObject(ReservationModel::class.java)
  *         ?: throw NoSuchElementException("No reservation to close")
- *     check(reservation.status == ReservationStatus.ACTIVE) { "Reservation is already closed" }
- *     update(reservationRef, mapOf("status" to ReservationStatus.CANCELLED.name))
+ *     check(reservation.status == ReservationStatus.ACTIVE) {
+ *         "Reservation is already ${reservation.status}"
+ *     }
+ *     update(resRef, mapOf("status" to newStatus.name, "refundRecorded" to true))
  *     reservation.dates.forEach { delete(bookedDates.document("${reservation.campsiteId}_$it")) }
  * }) { result -> ... }
  * ```
