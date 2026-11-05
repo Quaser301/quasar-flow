@@ -1,5 +1,6 @@
 package com.example.campbnb.database
 
+import com.example.campbnb.models.Notification
 import com.example.campbnb.models.User
 import com.google.firebase.firestore.FirebaseFirestore
 
@@ -40,6 +41,21 @@ object Database {
 
         fun writeEngine(): WriteEngine<User> {
             return db.writeEngineFor<User>(COLLECTION_NAME)
+        }
+    }
+
+    /**
+     * The Notification Collection. All [Notification] records are stored here.
+     */
+    object Notifications {
+        const val COLLECTION_NAME = "notifications"
+
+        fun readEngine(): QueryEngine<Notification> {
+            return db.readEngineFor<Notification>(COLLECTION_NAME)
+        }
+
+        fun writeEngine(): WriteEngine<Notification> {
+            return db.writeEngineFor<Notification>(COLLECTION_NAME)
         }
     }
 
