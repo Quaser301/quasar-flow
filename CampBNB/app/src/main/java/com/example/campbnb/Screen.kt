@@ -1,5 +1,6 @@
 package com.example.campbnb
 
+import com.example.campbnb.ui.components.UserRole
 import kotlinx.serialization.Serializable
 import com.example.campbnb.ui.shared.AppViewModificationIsValidForCurrentWindowChecker
 import com.example.campbnb.viewModels.AppView
@@ -23,7 +24,7 @@ import com.example.campbnb.viewModels.AppView
 sealed interface Screen {
     // the app's entry point.
     @Serializable
-    data object Home: Screen
+    data class Home(val roleName: UserRole): Screen
 
     // the screen where a Campsite Owner edits their lottery settings.
     @Serializable
@@ -32,4 +33,16 @@ sealed interface Screen {
     // the screen where a Campsite Owner watches their lottery run.
     @Serializable
     data object LotteryMonitorActivity: Screen
+
+    @Serializable
+    data object Start: Screen
+
+    @Serializable
+    data object Login: Screen
+
+    @Serializable
+    data object SignUp: Screen
+
+    @Serializable
+    data object Role: Screen
 }
