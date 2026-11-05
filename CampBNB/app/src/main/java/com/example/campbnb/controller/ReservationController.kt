@@ -149,7 +149,11 @@ class ReservationController(
         campsiteId: String,
         dates: Set<String>,
         onSuccess: (ReservationModel) -> Unit,
-        onFailure: (Exception) -> Unit
+        onFailure: (Exception) -> Unit,
+        guests: Int,
+        refundRecorded: Boolean,
+        createdAt: Long = System.currentTimeMillis(),
+        rules: Boolean
     ) {
         if (lotteryEntryId !in policiesConfirmed) {
             onFailure(IllegalStateException("Policies must be confirmed before reserving"))
@@ -176,10 +180,10 @@ class ReservationController(
                 startDate = sorted.first(),
                 endDate = sorted.last(),
                 status = ReservationStatus.ACTIVE,
-                guests = TODO(),
-                refundRecorded = TODO(),
-                createdAt = TODO(),
-                rules = TODO()
+                guests = guests,
+                refundRecorded = refundRecorded,
+                createdAt = createdAt,
+                rules = rules
             )
 
             reservations.save(reservation, onSuccess = {
