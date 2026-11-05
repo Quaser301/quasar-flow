@@ -14,6 +14,7 @@ import com.google.android.gms.tasks.OnFailureListener
 import com.google.android.gms.tasks.OnSuccessListener
 import com.google.android.gms.tasks.Task
 import com.google.firebase.firestore.DocumentReference
+import com.google.firebase.firestore.DocumentSnapshot
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.Transaction
 import io.mockk.every
@@ -29,6 +30,7 @@ class TransactionEngineTest {
     private lateinit var mockDb: FirebaseFirestore
     private lateinit var mockTransaction: Transaction
     private lateinit var mockTask: Task<Void>
+    private lateinit var snapshotStub: DocumentSnapshot
     private lateinit var transactionEngine: TransactionEngine
 
     @Before
@@ -50,6 +52,16 @@ class TransactionEngineTest {
         // Every database structural mutation returns our tracking task reference
         every { mockTask.addOnSuccessListener(any()) } returns mockTask
         every { mockTask.addOnFailureListener(any()) } returns mockTask
+
+        // The SDK's facade types cannot have values synthesized by the relaxed machinery:
+        // it cannot build an instance of a sealed class, so an unstubbed transaction call
+        // throws right where the block consumes its result. Every value-producing call the
+        // block runs must therefore be stubbed with values we control. The stubbed read
+        // reports an absent document, so the simplest correct transaction's check passes.
+        snapshotStub = mockk<DocumentSnapshot>()
+        every { snapshotStub.exists() } returns false
+        every { mockTransaction.get(any()) } returns snapshotStub
+        every { mockTransaction.set(any(), any()) } returns mockTransaction
 
         // Instantiate your exact implementation wrapper
         transactionEngine = TransactionEngine(mockDb)
