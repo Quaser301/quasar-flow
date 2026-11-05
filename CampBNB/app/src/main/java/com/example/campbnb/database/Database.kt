@@ -1,5 +1,9 @@
 package com.example.campbnb.database
 
+import android.annotation.SuppressLint
+import com.example.campbnb.models.Lottery
+import com.example.campbnb.models.Campsite
+import com.example.campbnb.models.Rating
 import com.example.campbnb.models.User
 import com.example.campbnb.database.transactionEngine
 import com.google.firebase.firestore.FirebaseFirestore
@@ -16,6 +20,7 @@ object Database {
     // Resolved once rather than on each property access, so every engine built from `db`
     // below holds and shares a single Firestore instance. (`const val` is not an option
     // here: it is restricted to primitive and String types.)
+    @SuppressLint("StaticFieldLeak") // since this is singleton, its invoked once
     private val db: FirebaseFirestore = FirebaseFirestore.getInstance()
 
     /*
@@ -63,4 +68,40 @@ object Database {
         return db.transactionEngine()
     }
 
+    object Ratings {
+        const val COLLECTION_NAME = "ratings"
+
+        fun readEngine(): QueryEngine<Rating> {
+            return db.readEngineFor<Rating>(COLLECTION_NAME)
+        }
+
+        fun writeEngine(): WriteEngine<Rating> {
+            return db.writeEngineFor<Rating>(COLLECTION_NAME)
+        }
+    }
+
+    object Lotteries {
+        const val COLLECTION_NAME = "lotteries"
+
+        fun readEngine(): QueryEngine<Lottery> {
+            return db.readEngineFor<Lottery>(COLLECTION_NAME)
+        }
+
+        fun writeEngine(): WriteEngine<Lottery> {
+            return db.writeEngineFor<Lottery>(COLLECTION_NAME)
+        }
+    }
+
+
+    object Campsites {
+        const val COLLECTION_NAME = "campsites"
+
+        fun readEngine(): QueryEngine<Campsite> {
+            return db.readEngineFor<Campsite>(COLLECTION_NAME)
+        }
+
+        fun writeEngine(): WriteEngine<Campsite> {
+            return db.writeEngineFor<Campsite>(COLLECTION_NAME)
+        }
+    }
 }

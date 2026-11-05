@@ -29,6 +29,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.example.campbnb.models.Campsite
+import com.example.campbnb.ui.shared.AppViewModificationIsValidForCurrentWindowChecker
+import com.example.campbnb.viewModels.AppView
+import com.example.campbnb.viewModels.AppViewSetting
 
 /**
  * Displays the Form for Campsite Registration
@@ -36,8 +39,15 @@ import com.example.campbnb.models.Campsite
 @Composable
 fun CampsiteRegistrationForm(
     onBack: () -> Unit,
-    onUpload: (Campsite, Uri?) -> Unit
+    onUpload: (Campsite, Uri?) -> Unit,
+    appViewSettings: AppViewSetting
 ) {
+    AppViewModificationIsValidForCurrentWindowChecker(
+        onBack,
+        appViewSettings,
+        listOf(AppView.EntrantView, AppView.AdminView)
+    )
+
     var campName by remember { mutableStateOf("") }
     var campLoc by remember { mutableStateOf("") }
     var campDesc by remember { mutableStateOf("") }
