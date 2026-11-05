@@ -56,6 +56,31 @@ class QueryEngine<T: Identifiable> (
     }
 
     /**
+     * Reads a single document by its ID.
+     *
+     * @param id The document ID.
+     * @param onSuccess Receives the document, or null if it doesn't exist.
+     * @param onFailure Receives any Firestore error.
+     */
+    fun getById(id: String, onSuccess: (T?) -> Unit, onFailure: (Exception) -> Unit) {
+        collection.document(id).get()
+            .addOnSuccessListener { onSuccess(it.toObject(classInstance)) }
+            .addOnFailureListener(onFailure)
+    }
+    /**
+     * Checks whether a document with this ID exists.
+     *
+     * @param id The document ID.
+     * @param onSuccess Receives true if the document exists.
+     * @param onFailure Receives any Firestore error.
+     */
+    fun exists(id: String, onSuccess: (Boolean) -> Unit, onFailure: (Exception) -> Unit) {
+        collection.document(id).get()
+            .addOnSuccessListener { onSuccess(it.exists()) }
+            .addOnFailureListener(onFailure)
+    }
+
+    /**
      * Internal Class helper that enables advanced, type safe chaining of various conditions
      * for complex querying.
      *
@@ -75,6 +100,29 @@ class QueryEngine<T: Identifiable> (
          */
         fun whereEquals(property: KProperty1<T, *>, value: Any?): QueryChain<T> {
             return QueryChain(query.whereEqualTo(property.name, value), classInstance)
+        }
+
+        /**
+         * Adds a Where In clause to the query, IE Variable is one of Values.
+         *
+         * @param property The Variable to query about.
+         * @param values The list of accepted values. A document matches if the variable equals any
+         * one of them. Firestore limits this list to 30 values.
+         * @return The updated query.
+         */
+        fun whereIn(property: KProperty1<T, *>, values: List<Any>): QueryChain<T> {
+            return QueryChain(query.whereIn(property.name, values), classInstance)
+        }
+
+        /**
+         * Adds a Greater Than Or Equal clause to the query, IE Variable >= Value.
+         *
+         * @param property The Variable to query about.
+         * @param value The value to query order for.
+         * @return The updated query.
+         */
+        fun whereGreaterThanOrEqual(property: KProperty1<T, *>, value: Any): QueryChain<T> {
+            return QueryChain(query.whereGreaterThanOrEqualTo(property.name, value), classInstance)
         }
 
         /**

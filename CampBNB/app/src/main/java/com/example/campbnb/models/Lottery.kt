@@ -17,6 +17,7 @@ enum class LotteryStatus { UPCOMING, OPEN, DRAWN, BOOKING, CLOSED }
  * Status is derived from the dates.
  */
 data class Lottery(
+    override var id: String = "",
     val ownerId: String = "",
     val campsiteIds: List<String> = emptyList(),
     val registrationStart: Long = 0,
@@ -27,8 +28,7 @@ data class Lottery(
     val waitlistCapacity: Int? = null,      // null = unlimited (US 02.04.07)
     val drawn: Boolean = false,
     val winnerIds: List<String> = emptyList()
-): Identifiable()
-{
+): Identifiable() {
     /** Display status at time [now] (epoch millis). A function so Firestore doesn't store it. */
     fun statusAt(now: Long): LotteryStatus = when {
         now < registrationStart -> LotteryStatus.UPCOMING
