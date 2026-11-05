@@ -47,8 +47,9 @@ import java.util.Locale
  * Activity for editing/adding a lottery.
  * 03-11-26: Prompted Gemini 3.6 Flash for how to create and format
  * an interactable dropdown menu to be used for selecting available campsites.
- * 03-11-26 Prompted Gemini 3.6 Flash for how to integrate date range picker file
+ * 03-11-26: Prompted Gemini 3.6 Flash for how to integrate date range picker file
  * into this activity for the booking and registration fields.
+ * 04-11-26: Used built in gemini flash 3.6 to add a few personal comments and kdoc comments
  */
 
 class LotteryEditActivity(private val navController: NavController) : ViewObserver<LotteryModel> {
@@ -233,12 +234,15 @@ class LotteryEditActivity(private val navController: NavController) : ViewObserv
                     Text("Cancel")
                 }
                 Button(
+                    //enabled = currentLottery.isValid(controller.now()),
                     onClick = {
                         navController.popBackStack()
                     },
                     modifier = Modifier.weight(1f)
                 ) {
-                    Text("Save")
+                    Text(
+                        if (selectedCampsite == null) "Save"
+                        else "Update")
                 }
             }
         }

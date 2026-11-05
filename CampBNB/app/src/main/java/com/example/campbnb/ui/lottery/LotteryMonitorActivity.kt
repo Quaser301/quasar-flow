@@ -49,7 +49,7 @@ class LotteryMonitorActivity(private val _navController: NavController) : ViewOb
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Button(
-                    onClick = { controller.onBackMonitorClicked() },
+                    onClick = { navController.popBackStack() },
                     modifier = Modifier.padding(8.dp)
                 ) {
                     Text(
