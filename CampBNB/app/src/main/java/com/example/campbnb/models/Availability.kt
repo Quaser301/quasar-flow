@@ -1,6 +1,7 @@
 package com.example.campbnb.models
 
 import com.example.campbnb.database.QueryEngine
+import com.example.campbnb.models.Campsite
 
 /**
  * Works out which dates a campsite is open for booking, reading only through [QueryEngine].
@@ -17,7 +18,7 @@ import com.example.campbnb.database.QueryEngine
  * @see CampsiteModel
  * @see com.example.campbnb.controller.ReservationController
  */
-class Availability(private val campsites: QueryEngine<CampsiteModel.CampsiteModel>) {
+class Availability(private val campsites: QueryEngine<Campsite>) {
 
     /**
      * Gets the dates a campsite is open for booking, before subtracting existing reservations.
