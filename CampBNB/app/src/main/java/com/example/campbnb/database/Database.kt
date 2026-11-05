@@ -20,6 +20,8 @@ object Database {
     // Resolved once rather than on each property access, so every engine built from `db`
     // below holds and shares a single Firestore instance. (`const val` is not an option
     // here: it is restricted to primitive and String types.)
+    // since this val is only used by functions that are unit tested, its fine
+    // we don't make it hard to test.
     @SuppressLint("StaticFieldLeak") // since this is singleton, its invoked once
     private val db: FirebaseFirestore = FirebaseFirestore.getInstance()
 
