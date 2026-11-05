@@ -24,17 +24,33 @@ import androidx.navigation.NavController
 import com.example.campbnb.controller.LotteryController
 import com.example.campbnb.models.LotteryModel
 import com.example.campbnb.models.ViewObserver
+import com.example.campbnb.ui.shared.AppViewModificationIsValidForCurrentWindowChecker
+import com.example.campbnb.viewModels.AppView
+import com.example.campbnb.viewModels.AppViewSetting
 
-class LotteryMonitorActivity(private val _navController: NavController) : ViewObserver<LotteryModel> {
-    override fun update(model: LotteryModel) {
+class LotteryMonitorActivity(
+    val goHome: () -> Unit,
+    val goBack: () -> Unit,
+    val appViewSettings: AppViewSetting
+) : ViewObserver<LotteryModel> {
+    override fun update(model: LotteryModel) { // why is this here???
     }
 
+    // List of all lotteries
     @Composable
     fun LotteryMonitor(
         model: LotteryModel,
         controller: LotteryController,
-        navController: NavController
     ) {
+        AppViewModificationIsValidForCurrentWindowChecker(
+            goHome,
+            appViewSettings,
+            listOf(
+                AppView.EntrantView,
+                AppView.AdminView
+            )
+
+        )
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -49,7 +65,7 @@ class LotteryMonitorActivity(private val _navController: NavController) : ViewOb
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Button(
-                    onClick = { navController.popBackStack() },
+                    onClick = { goBack() },
                     modifier = Modifier.padding(8.dp)
                 ) {
                     Text(
