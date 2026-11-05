@@ -29,7 +29,10 @@ class TransactionEngineTest {
 
     private lateinit var mockDb: FirebaseFirestore
     private lateinit var mockTransaction: Transaction
-    private lateinit var mockTask: Task<Void>
+    // The facade's runTransaction hands back a Task of the top value type, not Task<Void>:
+    // the Java type argument is erased to java-object in the facade, so the mock must be
+    // declared at that same Task type or the stubbing rejects the value.
+    private lateinit var mockTask: Task<Any>
     private lateinit var snapshotStub: DocumentSnapshot
     private lateinit var transactionEngine: TransactionEngine
 
@@ -42,26 +45,32 @@ class TransactionEngineTest {
         // 🌟 Wire up the full hierarchical mock routing chain: the engine asks the db to run
         // a transaction, and the mocked db hands our block a mocked Transaction instead of a
         // real one.
-        // The block shape must be stated for the invoke matcher: Kotlin cannot recover it
-        // from the JVM-typed callback parameter of runTransaction, and naming one type
-        // argument of that matcher means naming all three. The result type is stated as
-        // Void to keep the stubbed runTransaction call at the same Task type the success
-        // and failure listeners are chained on; Mockk discards the block's result anyway.
-        every { mockDb.runTransaction(invoke<(Transaction) -> Void, Void, Transaction>(mockTransaction)) } returns mockTask
-
-        // Every database structural mutation returns our tracking task reference
-        every { mockTask.addOnSuccessListener(any()) } returns mockTask
-        every { mockTask.addOnFailureListener(any()) } returns mockTask
-
         // The SDK's facade types cannot have values synthesized by the relaxed machinery:
         // it cannot build an instance of a sealed class, so an unstubbed transaction call
         // throws right where the block consumes its result. Every value-producing call the
         // block runs must therefore be stubbed with values we control. The stubbed read
         // reports an absent document, so the simplest correct transaction's check passes.
+        // These stubs come first on purpose: the co-invocation below executes the engine's
+        // block while the outer stub is being registered, so the inner calls must already
+        // answer when that happens.
         snapshotStub = mockk<DocumentSnapshot>()
         every { snapshotStub.exists() } returns false
         every { mockTransaction.get(any()) } returns snapshotStub
         every { mockTransaction.set(any(), any()) } returns mockTransaction
+
+        // The block shape must be stated for the invoke matcher: it cannot be recovered
+        // from the JVM-typed callback parameter of runTransaction, and naming one type
+        // argument of that matcher means naming all three. The declared block and result
+        // types must match what the engine actually passes: its lambda hands the
+        // TransactionChain face to a block typed `-> java-object`, whose value the matcher
+        // must accept, so both are stated at the top of the hierarchy. Mockk refuses to
+        // sign the call when the declared result admits no actual block value (a declared
+        // Void has no values at all), leaving coInvoke unmatched.
+        every { mockDb.runTransaction(invoke<(Transaction) -> Any, Any, Transaction>(mockTransaction)) } returns mockTask
+
+        // Every database structural mutation returns our tracking task reference
+        every { mockTask.addOnSuccessListener(any()) } returns mockTask
+        every { mockTask.addOnFailureListener(any()) } returns mockTask
 
         // Instantiate your exact implementation wrapper
         transactionEngine = TransactionEngine(mockDb)
@@ -71,7 +80,7 @@ class TransactionEngineTest {
     fun test_Commit_ReadsBeforeWritesTriggersSuccessCallback() {
         val reservationRef = mockk<DocumentReference>()
         val bookedDateRef = mockk<DocumentReference>()
-        val successSlot = slot<OnSuccessListener<Void>>()
+        val successSlot = slot<OnSuccessListener<Any>>()
 
         every { mockTask.addOnSuccessListener(capture(successSlot)) } returns mockTask
 
@@ -134,7 +143,7 @@ class TransactionEngineTest {
 
     @Test
     fun test_Commit_LargeTransactionOnlyFailsIfFirestoreFails() {
-        val successSlot = slot<OnSuccessListener<Void>>()
+        val successSlot = slot<OnSuccessListener<Any>>()
 
         every { mockTask.addOnSuccessListener(capture(successSlot)) } returns mockTask
 
