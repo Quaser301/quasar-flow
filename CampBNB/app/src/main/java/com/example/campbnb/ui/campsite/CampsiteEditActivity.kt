@@ -224,15 +224,15 @@ fun CampsiteRegistrationForm(
         Button(
             onClick = {
                 val campsite = Campsite(
-                    CampName = CampName.trim(),
-                    CampLoc = CampLoc.trim(),
-                    CampDesc = CampDesc.trim(),
-                    CampAmenities = CampAmenities.trim().split(",").map { it.trim() }.filter { it.isNotEmpty() },
+                    campName = CampName.trim(),
+                    campLoc = CampLoc.trim(),
+                    campDesc = CampDesc.trim(),
+                    campAmenities = CampAmenities.trim().split(",").map { it.trim() }.filter { it.isNotEmpty() },
                     maxOccupancy = maxOccupancy.trim().toIntOrNull() ?: 0,
                     geoLocation = geoLocation.trim(),
                     tags = tags,
                     cancelPolicy = cancelPolicy.trim(),
-                    CampPrice = CampPrice.toDoubleOrNull() ?: 0.0
+                    campPrice = CampPrice.toDoubleOrNull() ?: 0.0
                 )
                 onUpload(campsite, CampImg)
             },
