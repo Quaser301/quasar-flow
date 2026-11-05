@@ -83,13 +83,13 @@ class LotteryMonitorActivity : ViewObserver<LotteryModel> {
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text(
-                                text = "${lottery.playedDifficulty}",
+                                text = lottery.id,
                                 modifier = Modifier.weight(0.8f),
                                 style = MaterialTheme.typography.bodyMedium,
                                 textAlign = TextAlign.Center
                             )
                             Text(
-                                text = lottery.playedInput,
+                                text = lottery.ownerId,
                                 modifier = Modifier.weight(1.2f),
                                 style = MaterialTheme.typography.bodyMedium,
                                 textAlign = TextAlign.Center

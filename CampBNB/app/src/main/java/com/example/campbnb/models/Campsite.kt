@@ -10,5 +10,7 @@ class Campsite(
     val geoLocation: String = "",
     val CampImg: String = "",
     val maxOccupancy: Int = 0,
-    val tags: List<String> = emptyList()
+    val tags: List<String> = emptyList(),
+    val cancelPolicy: String = "",
+    val CampPrice: Double = 0.0,
 ) {}

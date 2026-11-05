@@ -28,10 +28,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
-import com.example.campbnb.Campsite
+import com.example.campbnb.models.Campsite
 
 /**
  * Displays the Form for Campsite Registration
+ * the campsite registration form includes the Camp Name, location, description, amenities,
+ * maximum occupancy, geo location, tags, cancel policy, and price
  */
 @Composable
 fun CampsiteRegistrationForm(
@@ -48,6 +50,9 @@ fun CampsiteRegistrationForm(
     var tags by remember { mutableStateOf(emptyList<String>()) }
     var CampImg by remember { mutableStateOf<Uri?>(null) }
     var BackConfirmation by remember { mutableStateOf(false) }
+    var cancelPolicy by remember { mutableStateOf("") }
+    var CampPrice by remember { mutableStateOf("") }
+
 
     val imagePicker = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent(),
@@ -60,14 +65,19 @@ fun CampsiteRegistrationForm(
 
     val Validation =
         CampName.trim().isNotEmpty() &&
+                (CampPrice.toDoubleOrNull()?.let { it.isFinite() && it >= 0.0 } == true) &&
+                cancelPolicy.trim().isNotEmpty() &&
                 CampLoc.trim().isNotEmpty() &&
                 CampDesc.trim().isNotEmpty() &&
                 CampAmenities.trim().isNotEmpty() &&
                 (maxOccupancy.toIntOrNull() ?: 0) > 0 &&
                 geoLocation.trim().isNotEmpty()
 
+
     val Owner_PutInput =
         CampName.isNotBlank() ||
+                CampPrice.isNotBlank() ||
+                cancelPolicy.isNotBlank() ||
                 CampLoc.isNotBlank() ||
                 CampDesc.isNotBlank() ||
                 CampAmenities.isNotBlank() ||
@@ -125,6 +135,19 @@ fun CampsiteRegistrationForm(
             onValueChange = { maxOccupancy = it },
             label = { Text("Maximum Occupancy") },
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+            modifier = Modifier.fillMaxWidth()
+        )
+        OutlinedTextField(
+            value = CampPrice,
+            onValueChange = { CampPrice = it },
+            label = { Text("Campsite Price") },
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+            modifier = Modifier.fillMaxWidth()
+        )
+        OutlinedTextField(
+            value = cancelPolicy,
+            onValueChange = { cancelPolicy = it },
+            label = { Text("Cancel Policy") },
             modifier = Modifier.fillMaxWidth()
         )
         OutlinedTextField(
@@ -207,7 +230,9 @@ fun CampsiteRegistrationForm(
                     CampAmenities = CampAmenities.trim().split(",").map { it.trim() }.filter { it.isNotEmpty() },
                     maxOccupancy = maxOccupancy.trim().toIntOrNull() ?: 0,
                     geoLocation = geoLocation.trim(),
-                    tags = tags
+                    tags = tags,
+                    cancelPolicy = cancelPolicy.trim(),
+                    CampPrice = CampPrice.toDoubleOrNull() ?: 0.0
                 )
                 onUpload(campsite, CampImg)
             },

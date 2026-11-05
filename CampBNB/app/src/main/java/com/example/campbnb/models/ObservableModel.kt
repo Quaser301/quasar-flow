@@ -12,9 +12,9 @@ open class ObservableModel<M> {
             views.remove(v)
         }
     }
-    protected fun notifyViews(model: LotteryModel) {
+    protected fun notifyViews(model: M) {
         views.forEach { view ->
-            view.update(model as M)
+            view.update(model)
         }
     }
 }
