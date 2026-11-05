@@ -5,7 +5,7 @@ view contract `TransactionView` and its sealed implementation `TransactionViewSt
 the `FirestoreTransactionViewModel` that exposes them
 (`CampBNB/app/src/main/java/com/example/campbnb/database/`). `Database`, also in that
 directory, hands out the engine against its shared Firestore instance. The `FirebaseFirestore`,
-`Transaction`, `DocumentReference`, `DocumentResult`, and `Result` classes are library
+`Transaction`, `DocumentReference`, `DocumentSnapshot`, and `Result` classes are library
 types, not part of this repository.
 
 ```mermaid
@@ -17,8 +17,8 @@ classDiagram
     class TransactionChain {
         -tx Transaction
         -writesStarted Boolean
-        +read(document DocumentReference) DocumentResult
-        +save(document DocumentReference, item Any?)
+        +read(document DocumentReference) DocumentSnapshot
+        +save(document DocumentReference, item Any)
         +update(document DocumentReference, fieldMap Map~String~)
         +delete(document DocumentReference)
     }
@@ -44,7 +44,7 @@ classDiagram
     class FirebaseFirestore
     class Transaction
     class DocumentReference
-    class DocumentResult
+    class DocumentSnapshot
     class Result
 
     TransactionView <|-- TransactionViewState
@@ -60,7 +60,7 @@ classDiagram
     FirestoreTransactionViewModel o-- TransactionEngine : engine injected through the constructor
     FirestoreTransactionViewModel *-- TransactionViewState : private flow handle created by this class
     TransactionEngine ..> TransactionChain : commit() wraps the live transaction in a new chain per call
-    TransactionChain ..> DocumentResult : read() relays the transaction get result
+    TransactionChain ..> DocumentSnapshot : read() relays the transaction get result
     TransactionEngine ..> Result : onComplete receives success(null) or failure(Exception)
     Database ..> TransactionEngine : transactionEngine() builds one against the shared instance
 ```
