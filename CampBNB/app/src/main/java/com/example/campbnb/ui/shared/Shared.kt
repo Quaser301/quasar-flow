@@ -3,9 +3,9 @@ package com.example.campbnb.ui.shared
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.navigation.NavController
 import com.example.campbnb.viewModels.AppView
 import com.example.campbnb.viewModels.AppViewSetting
+import kotlinx.coroutines.flow.StateFlow
 
 
 // Developer Note: this is a shared window component: each screen that has views it

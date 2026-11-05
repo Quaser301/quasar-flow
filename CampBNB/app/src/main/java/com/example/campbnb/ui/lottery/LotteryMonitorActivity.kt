@@ -30,6 +30,7 @@ import com.example.campbnb.viewModels.AppViewSetting
 
 class LotteryMonitorActivity(
     val goHome: () -> Unit,
+    val goBack: () -> Unit,
     val appViewSettings: AppViewSetting
 ) : ViewObserver<LotteryModel> {
     override fun update(model: LotteryModel) { // why is this here???
@@ -64,7 +65,7 @@ class LotteryMonitorActivity(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Button(
-                    onClick = { navController.popBackStack() },
+                    onClick = { goBack() },
                     modifier = Modifier.padding(8.dp)
                 ) {
                     Text(

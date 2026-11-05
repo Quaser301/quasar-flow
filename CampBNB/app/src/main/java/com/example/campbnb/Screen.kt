@@ -1,6 +1,8 @@
 package com.example.campbnb
 
 import kotlinx.serialization.Serializable
+import com.example.campbnb.ui.shared.AppViewModificationIsValidForCurrentWindowChecker
+import com.example.campbnb.viewModels.AppView
 
 // Developer Note: the interface is sealed and its members are named data objects so the
 // compiler, not the runtime, knows the complete set of screens: every `is`-check on a

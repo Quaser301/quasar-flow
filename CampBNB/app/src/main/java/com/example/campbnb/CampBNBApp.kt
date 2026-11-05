@@ -44,6 +44,7 @@ fun CampBNBApp(
             val activity = remember {
                 LotteryMonitorActivity(
                     { navController.navigate(Screen.Home) },
+                    { navController.navigateUp() },
                     appViewSettings.toAppViewSetting()
                 )
             }
