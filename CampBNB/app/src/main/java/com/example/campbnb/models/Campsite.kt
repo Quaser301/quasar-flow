@@ -11,5 +11,8 @@ class Campsite(
     val geoLocation: String = "",
     val campImg: String = "",
     val maxOccupancy: Int = 0,
-    val tags: List<String> = emptyList()
+    val tags: List<String> = emptyList(),
+    val availableStartDate: String = "",
+    val availableEndDate: String = "",
+    val blockedDates: List<String> = emptyList()
 ) : Identifiable()
