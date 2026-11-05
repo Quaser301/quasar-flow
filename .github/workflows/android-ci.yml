@@ -9,6 +9,8 @@
 # - Superseded pushes to the same ref cancel older in-progress runs.
 # - The Gradle wrapper pins the distribution, so CI uses the same build
 #   revision every time and the cache stays valid.
+# - No Android SDK setup action: the plugin provisions its own toolchain
+#   area, and the runner's pre-installed SDK is used when present.
 name: Android CI
 
 on:
@@ -38,9 +40,6 @@ jobs:
           distribution: temurin
           java-version: '21'
           cache: gradle
-
-      - name: Set up the Android SDK
-        uses: android-actions/setup-android@v3
 
       - name: Restore the Android build and native-compile caches
         id: gradle-cache-restore
