@@ -50,23 +50,19 @@ class TransactionEngineTest {
         // throws right where the block consumes its result. Every value-producing call the
         // block runs must therefore be stubbed with values we control. The stubbed read
         // reports an absent document, so the simplest correct transaction's check passes.
-        // These stubs come first on purpose: the co-invocation below executes the engine's
-        // block while the outer stub is being registered, so the inner calls must already
-        // answer when that happens.
+        // These stubs come first on purpose: a block runs when its test drives the
+        // captured callback, so the inner value calls must already answer by then.
         snapshotStub = mockk<DocumentSnapshot>()
         every { snapshotStub.exists() } returns false
         every { mockTransaction.get(any()) } returns snapshotStub
         every { mockTransaction.set(any(), any()) } returns mockTransaction
 
-        // The block shape must be stated for the invoke matcher: it cannot be recovered
-        // from the JVM-typed callback parameter of runTransaction, and naming one type
-        // argument of that matcher means naming all three. The declared block and result
-        // types must match what the engine actually passes: its lambda hands the
-        // TransactionChain face to a block typed `-> java-object`, whose value the matcher
-        // must accept, so both are stated at the top of the hierarchy. Mockk refuses to
-        // sign the call when the declared result admits no actual block value (a declared
-        // Void has no values at all), leaving coInvoke unmatched.
-        every { mockDb.runTransaction(invoke<(Transaction) -> Any, Any, Transaction>(mockTransaction)) } returns mockTask
+        // The callback of runTransaction cannot be given to a matcher here: the SDK erases
+        // that parameter to a facade function type, and every callback the engine passes
+        // arrives behind a compiler bridge no matcher signature can be keyed to. Each
+        // test therefore captures the engine's own callback with its own slot and drives
+        // it below with the mocked Transaction - the step the real SDK performs between
+        // opening a transaction and invoking its listeners.
 
         // Every database structural mutation returns our tracking task reference
         every { mockTask.addOnSuccessListener(any()) } returns mockTask
@@ -81,8 +77,10 @@ class TransactionEngineTest {
         val reservationRef = mockk<DocumentReference>()
         val bookedDateRef = mockk<DocumentReference>()
         val successSlot = slot<OnSuccessListener<Any>>()
+        val callbackSlot = slot<com.google.firebase.firestore.Transaction.Function<Any>>()
 
         every { mockTask.addOnSuccessListener(capture(successSlot)) } returns mockTask
+        every { mockDb.runTransaction(capture(callbackSlot)) } returns mockTask
 
         var testResult: Result<Exception?>? = null
 
@@ -94,6 +92,10 @@ class TransactionEngineTest {
         }) { result ->
             testResult = result
         }
+
+        // Run the captured engine callback with the mocked Transaction, the same step
+        // the SDK inserts between opening a transaction and invoking its listeners
+        callbackSlot.captured.apply(mockTransaction)
 
         // Simulate a successful remote Firestore transaction completion
         successSlot.captured.onSuccess(null)
@@ -109,6 +111,9 @@ class TransactionEngineTest {
     fun test_Commit_WriteBeforeReadFailsCorrectly() {
         val reservationRef = mockk<DocumentReference>()
         val bookedDateRef = mockk<DocumentReference>()
+        val callbackSlot = slot<com.google.firebase.firestore.Transaction.Function<Any>>()
+
+        every { mockDb.runTransaction(capture(callbackSlot)) } returns mockTask
 
         var testResult: Result<Exception?>? = null
         var transactionFault: Throwable? = null
@@ -125,9 +130,10 @@ class TransactionEngineTest {
                     testResult = result
                 }
             }
+            // The engine caught the mistake at the point the read was attempted, while
+            // running its callback against the transaction
+            callbackSlot.captured.apply(mockTransaction)
         } catch (e: Throwable) {
-            // Firestore fails the commit when the block itself fails; through the mock the
-            // failure surfaces at the call site instead of through the failure listener.
             transactionFault = e
         }
 
@@ -144,8 +150,10 @@ class TransactionEngineTest {
     @Test
     fun test_Commit_LargeTransactionOnlyFailsIfFirestoreFails() {
         val successSlot = slot<OnSuccessListener<Any>>()
+        val callbackSlot = slot<com.google.firebase.firestore.Transaction.Function<Any>>()
 
         every { mockTask.addOnSuccessListener(capture(successSlot)) } returns mockTask
+        every { mockDb.runTransaction(capture(callbackSlot)) } returns mockTask
 
         var testResult: Result<Exception?>? = null
 
@@ -159,6 +167,10 @@ class TransactionEngineTest {
         }) { result ->
             testResult = result
         }
+
+        // Run the captured engine callback with the mocked Transaction, the same step
+        // the SDK inserts between opening a transaction and invoking its listeners
+        callbackSlot.captured.apply(mockTransaction)
 
         // Simulate a successful remote Firestore transaction completion
         successSlot.captured.onSuccess(null)
