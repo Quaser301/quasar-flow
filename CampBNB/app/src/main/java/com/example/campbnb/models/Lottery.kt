@@ -1,5 +1,7 @@
 package com.example.campbnb.models
 
+import com.example.campbnb.database.Identifiable
+
 /**
  * Display state of a lottery, derived from its dates by [Lottery.status].
  * Enum and formatting suggested by Claude AI (prompted for an effective way to store a
@@ -12,7 +14,7 @@ enum class LotteryStatus { UPCOMING, OPEN, DRAWN, BOOKING, CLOSED }
  * Status is derived from the dates.
  */
 data class Lottery(
-    val id: String = "",
+    override var id: String = "",
     val ownerId: String = "",
     val campsiteIds: List<String> = emptyList(),
     val registrationStart: Long = 0,
@@ -23,6 +25,4 @@ data class Lottery(
     val waitlistCapacity: Int? = null,      // null = unlimited (US 02.04.07)
     val drawn: Boolean = false,
     val winnerIds: List<String> = emptyList()
-){
-
-}
+): Identifiable()

@@ -9,7 +9,16 @@ import java.util.Date
 import java.util.Locale
 
 /** Which slice of a campsite's reservations an owner wants to see. */
-enum class ReservationFilter { ACTIVE, PAST, CANCELLED }
+enum class ReservationFilter {
+    /** Active reservations that haven't ended yet. */
+    ACTIVE,
+
+    /** Active reservations whose end date has passed. */
+    PAST,
+
+    /** Cancelled and rejected reservations. */
+    CANCELLED
+}
 
 /**
  * Coordinates everything that happens after an entrant wins a campsite lottery:
@@ -18,7 +27,7 @@ enum class ReservationFilter { ACTIVE, PAST, CANCELLED }
  * single point the UI talks to for reservation logic, and it delegates to its
  * collaborators rather than doing their jobs itself.
  *
- * Every operation is asynchronous and reports back through [onSuccess] and [onFailure]
+ * Every operation is asynchronous and reports back through `onSuccess` and `onFailure`
  * callbacks, matching [com.example.campbnb.database.QueryEngine].
  *
  * Commands:
@@ -38,7 +47,7 @@ enum class ReservationFilter { ACTIVE, PAST, CANCELLED }
  *    one campsite filtered by [ReservationFilter].
  *  - [generateReceiptCsv]: Builds the CSV text for a confirmation or cancellation.
  *  - [sendNotification]: Asks [NotificationController] to notify the other party, including
- *    name, date, duration and location.
+ *    the campsite, start and end dates, and duration.
  *
  * @author Zino
  * @constructor Creates a controller wired to its collaborators.
@@ -63,44 +72,35 @@ class ReservationController(
     private val policiesConfirmed = mutableSetOf<String>()
 
     /**
-     * Verifies the entrant won this lottery entry and the booking period is open.
+     * Verifies the entrant won this lottery for this campsite and the booking period is open.
      *
-     * @param lotteryEntryId The entry being booked against.
+     * @param lotteryId The lottery being booked against.
      * @param entrantId The entrant making the request.
-     * @param campsiteId The campsite the lottery was for.
+     * @param campsiteId The campsite the entrant wants to reserve.
      * @param onEligible Called only if both checks pass.
      * @param onFailure Called if the entrant did not win, booking is closed, or a lookup fails.
      */
     private fun checkEligibility(
-        lotteryEntryId: String,
+        lotteryId: String,
         entrantId: String,
         campsiteId: String,
         onEligible: () -> Unit,
         onFailure: (Exception) -> Unit
     ) {
-        lotteryController.hasWon(
-            lotteryEntryId, entrantId,
-            onSuccess = { won ->
-                if (!won) {
-                    onFailure(IllegalStateException("Entrant did not win this lottery"))
-                } else {
-                    lotteryController.isBookingOpen(
-                        campsiteId,
-                        onSuccess = { open ->
-                            if (open) onEligible()
-                            else onFailure(IllegalStateException("Booking period is not open"))
-                        },
-                        onFailure = onFailure
-                    )
-                }
-            },
-            onFailure = onFailure
-        )
+        lotteryController.CheckIfWon(lotteryId, entrantId, campsiteId, onSuccess = { won ->
+            if (!won) onFailure(IllegalStateException("Entrant did not win this lottery for this campsite"))
+            else lotteryController.isBookingOpen(lotteryId, onSuccess = { open ->
+                if (open) onEligible() else onFailure(IllegalStateException("Booking period is not open"))
+            }, onFailure = onFailure)
+        }, onFailure = onFailure)
     }
 
     /**
      * Returns the dates the entrant can reserve: the campsite's open dates minus booked dates.
      *
+     * @param lotteryEntryId The lottery entry being booked against.
+     * @param entrantId The entrant asking for dates. Must have won.
+     * @param campsiteId The campsite to list dates for.
      * @param onSuccess Receives the available dates as ISO strings (yyyy-MM-dd).
      * @param onFailure Called if the entrant is not eligible or a lookup fails.
      */
@@ -126,21 +126,60 @@ class ReservationController(
         }, onFailure = onFailure)
     }
 
-    /** Records that the entrant accepted the rules and policies for this lottery entry. */
+    /**
+     * Records that the entrant accepted the rules and policies for this lottery entry.
+     *
+     * Kept in memory only, so it resets when the app restarts.
+     *
+     * @param lotteryEntryId The lottery entry the entrant accepted the policies for.
+     */
     fun confirmPolicies(lotteryEntryId: String) {
         policiesConfirmed.add(lotteryEntryId)
     }
 
     /**
+     * Asks [NotificationController] to notify [recipientId] about a reservation event.
+     *
+     * Notification failures never fail the reservation itself.
+     *
+     * @param recipientId The ID of the user to notify.
+     * @param type What happened: `"CONFIRMATION"`, `"CANCELLATION"` or `"REJECTION"`.
+     * @param reservation The reservation the event is about. Its campsite, start and end
+     * dates, and number of dates are sent as the notification details.
+     */
+    fun sendNotification(recipientId: String, type: String, reservation: ReservationModel) {
+        notifications.send(
+            recipientId = recipientId,
+            type = type,
+            details = mapOf(
+                "campsiteId" to reservation.campsiteId,
+                "startDate" to reservation.startDate,
+                "endDate" to reservation.endDate,
+                "duration" to reservation.dates.size.toString()
+            )
+        )
+    }
+
+    /**
      * Re-checks the chosen dates, then creates and saves the reservation.
      *
-     * The repository's transaction is the final guard against two entrants booking the
-     * same date at once; the re-check here gives a cleaner error in the normal case.
+     * The repository's database rules are the final guard against two entrants booking the
+     * same date at once; the re-check here gives a cleaner error in the normal case. On
+     * success the owner is sent a confirmation.
      *
+     * @param lotteryEntryId The lottery entry the reservation belongs to. Becomes the
+     * reservation's ID, so an entry can only be reserved once.
+     * @param entrantId The entrant making the reservation.
+     * @param ownerId The owner of the campsite, who receives the confirmation.
+     * @param campsiteId The campsite being reserved.
      * @param dates The selected dates as ISO strings. Must not be empty.
      * @param onSuccess Receives the saved [ReservationModel].
      * @param onFailure Called if policies weren't confirmed, the entrant is ineligible,
      * any date is no longer available, or the save fails.
+     * @param guests How many guests are staying.
+     * @param refundRecorded Whether a refund is already recorded. New reservations pass false.
+     * @param createdAt When the reservation is made, in epoch milliseconds. Defaults to now.
+     * @param rules Whether the entrant accepted the campsite rules and policies.
      */
     fun createReservation(
         lotteryEntryId: String,
@@ -187,16 +226,25 @@ class ReservationController(
             )
 
             reservations.save(reservation, onSuccess = {
-                sendNotification(recipientId = ownerId, type = "CONFIRMATION", reservation = reservation)
+                sendNotification(
+                    recipientId = ownerId,
+                    type = "CONFIRMATION",
+                    reservation = reservation
+                )
                 onSuccess(reservation)
             }, onFailure = onFailure)
         }, onFailure = onFailure)
     }
 
     /**
-     * Entrant cancels their own reservation. Frees its dates and records the refund.
+     * Entrant cancels their own reservation. Frees its dates, records the refund, and
+     * notifies the owner.
      *
+     * @param reservationId The reservation to cancel.
      * @param requesterId Must match the reservation's entrant, or the call fails.
+     * @param onSuccess Called once the reservation is cancelled and the owner is notified.
+     * @param onFailure Called if the reservation doesn't exist, the requester isn't the
+     * entrant, or the repository fails.
      */
     fun cancelReservation(
         reservationId: String,
@@ -209,6 +257,7 @@ class ReservationController(
                 reservation == null -> onFailure(NoSuchElementException("No reservation $reservationId"))
                 reservation.entrantId != requesterId ->
                     onFailure(SecurityException("Only the entrant can cancel this reservation"))
+
                 else -> reservations.markCancelled(reservationId, onSuccess = {
                     sendNotification(reservation.ownerId, "CANCELLATION", reservation)
                     onSuccess()
@@ -218,9 +267,14 @@ class ReservationController(
     }
 
     /**
-     * Owner rejects a reservation. Frees its dates and records the refund.
+     * Owner rejects a reservation. Frees its dates, records the refund, and notifies
+     * the entrant.
      *
+     * @param reservationId The reservation to reject.
      * @param requesterId Must match the reservation's owner, or the call fails.
+     * @param onSuccess Called once the reservation is rejected and the entrant is notified.
+     * @param onFailure Called if the reservation doesn't exist, the requester isn't the
+     * owner, or the repository fails.
      */
     fun rejectReservation(
         reservationId: String,
@@ -233,6 +287,7 @@ class ReservationController(
                 reservation == null -> onFailure(NoSuchElementException("No reservation $reservationId"))
                 reservation.ownerId != requesterId ->
                     onFailure(SecurityException("Only the campsite owner can reject this reservation"))
+
                 else -> reservations.markRejected(reservationId, onSuccess = {
                     sendNotification(reservation.entrantId, "REJECTION", reservation)
                     onSuccess()
@@ -241,14 +296,28 @@ class ReservationController(
         }, onFailure = onFailure)
     }
 
-    /** Lists every reservation an entrant has made, any status. */
+    /**
+     * Lists every reservation an entrant has made, any status.
+     *
+     * @param entrantId The entrant to list reservations for.
+     * @param onSuccess Receives the reservations, earliest start date first.
+     * @param onFailure Receives any lookup error.
+     */
     fun listReservations(
         entrantId: String,
         onSuccess: (List<ReservationModel>) -> Unit,
         onFailure: (Exception) -> Unit
     ) = reservations.getForEntrant(entrantId, onSuccess, onFailure)
 
-    /** Lists an owner's reservations for one campsite, filtered to active, past or cancelled. */
+    /**
+     * Lists an owner's reservations for one campsite, filtered to active, past or cancelled.
+     *
+     * @param campsiteId The campsite to list reservations for.
+     * @param filter Which slice to return: [ReservationFilter.ACTIVE], [ReservationFilter.PAST]
+     * or [ReservationFilter.CANCELLED].
+     * @param onSuccess Receives the matching reservations.
+     * @param onFailure Receives any lookup error.
+     */
     fun listReservations(
         campsiteId: String,
         filter: ReservationFilter,
@@ -257,18 +326,26 @@ class ReservationController(
     ) = when (filter) {
         ReservationFilter.ACTIVE -> reservations.getActive(campsiteId, onSuccess, onFailure)
         ReservationFilter.PAST -> reservations.getPast(campsiteId, onSuccess, onFailure)
-        ReservationFilter.CANCELLED -> reservations.getCancelled(campsiteId, onSuccess, onFailure)
+        ReservationFilter.CANCELLED -> reservations.getCancelled(
+            campsiteId,
+            onSuccess,
+            onFailure
+        )
     }
 
     /**
      * Builds the CSV text for a confirmation or cancellation receipt.
+     *
+     * Every value is wrapped in quotes, with quotes inside a value doubled, so commas and
+     * quotes in IDs can't break the columns.
      *
      * @param reservation The reservation the receipt is for.
      * @return A header row and one data row. Writing it to a file is up to the caller.
      */
     fun generateReceiptCsv(reservation: ReservationModel): String {
         fun esc(v: String) = "\"" + v.replace("\"", "\"\"") + "\""
-        val header = "reservationId,campsiteId,entrantId,ownerId,startDate,endDate,nights,status,refundRecorded,generatedOn"
+        val header =
+            "reservationId,campsiteId,entrantId,ownerId,startDate,endDate,nights,status,refundRecorded,generatedOn"
         val row = listOf(
             reservation.lotteryEntryId, reservation.campsiteId, reservation.entrantId,
             reservation.ownerId, reservation.startDate, reservation.endDate,
@@ -277,23 +354,5 @@ class ReservationController(
             SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())
         ).joinToString(",") { esc(it) }
         return "$header\n$row"
-    }
-
-    /**
-     * Asks [NotificationController] to notify [recipientId] about a reservation event.
-     *
-     * Notification failures never fail the reservation itself.
-     */
-    private fun sendNotification(recipientId: String, type: String, reservation: ReservationModel) {
-        notifications.send(
-            recipientId = recipientId,
-            type = type,
-            details = mapOf(
-                "campsiteId" to reservation.campsiteId,
-                "startDate" to reservation.startDate,
-                "endDate" to reservation.endDate,
-                "duration" to reservation.dates.size.toString()
-            )
-        )
     }
 }

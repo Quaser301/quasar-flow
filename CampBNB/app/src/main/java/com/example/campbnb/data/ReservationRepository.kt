@@ -1,34 +1,34 @@
 package com.example.campbnb.data
 
-import com.example.campbnb.database.readEngineFor
+import com.example.campbnb.database.QueryEngine
+import com.example.campbnb.database.WriteEngine
+import com.example.campbnb.models.BookedDate
+import com.example.campbnb.models.DateUtils
 import com.example.campbnb.models.ReservationModel
 import com.example.campbnb.models.ReservationStatus
-import com.google.firebase.firestore.FirebaseFirestore
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
 
 /**
  * Persists reservations and serves every query the owner and entrant screens need.
  *
  * This is the store that [com.example.campbnb.controller.ReservationController] depends on.
- * Reads go through [QueryEngine]. Writes go straight to Firestore inside transactions, so
- * "one reservation per entry" and "no double-booked dates" hold even when two entrants
- * book at the same moment. It stores data and enforces storage rules; deciding who may
- * book is the controller's job.
+ * Reads go through [QueryEngine] and writes through [WriteEngine]; nothing here touches
+ * Firestore directly. It stores data and enforces storage rules; deciding who may book is
+ * the controller's job.
  *
- * Dates are ISO strings (yyyy-MM-dd). They sort correctly as text, so range queries on
- * `endDate` work without any date library.
+ * Dates are ISO strings (yyyy-MM-dd), which sort correctly as text, so range queries on
+ * `endDate` work without a date library.
  *
- * Document IDs in the `Reservations` collection are the lottery entry ID, which enforces one
+ * Document IDs in the `Reservations` collection are the lottery entry ID, which means one
  * reservation per entry. The `BookedDates` collection holds one document per campsite and
- * date (`campsiteId_yyyy-MM-dd`), so a transaction can claim dates atomically.
+ * date (`campsiteId_yyyy-MM-dd`). Firestore security rules allow creating such a document
+ * but not overwriting it, so two people can never claim the same date. See [save].
  *
  * Owner queries:
  *  - [getActive]: active reservations for a campsite that haven't ended yet.
  *  - [getPast]: active reservations for a campsite whose end date has passed.
  *  - [getCancelled]: cancelled and rejected reservations for a campsite.
  *  - [getBookedDates]: every date currently booked at a campsite.
+ *  - [getForOwner]: all reservations across an owner's campsites.
  *
  * Entrant queries:
  *  - [getByLotteryEntry]: the reservation for a lottery entry, or null.
@@ -36,20 +36,23 @@ import java.util.Locale
  *  - [getForEntrant]: all of an entrant's reservations.
  *
  * Commands:
- *  - [save]: creates the reservation and books its dates in one transaction.
+ *  - [save]: books the dates, then creates the reservation.
  *  - [markCancelled]: sets a reservation to cancelled, frees its dates, records the refund.
  *  - [markRejected]: sets a reservation to rejected, frees its dates, records the refund.
  *
- * @property db The Firestore instance, used for writes and to build the read engine.
+ * @property engine Reads on the `Reservations` collection.
+ * @property reservationWriter Writes on the `Reservations` collection.
+ * @property bookedDateWriter Writes on the `BookedDates` collection.
  * @author Zino
  * @see ReservationModel
  * @see QueryEngine
+ * @see WriteEngine
  */
-class ReservationRepository(private val db: FirebaseFirestore) {
-
-    private val reservations = db.collection("Reservations")
-    private val bookedDates = db.collection("BookedDates")
-    private val engine = db.readEngineFor<ReservationModel>("Reservations")
+class ReservationRepository(
+    private val engine: QueryEngine<ReservationModel>,
+    private val reservationWriter: WriteEngine<ReservationModel>,
+    private val bookedDateWriter: WriteEngine<BookedDate>
+) {
 
     // ---------- Owner queries ----------
 
@@ -65,12 +68,12 @@ class ReservationRepository(private val db: FirebaseFirestore) {
         campsiteId: String,
         onSuccess: (List<ReservationModel>) -> Unit,
         onFailure: (Exception) -> Unit,
-        today: String = todayString()
+        today: String = DateUtils.today()
     ) {
         engine.query()
             .whereEquals(ReservationModel::campsiteId, campsiteId)
             .whereEquals(ReservationModel::status, ReservationStatus.ACTIVE.name)
-            .whereGreaterThan(ReservationModel::endDate, today) // might need a whereGreaterThanOrEqual function
+            .whereGreaterThanOrEqual(ReservationModel::endDate, today)
             .orderBy(ReservationModel::endDate)
             .execute(onSuccess, onFailure)
     }
@@ -87,7 +90,7 @@ class ReservationRepository(private val db: FirebaseFirestore) {
         campsiteId: String,
         onSuccess: (List<ReservationModel>) -> Unit,
         onFailure: (Exception) -> Unit,
-        today: String = todayString()
+        today: String = DateUtils.today()
     ) {
         engine.query()
             .whereEquals(ReservationModel::campsiteId, campsiteId)
@@ -139,6 +142,24 @@ class ReservationRepository(private val db: FirebaseFirestore) {
             )
     }
 
+    /**
+     * Gets every reservation across all of an owner's campsites, any status.
+     *
+     * @param ownerId The owner to look up.
+     * @param onSuccess Receives the reservations, earliest start date first.
+     * @param onFailure Receives any Firestore error.
+     */
+    fun getForOwner(
+        ownerId: String,
+        onSuccess: (List<ReservationModel>) -> Unit,
+        onFailure: (Exception) -> Unit
+    ) {
+        engine.query()
+            .whereEquals(ReservationModel::ownerId, ownerId)
+            .orderBy(ReservationModel::startDate)
+            .execute(onSuccess, onFailure)
+    }
+
     // ---------- Entrant queries ----------
 
     /**
@@ -152,11 +173,7 @@ class ReservationRepository(private val db: FirebaseFirestore) {
         lotteryEntryId: String,
         onSuccess: (ReservationModel?) -> Unit,
         onFailure: (Exception) -> Unit
-    ) {
-        reservations.document(lotteryEntryId).get()
-            .addOnSuccessListener { onSuccess(it.toObject(ReservationModel::class.java)) }
-            .addOnFailureListener(onFailure)
-    }
+    ) = engine.getById(lotteryEntryId, onSuccess, onFailure)
 
     /**
      * Checks whether a lottery entry already has a reservation.
@@ -165,15 +182,11 @@ class ReservationRepository(private val db: FirebaseFirestore) {
      * @param onSuccess Receives true if a reservation exists.
      * @param onFailure Receives any Firestore error.
      */
-    fun hasReservation(
+    fun CheckIfReserved(
         lotteryEntryId: String,
         onSuccess: (Boolean) -> Unit,
         onFailure: (Exception) -> Unit
-    ) {
-        reservations.document(lotteryEntryId).get()
-            .addOnSuccessListener { onSuccess(it.exists()) }
-            .addOnFailureListener(onFailure)
-    }
+    ) = engine.exists(lotteryEntryId, onSuccess, onFailure)
 
     /**
      * Gets every reservation an entrant has made, any status.
@@ -196,43 +209,48 @@ class ReservationRepository(private val db: FirebaseFirestore) {
     // ---------- Commands ----------
 
     /**
-     * Creates the reservation and books each of its dates atomically.
+     * Books the reservation's dates one by one, then creates the reservation.
      *
-     * Fails if the entry already has a reservation or any date is already booked, in which
-     * case nothing is written.
+     * Each date is claimed by creating its `BookedDates` document. The security rules reject
+     * a second claim on the same date, so a conflict surfaces as a failed write. If any date
+     * fails, the dates already claimed are released and nothing else is written.
      *
-     * @param reservation The reservation to store. Its `lotteryEntryId` becomes the document ID.
-     * @param onSuccess Called once everything is written.
-     * @param onFailure Receives the failure, including conflicts.
+     * @param reservation The reservation to store. Its `id` is set to its `lotteryEntryId`.
+     * @param onSuccess Called once the dates are booked and the reservation is saved.
+     * @param onFailure Receives the failure. A failed date claim is reported as
+     * "One or more dates are already booked", so callers should refresh the available dates.
      */
     fun save(
         reservation: ReservationModel,
         onSuccess: () -> Unit,
         onFailure: (Exception) -> Unit
     ) {
-        val resRef = reservations.document(reservation.lotteryEntryId)
-        val dateRefs = reservation.dates.map { bookedDates.document("${reservation.campsiteId}_$it") }
+        reservation.id = reservation.lotteryEntryId
 
-        db.runTransaction { tx ->
-            // Firestore transactions require all reads before any writes.
-            check(!tx.get(resRef).exists()) { "Entry already has a reservation" }
-            dateRefs.forEach { check(!tx.get(it).exists()) { "One or more dates are already booked" } }
-
-            tx.set(resRef, reservation)
-            dateRefs.forEach {
-                tx.set(it, mapOf(
-                    "campsiteId" to reservation.campsiteId,
-                    "reservationId" to reservation.lotteryEntryId
-                ))
+        CheckIfReserved(reservation.lotteryEntryId, onSuccess = { exists ->
+            if (exists) {
+                onFailure(IllegalStateException("Entry already has a reservation"))
+            } else {
+                claimDates(reservation, index = 0, onClaimed = {
+                    reservationWriter.save(reservation) { result ->
+                        result.onSuccess { onSuccess() }
+                            .onFailure { e ->
+                                // Couldn't save the reservation: give the dates back.
+                                releaseDates(reservation.campsiteId, reservation.dates) {
+                                    onFailure(e.asException())
+                                }
+                            }
+                    }
+                }, onConflict = onFailure)
             }
-        }.addOnSuccessListener { onSuccess() }.addOnFailureListener(onFailure)
+        }, onFailure = onFailure)
     }
 
     /**
      * Sets a reservation to cancelled, frees its dates, and records the refund.
      *
      * @param reservationId The reservation's ID (the lottery entry ID).
-     * @param onSuccess Called once the change is written.
+     * @param onSuccess Called once the change is written and the dates are freed.
      * @param onFailure Receives the failure, including "not found" and "already closed".
      */
     fun markCancelled(reservationId: String, onSuccess: () -> Unit, onFailure: (Exception) -> Unit) =
@@ -242,7 +260,7 @@ class ReservationRepository(private val db: FirebaseFirestore) {
      * Sets a reservation to rejected, frees its dates, and records the refund.
      *
      * @param reservationId The reservation's ID (the lottery entry ID).
-     * @param onSuccess Called once the change is written.
+     * @param onSuccess Called once the change is written and the dates are freed.
      * @param onFailure Receives the failure, including "not found" and "already closed".
      */
     fun markRejected(reservationId: String, onSuccess: () -> Unit, onFailure: (Exception) -> Unit) =
@@ -250,26 +268,70 @@ class ReservationRepository(private val db: FirebaseFirestore) {
 
     // ---------- Helpers ----------
 
+    /** Claims `dates[index]` and everything after it, one at a time. Rolls back on a conflict. */
+    private fun claimDates(
+        reservation: ReservationModel,
+        index: Int,
+        onClaimed: () -> Unit,
+        onConflict: (Exception) -> Unit
+    ) {
+        if (index == reservation.dates.size) {
+            onClaimed()
+            return
+        }
+
+        val claim = BookedDate(reservation.campsiteId, reservation.lotteryEntryId).also {
+            it.id = bookedKey(reservation.campsiteId, reservation.dates[index])
+        }
+        bookedDateWriter.save(claim) { result ->
+            result.onSuccess {
+                claimDates(reservation, index + 1, onClaimed, onConflict)
+            }.onFailure {
+                // Release only the dates this call already claimed, then report the conflict.
+                releaseDates(reservation.campsiteId, reservation.dates.take(index)) {
+                    onConflict(IllegalStateException("One or more dates are already booked"))
+                }
+            }
+        }
+    }
+
+    /** Deletes the booked-date documents for [dates], one at a time. Carries on if one fails. */
+    private fun releaseDates(campsiteId: String, dates: List<String>, onDone: () -> Unit) {
+        if (dates.isEmpty()) {
+            onDone()
+            return
+        }
+        bookedDateWriter.delete(bookedKey(campsiteId, dates.first())) {
+            releaseDates(campsiteId, dates.drop(1), onDone)
+        }
+    }
+
     private fun close(
         reservationId: String,
         newStatus: ReservationStatus,
         onSuccess: () -> Unit,
         onFailure: (Exception) -> Unit
     ) {
-        val resRef = reservations.document(reservationId)
-
-        db.runTransaction { tx ->
-            val reservation = tx.get(resRef).toObject(ReservationModel::class.java)
-                ?: throw NoSuchElementException("No reservation $reservationId")
-            check(reservation.status == ReservationStatus.ACTIVE) {
-                "Reservation is already ${reservation.status}"
+        getByLotteryEntry(reservationId, onSuccess = { reservation ->
+            when {
+                reservation == null ->
+                    onFailure(NoSuchElementException("No reservation $reservationId"))
+                reservation.status != ReservationStatus.ACTIVE ->
+                    onFailure(IllegalStateException("Reservation is already ${reservation.status}"))
+                else -> {
+                    // Status first: if freeing the dates fails, the reservation is still closed.
+                    val changes = mapOf("status" to newStatus.name, "refundRecorded" to true)
+                    reservationWriter.update(reservationId, changes) { result ->
+                        result.onSuccess {
+                            releaseDates(reservation.campsiteId, reservation.dates) { onSuccess() }
+                        }.onFailure { e -> onFailure(e.asException()) }
+                    }
+                }
             }
-
-            tx.update(resRef, mapOf("status" to newStatus.name, "refundRecorded" to true))
-            reservation.dates.forEach { tx.delete(bookedDates.document("${reservation.campsiteId}_$it")) }
-        }.addOnSuccessListener { onSuccess() }.addOnFailureListener(onFailure)
+        }, onFailure = onFailure)
     }
 
-    private fun todayString(): String =
-        SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())
+    private fun bookedKey(campsiteId: String, date: String) = "${campsiteId}_$date"
+
+    private fun Throwable.asException(): Exception = this as? Exception ?: Exception(this)
 }
