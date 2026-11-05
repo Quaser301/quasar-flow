@@ -65,7 +65,7 @@ fun CampBnbApp(appViewSettings: AppViewSettingController) {
         }
         composable<Screen.Home> { entry ->
             val role = entry.toRoute<Screen.Home>().roleName
-            HomeScreen(role)
+            HomeScreen(role, appViewSettings = appViewSettings.toAppViewSetting())
         }
         composable<Screen.LotteryEditActivity> {
             val activity = remember {
