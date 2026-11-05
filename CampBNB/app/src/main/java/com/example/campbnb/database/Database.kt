@@ -1,5 +1,7 @@
 package com.example.campbnb.database
 
+
+import com.example.campbnb.models.Notification
 import android.annotation.SuppressLint
 import com.example.campbnb.models.Lottery
 import com.example.campbnb.models.Campsite
@@ -58,6 +60,20 @@ object Database {
     }
 
     /**
+     * The Notification Collection. All [Notification] records are stored here.
+     */
+    object Notifications {
+        const val COLLECTION_NAME = "notifications"
+
+        fun readEngine(): QueryEngine<Notification> {
+            return db.readEngineFor<Notification>(COLLECTION_NAME)
+        }
+
+        fun writeEngine(): WriteEngine<Notification> {
+            return db.writeEngineFor<Notification>(COLLECTION_NAME)
+        }
+    }
+
      * The transaction engine for this Firestore instance.
      *
      * Unlike the read and write engines, no transaction engine is registered per schema: a
