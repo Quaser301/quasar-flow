@@ -17,7 +17,6 @@ enum class LotteryStatus { UPCOMING, OPEN, DRAWN, BOOKING, CLOSED }
  * Status is derived from the dates.
  */
 data class Lottery(
-    override var id: String = "",
     val ownerId: String = "",
     val campsiteIds: List<String> = emptyList(),
     val registrationStart: Long = 0,
