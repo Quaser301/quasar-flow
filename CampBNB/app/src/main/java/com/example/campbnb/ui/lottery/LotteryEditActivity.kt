@@ -143,7 +143,7 @@ class LotteryEditActivity(
                 modifier = Modifier.fillMaxWidth()
             ) {
                 OutlinedTextField(
-                    value = selectedCampsite?.campName ?: "",
+                    value = selectedCampsite?.CampName ?: "",
                     onValueChange = {},
                     readOnly = true,
                     label = { Text("Pick Campsite") },
@@ -171,13 +171,13 @@ class LotteryEditActivity(
                                 text = {
                                     Column {
                                         Text(
-                                            text = campsite.campName,
+                                            text = campsite.CampName,
                                             style = MaterialTheme.typography.bodyLarge,
                                             fontWeight = FontWeight.Medium
                                         )
-                                        if (campsite.campLoc.isNotBlank()) {
+                                        if (campsite.CampLoc.isNotBlank()) {
                                             Text(
-                                                text = campsite.campLoc,
+                                                text = campsite.CampLoc,
                                                 style = MaterialTheme.typography.bodySmall
                                             )
                                         }
