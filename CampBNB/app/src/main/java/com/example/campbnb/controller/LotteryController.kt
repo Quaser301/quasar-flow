@@ -38,7 +38,7 @@ class LotteryController(
      * @param onFailure Receives any Firestore error.
      * @author Zino
      */
-    fun CheckIfWon(
+    fun checkIfWon(
         lotteryId: String,
         entrantId: String,
         campsiteId: String,

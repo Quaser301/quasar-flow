@@ -1,5 +1,6 @@
 package com.example.campbnb.models
 
+// what is this and why does it exist
 open class ObservableModel<M> {
     private val views = mutableListOf<ViewObserver<M>>()
     fun addView(v: ViewObserver<M>) {

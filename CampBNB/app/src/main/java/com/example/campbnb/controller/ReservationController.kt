@@ -87,7 +87,7 @@ class ReservationController(
         onEligible: () -> Unit,
         onFailure: (Exception) -> Unit
     ) {
-        lotteryController.CheckIfWon(lotteryId, entrantId, campsiteId, onSuccess = { won ->
+        lotteryController.checkIfWon(lotteryId, entrantId, campsiteId, onSuccess = { won ->
             if (!won) onFailure(IllegalStateException("Entrant did not win this lottery for this campsite"))
             else lotteryController.isBookingOpen(lotteryId, onSuccess = { open ->
                 if (open) onEligible() else onFailure(IllegalStateException("Booking period is not open"))
