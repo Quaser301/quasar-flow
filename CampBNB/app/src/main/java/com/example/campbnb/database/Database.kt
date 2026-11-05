@@ -43,4 +43,16 @@ object Database {
         }
     }
 
+    object Ratings {
+        const val COLLECTION_NAME = "ratings"
+
+        fun readEngine(): QueryEngine<Rating> {
+            return db.readEngineFor<Rating>(COLLECTION_NAME)
+        }
+
+        fun writeEngine(): WriteEngine<Rating> {
+            return db.writeEngineFor<Rating>(COLLECTION_NAME)
+        }
+    }
+
 }
