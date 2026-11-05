@@ -1,9 +1,23 @@
 package com.example.campbnb.models
 
-import com.example.campbnb.models.DateUtils
-import com.google.firebase.firestore.FirebaseFirestore
+import com.example.campbnb.database.QueryEngine
 
-class Availability(private val db: FirebaseFirestore /* , your existing params */) {
+/**
+ * Works out which dates a campsite is open for booking, reading only through [QueryEngine].
+ *
+ * It answers "which dates has the owner made available?" and nothing else. Subtracting dates
+ * that are already reserved is the job of
+ * [com.example.campbnb.controller.ReservationController].
+ *
+ * Commands:
+ *  - [getOpenDates]: The owner's available dates for a campsite, minus blocked and past dates.
+ *
+ * @property campsites Read access to campsites and their availability settings.
+ * @author Zino
+ * @see CampsiteModel
+ * @see com.example.campbnb.controller.ReservationController
+ */
+class Availability(private val campsites: QueryEngine<CampsiteModel.CampsiteModel>) {
 
     /**
      * Gets the dates a campsite is open for booking, before subtracting existing reservations.
@@ -13,8 +27,8 @@ class Availability(private val db: FirebaseFirestore /* , your existing params *
      * booked by reservations are removed later, by the controller.
      *
      * @param campsiteId The campsite to look up.
-     * @param onSuccess Receives the open dates as yyyy-MM-dd strings. Empty if the owner
-     * hasn't set an availability range.
+     * @param onSuccess Receives the open dates as yyyy-MM-dd strings. Empty if the campsite
+     * doesn't exist or the owner hasn't set an availability range.
      * @param onFailure Receives any Firestore error, or a parse error if a stored date is malformed.
      */
     fun getOpenDates(
@@ -22,28 +36,25 @@ class Availability(private val db: FirebaseFirestore /* , your existing params *
         onSuccess: (Set<String>) -> Unit,
         onFailure: (Exception) -> Unit
     ) {
-        db.collection("Campsites").document(campsiteId).get()
-            .addOnSuccessListener { doc ->
-                try {
-                    val start = doc.getString("availableStartDate")
-                    val end = doc.getString("availableEndDate")
-                    if (start == null || end == null) {
-                        onSuccess(emptySet())
-                        return@addOnSuccessListener
-                    }
-                    @Suppress("UNCHECKED_CAST")
-                    val blocked = (doc.get("blockedDates") as? List<String>).orEmpty().toSet()
-                    val today = DateUtils.today()
-
-                    onSuccess(
-                        DateUtils.datesBetween(start, end)
-                            .filter { it >= today && it !in blocked }
-                            .toSet()
-                    )
-                } catch (e: Exception) {
-                    onFailure(e)
-                }
+        campsites.getById(campsiteId, onSuccess = { campsite ->
+            if (campsite == null ||
+                campsite.availableStartDate.isEmpty() ||
+                campsite.availableEndDate.isEmpty()
+            ) {
+                onSuccess(emptySet())
+                return@getById
             }
-            .addOnFailureListener(onFailure)
+
+            val today = DateUtils.today()
+            val open = try {
+                DateUtils.datesBetween(campsite.availableStartDate, campsite.availableEndDate)
+                    .filter { it >= today && it !in campsite.blockedDates }
+                    .toSet()
+            } catch (e: Exception) {
+                onFailure(e)
+                return@getById
+            }
+            onSuccess(open)
+        }, onFailure = onFailure)
     }
 }
