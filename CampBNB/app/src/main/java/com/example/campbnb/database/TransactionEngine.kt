@@ -1,7 +1,7 @@
 package com.example.campbnb.database
 
 import com.google.firebase.firestore.DocumentReference
-import com.google.firebase.firestore.DocumentResult
+import com.google.firebase.firestore.DocumentSnapshot
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.Transaction
 
@@ -101,9 +101,10 @@ class TransactionEngine (
          * Reads a given document inside this transaction.
          *
          * @param document The document to read.
-         * @return The read result. Can be checked with `exists()` or converted with `toObject`.
+         * @return The [DocumentSnapshot] contents of the document. Can be checked with
+         * `exists()` or converted with `toObject`.
          */
-        fun read(document: DocumentReference): DocumentResult {
+        fun read(document: DocumentReference): DocumentSnapshot {
             check(!writesStarted) {
                 "Reads must be issued before writes inside a transaction."
             }
@@ -114,9 +115,10 @@ class TransactionEngine (
          * Writes a given document to this transaction.
          *
          * @param document The document to write.
-         * @param item The value to store, either a data class instance or a String/Value map.
+         * @param item The value to store, either a data class instance or a String/Value
+         * map.
          */
-        fun save(document: DocumentReference, item: Any?) {
+        fun save(document: DocumentReference, item: Any) {
             writesStarted = true
             tx.set(document, item)
         }
