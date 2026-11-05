@@ -1,9 +1,11 @@
 # Android CI: compile the app, then run the unit tests.
 # Speed practices:
-# - Gradle's persistent caches (dependency jars, the wrapper distribution, the
-#   Android build cache, the native compile cache) are restored and re-saved
-#   through the Actions cache, so repeat runs only rebuild what changed.
-# - The restore/save split keeps a failed run from polluting the cache.
+# - setup-java manages the Gradle dependency and wrapper caches plus the JDK
+#   installation itself, keyed off the build files, so repeat runs only
+#   rebuild what changed.
+# - The Android build cache and the native-compile cache are restored and
+#   re-saved through the Actions cache; the restore/save split keeps a failed
+#   run from polluting the cache.
 # - Superseded pushes to the same ref cancel older in-progress runs.
 # - The Gradle wrapper pins the distribution, so CI uses the same build
 #   revision every time and the cache stays valid.
@@ -33,24 +35,23 @@ jobs:
       - name: Set up the JDK
         uses: actions/setup-java@v6
         with:
-          distribution: openjdk
+          distribution: temurin
           java-version: '21'
+          cache: gradle
 
       - name: Set up the Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Restore the Gradle caches
+      - name: Restore the Android build and native-compile caches
         id: gradle-cache-restore
         uses: actions/cache/restore@v6
         with:
           path: |
-            ~/.gradle/caches
-            ~/.gradle/wrapper
             ~/.gradle/android
             ~/.gradle/native
-          key: ${{ runner.os }}-android-ci-gradle-${{ github.sha }}
+          key: ${{ runner.os }}-android-ci-buildcache-${{ github.sha }}
           restore-keys: |
-            ${{ runner.os }}-android-ci-gradle-
+            ${{ runner.os }}-android-ci-buildcache-
 
       - name: Compile the app and run the unit tests
         run: |
@@ -58,12 +59,10 @@ jobs:
           cd CampBNB
           ./gradlew -p app test --build-cache
 
-      - name: Save the Gradle caches
+      - name: Save the Android build and native-compile caches
         uses: actions/cache/save@v6
         with:
           path: |
-            ~/.gradle/caches
-            ~/.gradle/wrapper
             ~/.gradle/android
             ~/.gradle/native
           key: ${{ steps.gradle-cache-restore.outputs.cache-primary-key }}
