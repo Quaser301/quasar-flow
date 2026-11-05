@@ -1,5 +1,111 @@
 package com.example.campbnb.controller
 
-class CampsiteController {
-    // C, D, F
+import com.example.campbnb.data.CampsiteRepository
+import com.example.campbnb.models.Campsite
+import com.example.campbnb.models.CampsiteModel
+import com.example.campbnb.models.Rating
+
+/**
+ * Controller for CampsiteModel, campsite search, details, and ratings for entrants.
+ * Owner methods like register, update, QR.
+ */
+class CampsiteController (
+    private val model: CampsiteModel,
+    private val repo: CampsiteRepository
+){
+    /** Loads every campsite and every rating into the model (US 01.01.03, 01.01.04). */
+    fun loadAll() {
+        repo.getAll(
+            onSuccess = { campsites -> model.setCampsites(campsites) },
+            onFailure = { error -> model.setStatusMessage("Could not load campsites: " + error.message) }
+        )
+        repo.getAllRatings(
+            onSuccess = { ratings -> model.setRatings(ratings) },
+            onFailure = { error -> model.setStatusMessage("Could not load ratings: " + error.message) }
+        )
+    }
+
+    /**
+     * Shows only the campsites whose name, location or a tag contains [query] (ignoring case)
+     * and that hold at least [guests] people. Blank text or null guests means no filter
+     * (US 01.01.01, 01.01.03).
+     */
+    fun search(query: String, guests: Int?) {
+        val results = mutableListOf<Campsite>()
+        for (campsite in model.allCampsites) {
+            if (matchesText(campsite, query) && matchesGuests(campsite, guests)) {
+                results.add(campsite)
+            }
+        }
+        model.setVisibleCampsites(results)
+    }
+
+    private fun matchesText(campsite: Campsite, query: String): Boolean {
+        val text = query.trim()
+        if (text.isEmpty()) {
+            return true
+        }
+        if (campsite.campName.contains(text, ignoreCase = true)) {
+            return true
+        }
+        if (campsite.campLoc.contains(text, ignoreCase = true)) {
+            return true
+        }
+        for (tag in campsite.tags) {
+            if (tag.contains(text, ignoreCase = true)) {
+                return true
+            }
+        }
+        return false
+    }
+
+    private fun matchesGuests(campsite: Campsite, guests: Int?): Boolean {
+        if (guests == null) {
+            return true
+        }
+        return campsite.maxOccupancy >= guests
+    }
+
+    /** Puts the campsite with this id into the model for the Details screen (US 01.01.05). */
+    fun selectCampsite(campsiteId: String) {
+        var found: Campsite? = null
+        for (campsite in model.allCampsites) {
+            if (campsite.id == campsiteId) {
+                found = campsite
+            }
+        }
+        model.selectCampsite(found)
+    }
+
+    /** Saves a 1-5 star rating; rating again replaces the old one (US 01.13.01). */
+    fun saveRating(campsiteId: String, userId: String, stars: Int) {
+        if (stars < 1 || stars > 5) {
+            model.setStatusMessage("Rating must be between 1 and 5 stars")
+            return
+        }
+        val rating = Rating(campsiteId, userId, stars)
+        repo.saveRating(
+            rating,
+            onComplete = { result ->
+                if (result.isSuccess) {
+                    replaceRating(rating)
+                    model.setStatusMessage("Thanks for rating!")
+                } else {
+                    model.setStatusMessage("Could not save your rating")
+                }
+            }
+        )
+    }
+
+    /** Puts [rating] into the model's list, replacing the same user's old rating of the campsite. */
+    private fun replaceRating(rating: Rating) {
+        val updated = mutableListOf<Rating>()
+        for (old in model.ratings) {
+            if (old.id != rating.id) {
+                updated.add(old)
+            }
+        }
+        updated.add(rating)
+        model.setRatings(updated)
+    }
 }
