@@ -1,5 +1,6 @@
 package com.example.campbnb.database
 
+import com.example.campbnb.models.Rating
 import com.example.campbnb.models.User
 import com.google.firebase.firestore.FirebaseFirestore
 
