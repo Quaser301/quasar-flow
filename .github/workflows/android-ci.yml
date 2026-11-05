@@ -1,0 +1,69 @@
+# Android CI: compile the app, then run the unit tests.
+# Speed practices:
+# - Gradle's persistent caches (dependency jars, the wrapper distribution, the
+#   Android build cache, the native compile cache) are restored and re-saved
+#   through the Actions cache, so repeat runs only rebuild what changed.
+# - The restore/save split keeps a failed run from polluting the cache.
+# - Superseded pushes to the same ref cancel older in-progress runs.
+# - The Gradle wrapper pins the distribution, so CI uses the same build
+#   revision every time and the cache stays valid.
+name: Android CI
+
+on:
+  push:
+    branches:
+      - Wyatt-AI-CI-Setup
+      - main
+  pull_request:
+    branches:
+      - Wyatt-AI-CI-Setup
+      - main
+
+concurrency:
+  group: android-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-test:
+    name: Build and run unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up the JDK
+        uses: actions/setup-java@v7
+        with:
+          distribution: openjdk
+          java-version: '21'
+
+      - name: Set up the Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Restore the Gradle caches
+        id: gradle-cache-restore
+        uses: actions/cache/restore@v6
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+            ~/.gradle/android
+            ~/.gradle/native
+          key: ${{ runner.os }}-android-ci-gradle-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-android-ci-gradle-
+
+      - name: Compile the app and run the unit tests
+        run: |
+          chmod +x CampBNB/gradlew
+          cd CampBNB
+          ./gradlew -p app test --build-cache
+
+      - name: Save the Gradle caches
+        uses: actions/cache/save@v6
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+            ~/.gradle/android
+            ~/.gradle/native
+          key: ${{ steps.gradle-cache-restore.outputs.cache-primary-key }}
