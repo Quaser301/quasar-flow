@@ -1,5 +1,7 @@
 package com.example.campbnb.models
 
-class Notification {
+import com.example.campbnb.database.Identifiable
+
+class Notification : Identifiable() {
     // B, A
 }
