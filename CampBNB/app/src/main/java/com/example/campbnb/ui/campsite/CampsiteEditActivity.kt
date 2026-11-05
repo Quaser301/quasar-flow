@@ -32,54 +32,64 @@ import com.example.campbnb.models.Campsite
 
 /**
  * Displays the Form for Campsite Registration
+ * the campsite registration form includes the Camp Name, location, description, amenities,
+ * maximum occupancy, geo location, tags, cancel policy, and price
  */
 @Composable
 fun CampsiteRegistrationForm(
     onBack: () -> Unit,
     onUpload: (Campsite, Uri?) -> Unit
 ) {
-    var campName by remember { mutableStateOf("") }
-    var campLoc by remember { mutableStateOf("") }
-    var campDesc by remember { mutableStateOf("") }
-    var campAmenities by remember { mutableStateOf("") }
+    var CampName by remember { mutableStateOf("") }
+    var CampLoc by remember { mutableStateOf("") }
+    var CampDesc by remember { mutableStateOf("") }
+    var CampAmenities by remember { mutableStateOf("") }
     var maxOccupancy by remember { mutableStateOf("") }
     var geoLocation by remember { mutableStateOf("") }
     var tagInput by remember { mutableStateOf("") }
     var tags by remember { mutableStateOf(emptyList<String>()) }
-    var campImg by remember { mutableStateOf<Uri?>(null) }
-    var backConfirmation by remember { mutableStateOf(false) }
+    var CampImg by remember { mutableStateOf<Uri?>(null) }
+    var BackConfirmation by remember { mutableStateOf(false) }
+    var cancelPolicy by remember { mutableStateOf("") }
+    var CampPrice by remember { mutableStateOf("") }
+
 
     val imagePicker = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent(),
         onResult = { uri ->
             if (uri != null) {
-                campImg = uri
+                CampImg = uri
             }
         }
     )
 
     val Validation =
-        campName.trim().isNotEmpty() &&
-                campLoc.trim().isNotEmpty() &&
-                campDesc.trim().isNotEmpty() &&
-                campAmenities.trim().isNotEmpty() &&
+        CampName.trim().isNotEmpty() &&
+                (CampPrice.toDoubleOrNull()?.let { it.isFinite() && it >= 0.0 } == true) &&
+                cancelPolicy.trim().isNotEmpty() &&
+                CampLoc.trim().isNotEmpty() &&
+                CampDesc.trim().isNotEmpty() &&
+                CampAmenities.trim().isNotEmpty() &&
                 (maxOccupancy.toIntOrNull() ?: 0) > 0 &&
                 geoLocation.trim().isNotEmpty()
 
+
     val Owner_PutInput =
-        campName.isNotBlank() ||
-                campLoc.isNotBlank() ||
-                campDesc.isNotBlank() ||
-                campAmenities.isNotBlank() ||
+        CampName.isNotBlank() ||
+                CampPrice.isNotBlank() ||
+                cancelPolicy.isNotBlank() ||
+                CampLoc.isNotBlank() ||
+                CampDesc.isNotBlank() ||
+                CampAmenities.isNotBlank() ||
                 maxOccupancy.isNotBlank() ||
                 geoLocation.isNotBlank() ||
                 tagInput.isNotBlank() ||
                 tags.isNotEmpty() ||
-                campImg != null
+                CampImg != null
 
     BackHandler {
         if (Owner_PutInput) {
-            backConfirmation = true
+            BackConfirmation = true
         } else {
             onBack()
         }
@@ -97,26 +107,26 @@ fun CampsiteRegistrationForm(
             style = MaterialTheme.typography.headlineMedium,
         )
         OutlinedTextField(
-            value = campName,
-            onValueChange = { campName = it },
+            value = CampName,
+            onValueChange = { CampName = it },
             label = { Text("Campsite Name") },
             modifier = Modifier.fillMaxWidth()
         )
         OutlinedTextField(
-            value = campLoc,
-            onValueChange = { campLoc = it },
+            value = CampLoc,
+            onValueChange = { CampLoc = it },
             label = { Text("Campsite Location") },
             modifier = Modifier.fillMaxWidth()
         )
         OutlinedTextField(
-            value = campDesc,
-            onValueChange = { campDesc = it },
+            value = CampDesc,
+            onValueChange = { CampDesc = it },
             label = { Text("Campsite Description") },
             modifier = Modifier.fillMaxWidth()
         )
         OutlinedTextField(
-            value = campAmenities,
-            onValueChange = { campAmenities = it },
+            value = CampAmenities,
+            onValueChange = { CampAmenities = it },
             label = { Text("Campsite Amenities (comma-separated)") },
             modifier = Modifier.fillMaxWidth()
         )
@@ -125,6 +135,19 @@ fun CampsiteRegistrationForm(
             onValueChange = { maxOccupancy = it },
             label = { Text("Maximum Occupancy") },
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+            modifier = Modifier.fillMaxWidth()
+        )
+        OutlinedTextField(
+            value = CampPrice,
+            onValueChange = { CampPrice = it },
+            label = { Text("Campsite Price") },
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+            modifier = Modifier.fillMaxWidth()
+        )
+        OutlinedTextField(
+            value = cancelPolicy,
+            onValueChange = { cancelPolicy = it },
+            label = { Text("Cancel Policy") },
             modifier = Modifier.fillMaxWidth()
         )
         OutlinedTextField(
@@ -182,7 +205,7 @@ fun CampsiteRegistrationForm(
         ) {
             Text("Upload Image")
         }
-        if (campImg != null) {
+        if (CampImg != null) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -191,7 +214,7 @@ fun CampsiteRegistrationForm(
                 Text("Image Selected")
                 TextButton(
                     onClick = {
-                        campImg = null
+                        CampImg = null
                     }
                 ) {
                     Text("Remove Image")
@@ -201,15 +224,17 @@ fun CampsiteRegistrationForm(
         Button(
             onClick = {
                 val campsite = Campsite(
-                    campName = campName.trim(),
-                    campLoc = campLoc.trim(),
-                    campDesc = campDesc.trim(),
-                    campAmenities = campAmenities.trim().split(",").map { it.trim() }.filter { it.isNotEmpty() },
+                    CampName = CampName.trim(),
+                    CampLoc = CampLoc.trim(),
+                    CampDesc = CampDesc.trim(),
+                    CampAmenities = CampAmenities.trim().split(",").map { it.trim() }.filter { it.isNotEmpty() },
                     maxOccupancy = maxOccupancy.trim().toIntOrNull() ?: 0,
                     geoLocation = geoLocation.trim(),
-                    tags = tags
+                    tags = tags,
+                    cancelPolicy = cancelPolicy.trim(),
+                    CampPrice = CampPrice.toDoubleOrNull() ?: 0.0
                 )
-                onUpload(campsite, campImg)
+                onUpload(campsite, CampImg)
             },
             enabled = Validation,
             modifier = Modifier.fillMaxWidth()
@@ -218,10 +243,10 @@ fun CampsiteRegistrationForm(
         }
     }
 
-    if (backConfirmation) {
+    if (BackConfirmation) {
         AlertDialog(
             onDismissRequest = {
-                backConfirmation = false
+                BackConfirmation = false
             },
             title = {
                 Text("Discard Changes?")
@@ -232,7 +257,7 @@ fun CampsiteRegistrationForm(
             confirmButton = {
                 TextButton(
                     onClick = {
-                        backConfirmation = false
+                        BackConfirmation = false
                         onBack()
                     }
                 ) {
@@ -242,7 +267,7 @@ fun CampsiteRegistrationForm(
             dismissButton = {
                 TextButton(
                     onClick = {
-                        backConfirmation = false
+                        BackConfirmation = false
                     }
                 ) {
                     Text("Cancel")

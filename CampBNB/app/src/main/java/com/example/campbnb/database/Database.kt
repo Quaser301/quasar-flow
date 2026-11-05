@@ -1,16 +1,31 @@
 package com.example.campbnb.database
 
+
 import com.example.campbnb.models.Notification
+import android.annotation.SuppressLint
+import com.example.campbnb.models.Lottery
+import com.example.campbnb.models.Campsite
+import com.example.campbnb.models.Rating
 import com.example.campbnb.models.User
+import com.example.campbnb.database.transactionEngine
 import com.google.firebase.firestore.FirebaseFirestore
 
 /**
  * Single accessor for ALL Firestore Reading/Writing.
  *
  * All Data schemas are registered in this object.
+ *
+ * The Firestore instance is resolved once, on first use, and shared by every engine this
+ * object hands out.
  */
 object Database {
-    private val db: FirebaseFirestore get() = FirebaseFirestore.getInstance()
+    // Resolved once rather than on each property access, so every engine built from `db`
+    // below holds and shares a single Firestore instance. (`const val` is not an option
+    // here: it is restricted to primitive and String types.)
+    // since this val is only used by functions that are unit tested, its fine
+    // we don't make it hard to test.
+    @SuppressLint("StaticFieldLeak") // since this is singleton, its invoked once
+    private val db: FirebaseFirestore = FirebaseFirestore.getInstance()
 
     /*
     Insert your DB schema's here, following this format:
@@ -59,4 +74,52 @@ object Database {
         }
     }
 
+     * The transaction engine for this Firestore instance.
+     *
+     * Unlike the read and write engines, no transaction engine is registered per schema: a
+     * transaction spans whatever collections it needs to hold its invariants, so one engine
+     * serves every collection registered here.
+     *
+     * @returns The constructed [TransactionEngine] for this Firestore instance.
+     */
+    fun transactionEngine(): TransactionEngine {
+        return db.transactionEngine()
+    }
+
+    object Ratings {
+        const val COLLECTION_NAME = "ratings"
+
+        fun readEngine(): QueryEngine<Rating> {
+            return db.readEngineFor<Rating>(COLLECTION_NAME)
+        }
+
+        fun writeEngine(): WriteEngine<Rating> {
+            return db.writeEngineFor<Rating>(COLLECTION_NAME)
+        }
+    }
+
+    object Lotteries {
+        const val COLLECTION_NAME = "lotteries"
+
+        fun readEngine(): QueryEngine<Lottery> {
+            return db.readEngineFor<Lottery>(COLLECTION_NAME)
+        }
+
+        fun writeEngine(): WriteEngine<Lottery> {
+            return db.writeEngineFor<Lottery>(COLLECTION_NAME)
+        }
+    }
+
+
+    object Campsites {
+        const val COLLECTION_NAME = "campsites"
+
+        fun readEngine(): QueryEngine<Campsite> {
+            return db.readEngineFor<Campsite>(COLLECTION_NAME)
+        }
+
+        fun writeEngine(): WriteEngine<Campsite> {
+            return db.writeEngineFor<Campsite>(COLLECTION_NAME)
+        }
+    }
 }
