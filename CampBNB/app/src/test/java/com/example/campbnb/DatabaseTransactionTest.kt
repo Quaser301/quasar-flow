@@ -40,7 +40,10 @@ class TransactionEngineTest {
         // 🌟 Wire up the full hierarchical mock routing chain: the engine asks the db to run
         // a transaction, and the mocked db hands our block a mocked Transaction instead of a
         // real one.
-        every { mockDb.runTransaction(invoke(mockTransaction)) } returns mockTask
+        // The block shape must be stated here: Kotlin cannot reconstruct the function
+        // signature from the JVM-typed callback parameter of runTransaction, so the
+        // reified type of the invoke matcher names it as the engine's own block type.
+        every { mockDb.runTransaction(invoke<(Transaction) -> Any>(mockTransaction)) } returns mockTask
 
         // Every database structural mutation returns our tracking task reference
         every { mockTask.addOnSuccessListener(any()) } returns mockTask
