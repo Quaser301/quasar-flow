@@ -9,7 +9,5 @@ class LotteryController (
     private val clock: () -> Long = System::currentTimeMillis,
 ){
     // E, D, A, F
-    fun onBackMonitorClicked() {
-        TODO()
-    }
+
 }

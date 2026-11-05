@@ -64,7 +64,7 @@ class LotteryMonitorActivity(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Button(
-                    onClick = { controller.onBackMonitorClicked() },
+                    onClick = { navController.popBackStack() },
                     modifier = Modifier.padding(8.dp)
                 ) {
                     Text(
