@@ -1,5 +1,8 @@
 package com.example.campbnb.database
 
+import com.example.campbnb.database.readEngineFor
+import com.example.campbnb.database.writeEngineFor
+import com.example.campbnb.models.Lottery
 import com.example.campbnb.models.Rating
 import com.example.campbnb.models.User
 import com.google.firebase.firestore.FirebaseFirestore
@@ -55,5 +58,18 @@ object Database {
             return db.writeEngineFor<Rating>(COLLECTION_NAME)
         }
     }
+
+    object Lotteries {
+        const val COLLECTION_NAME = "lotteries"
+
+        fun readEngine(): QueryEngine<Lottery> {
+            return db.readEngineFor<Lottery>(COLLECTION_NAME)
+        }
+
+        fun writeEngine(): WriteEngine<Lottery> {
+            return db.writeEngineFor<Lottery>(COLLECTION_NAME)
+        }
+    }
+
 
 }
