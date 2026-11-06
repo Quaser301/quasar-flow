@@ -53,14 +53,31 @@ fun SearchScreen(
     searchHistory: List<String> = emptyList(),
     onSearch: (query: String, filters: Set<String>) -> Unit = { _, _ -> },
     onCampsiteClick: (CampsiteCardData) -> Unit = {},
-    onQrClick: () -> Unit = {}
+    onQrClick: () -> Unit = {},
+    onClose: () -> Unit
 ) {
     var query by rememberSaveable { mutableStateOf(initialQuery) }
+    var searchMode by rememberSaveable {
+        mutableStateOf(initialQuery.isNotBlank())
+    }
     var showFilter by rememberSaveable { mutableStateOf(false) }
     var showHistory by rememberSaveable { mutableStateOf(false) }
     var menuOpen by remember { mutableStateOf(false) }
     var filters by remember { mutableStateOf(emptySet<String>()) }
 
+    val searchEnabled =
+        query.isNotBlank() ||
+                showFilter ||
+                showHistory ||
+                searchMode
+    LaunchedEffect(searchEnabled) {
+
+        if (!searchEnabled) {
+            // leave SearchScreen and return to Explore
+            // this should call a callback supplied by NavHost
+            onClose()
+        }
+    }
     Column(
         Modifier
             .fillMaxSize()
@@ -75,23 +92,76 @@ fun SearchScreen(
         ) {
             CampSearchBar(
                 query = query,
-                onQueryChange = { query = it },
-                onSearch = { onSearch(it, filters) },
+                onQueryChange = {
+                    query = it
+
+                    if (it.isBlank()) {
+                        searchMode = false
+                    }
+                },
+
+                onSubmitSearch = { text ->
+
+                    if (text.isNotBlank() && !searchMode) {
+                        searchMode = true
+                        onSearch(text, filters)
+                    }
+                },
+
+                onMagnifyClick = { text ->
+
+                    if (
+                        text.isBlank() &&
+                        !showFilter &&
+                        !showHistory &&
+                        searchMode
+                    ) {
+                        searchMode = false
+                    } else {
+                        searchMode = true
+                        onSearch(text, filters)
+                    }
+                },
+
                 modifier = Modifier.weight(1f),
-                onMenuClick = { menuOpen = true },
+
+                onMenuClick = {
+                    menuOpen = true
+                },
+
                 menuContent = {
-                    DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                    DropdownMenu(
+                        expanded = menuOpen,
+                        onDismissRequest = { menuOpen = false }
+                    ) {
                         DropdownMenuItem(
-                            text = { Text(if (showFilter) "Filter  ✓" else "Filter") },
-                            onClick = { showFilter = !showFilter; menuOpen = false }
+                            text = {
+                                Text(if (showFilter) "Filter ✓" else "Filter")
+                            },
+                            onClick = {
+                                showFilter = !showFilter
+                                menuOpen = false
+                            }
                         )
+
                         DropdownMenuItem(
-                            text = { Text(if (showHistory) "Search History  ✓" else "Search History") },
-                            onClick = { showHistory = !showHistory; menuOpen = false }
+                            text = {
+                                Text(
+                                    if (showHistory)
+                                        "Search History ✓"
+                                    else
+                                        "Search History"
+                                )
+                            },
+                            onClick = {
+                                showHistory = !showHistory
+                                menuOpen = false
+                            }
                         )
                     }
                 }
             )
+
             CircleLabelButton("QR Code", onQrClick)
         }
 
