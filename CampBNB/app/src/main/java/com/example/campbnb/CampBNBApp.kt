@@ -57,6 +57,7 @@ import com.example.campbnb.ui.Screens.PlaceholderTab
 import com.example.campbnb.ui.Screens.RoleSelectScreen
 import com.example.campbnb.ui.Screens.SignUpScreen
 import com.example.campbnb.ui.Screens.StartScreen
+import com.example.campbnb.ui.admin.AdminProfilesScreen
 import com.example.campbnb.ui.campsite.CampsiteMonitorActivity
 import com.example.campbnb.ui.campsite.CampsiteRatingSection
 import com.example.campbnb.ui.campsite.CampsiteRegistrationForm
@@ -66,7 +67,6 @@ import com.example.campbnb.ui.components.GradientButton
 import com.example.campbnb.ui.components.UserRole
 import com.example.campbnb.ui.details.CampsiteDetails
 import com.example.campbnb.ui.details.CampsiteDetailsScreen
-import com.example.campbnb.ui.details.placeholderDetails
 import com.example.campbnb.ui.inbox.CorrespondenceScreen
 import com.example.campbnb.ui.inbox.MessagesScreen
 import com.example.campbnb.ui.inbox.NotificationInboxScreen
@@ -215,7 +215,16 @@ fun CampBnbApp(
                             onOpenLotteries = { nav.navigate(Screen.LotteryMonitorActivity) },
                             onOpenReservations = { nav.navigate(Screen.Reservations) }
                         )
-                    } else {
+                    } else if (destination == HomeDestination.ADMIN_PROFILE_VIEW) {
+                        LaunchedEffect(Unit) {
+                            userController.loadAllUsers()
+                        }
+                        AdminProfilesScreen(
+                            { nav.goHome(role) },
+                            userModel
+                        )
+                    }
+                    else {
                         PlaceholderTab(destination)
                     }
                 },
@@ -757,6 +766,8 @@ fun CampBnbApp(
                 openReservationId = entry.arguments?.getString("reservationId")
             )
         }
+
+
     }
 
     LaunchedEffect(pendingRoute) {

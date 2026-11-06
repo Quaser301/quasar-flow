@@ -1,13 +1,19 @@
 package com.example.campbnb.ui.admin
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement.spacedBy
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.campbnb.ui.shared.observeModel
@@ -15,6 +21,7 @@ import com.example.campbnb.ui.theme.FieldGrey
 import com.example.campbnb.models.Role
 import com.example.campbnb.models.User
 import com.example.campbnb.models.UserModel
+import com.example.campbnb.ui.components.BackArrow
 
 /**
  * One browsed profile row: the three fields the admin sees, each already turned
@@ -138,9 +145,12 @@ fun AdminProfilesScreen(back: () -> Unit, userModel: UserModel) {
     Column {
         AdminProfilesTopBar(back)
         Box(Modifier.verticalScroll(rememberScrollState())) {
-            Column {
+            Column(
+                verticalArrangement = spacedBy(8.dp)
+            )
+            {
                 for (row in rows) {
-                    Text(profileRowText(row), fontSize = 16.sp)
+                    ProfileEntry(profileRowText(row))
                 }
             }
         }
@@ -152,17 +162,46 @@ fun AdminProfilesScreen(back: () -> Unit, userModel: UserModel) {
 private fun AdminProfilesTopBar(back: () -> Unit) {
     Row(Modifier.fillMaxWidth()) {
         Box(
-            Modifier
-                .clickable(onClick = { back() })
-                .padding(6.dp)
-        ) {
-            Text("< back", fontSize = 16.sp, color = FieldGrey)
-        }
+        Modifier
+            .clickable(onClick = { back() })
+            .padding(12.dp)
+    ) {
+        BackArrow()
+    }
         Box(
-            Modifier.weight(1.0f),
+            modifier = Modifier.weight(1f),
             contentAlignment = Alignment.Center
         ) {
             Text("Profiles", fontSize = 26.sp)
+        }
+
+        // secret spacer to move it back
+        Box(
+            modifier = Modifier
+                .padding(12.dp)
+        ) {
+            Text("<", fontSize = 26.sp, color = Color.Transparent)
+        }
+    }
+}
+
+@Composable
+private fun ProfileEntry(entry: String) {
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(2))
+            .background(FieldGrey)
+            .fillMaxWidth(),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = spacedBy(6.dp),
+            modifier = Modifier
+                .fillMaxWidth(0.75f)
+                .padding(vertical = 12.dp)
+        ) {
+            Text(entry, fontSize = 16.sp, textAlign = TextAlign.Center)
         }
     }
 }
