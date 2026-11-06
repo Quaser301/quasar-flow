@@ -14,6 +14,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -46,6 +47,7 @@ private val placeholderCards = List(6) { CampsiteCardData("placeholder$it", "(im
  */
 @Composable
 fun ExploreScreen(
+
     recommended: List<CampsiteCardData> = placeholderCards,
     newSites: List<CampsiteCardData> = placeholderCards,
     onCampsiteClick: (CampsiteCardData) -> Unit = {},
@@ -53,6 +55,8 @@ fun ExploreScreen(
     onMenuClick: () -> Unit = {},
     onSearch: (String) -> Unit = {}
 ) {
+    var query by rememberSaveable { mutableStateOf("") }   // import androidx.compose.runtime.saveable.rememberSaveable
+
     LazyColumn(
         Modifier.fillMaxSize(),
         contentPadding = PaddingValues(vertical = 12.dp),
@@ -64,7 +68,7 @@ fun ExploreScreen(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                CampSearchBar(onMenuClick, onSearch, Modifier.weight(1f))
+                CampSearchBar(query, { query = it }, onSearch, Modifier.weight(1f), onMenuClick = onMenuClick)
                 SettingsButton(onSettingsClick)
             }
         }
@@ -74,20 +78,33 @@ fun ExploreScreen(
     }
 }
 
-/** Pill-shaped search field with a menu icon on the left and a search icon on the right. */
+/**
+ * Pill-shaped search field with a menu icon on the left and a search icon on the right.
+ *
+ * @param query The current text.
+ * @param onQueryChange Called as the user types.
+ * @param onSearch Called with the query when the user submits it.
+ * @param onMenuClick Called when the hamburger icon is tapped.
+ * @param menuContent A dropdown menu anchored to the hamburger icon. Empty by default.
+ */
 @Composable
-private fun CampSearchBar(
-    onMenuClick: () -> Unit,
+fun CampSearchBar(
+    query: String,
+    onQueryChange: (String) -> Unit,
     onSearch: (String) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onMenuClick: () -> Unit = {},
+    menuContent: @Composable () -> Unit = {}
 ) {
-    var query by remember { mutableStateOf("") }
     TextField(
         value = query,
-        onValueChange = { query = it },
+        onValueChange = onQueryChange,
         placeholder = { Text("Search for campsites...", fontSize = 14.sp) },
         leadingIcon = {
-            Box(Modifier.clickable(onClick = onMenuClick).padding(8.dp)) { MenuGlyph() }
+            Box {
+                Box(Modifier.clickable(onClick = onMenuClick).padding(8.dp)) { MenuGlyph() }
+                menuContent()
+            }
         },
         trailingIcon = {
             Box(Modifier.clickable { onSearch(query) }.padding(8.dp)) { SearchGlyph() }

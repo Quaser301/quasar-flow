@@ -104,7 +104,7 @@ fun HomeScreen(
 
 /** Green gradient bar with rounded top corners and one circle per tab. */
 @Composable
-private fun RoleBottomBar(tabs: List<HomeTab>, selectedIndex: Int, onSelect: (Int) -> Unit) {
+fun RoleBottomBar(tabs: List<HomeTab>, selectedIndex: Int, onSelect: (Int) -> Unit) {
     Row(
         Modifier
             .fillMaxWidth()

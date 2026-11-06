@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -24,26 +25,31 @@ import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Dp
 import com.example.campbnb.ui.theme.*
 
 /** The role a user signs in or registers as. */
 enum class UserRole(val label: String) { CAMPER("Camper"), OWNER("Owner"), ADMIN("Admin") }
 
-/** Pill-shaped button with the green left-to-right gradient. */
+/** Pill-shaped button with a gradient background (green by default). */
 @Composable
 fun GradientButton(
     text: String,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
-    enabled: Boolean = true
+    enabled: Boolean = true,
+    brush: Brush = ButtonGradient,
+    height: Dp = 44.dp
 ) {
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .height(44.dp)
+            .height(height)
             .alpha(if (enabled) 1f else 0.5f)
             .clip(RoundedCornerShape(50))
-            .background(ButtonGradient)
+            .background(brush)
             .clickable(enabled = enabled, onClick = onClick),
         contentAlignment = Alignment.Center
     ) {
@@ -138,6 +144,21 @@ fun RoleDropdown(selected: UserRole?, onSelected: (UserRole) -> Unit) {
                 )
             }
         }
+    }
+}
+
+/** A grey circular button with a short text label, like Settings and QR Code. */
+@Composable
+fun CircleLabelButton(label: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    Box(
+        modifier
+            .size(48.dp)
+            .clip(CircleShape)
+            .background(FieldGrey)
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(label, fontSize = 10.sp, lineHeight = 11.sp, textAlign = TextAlign.Center, color = Color.Black)
     }
 }
 

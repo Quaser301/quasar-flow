@@ -23,28 +23,38 @@ import com.example.campbnb.viewModels.AppViewSettingController
 fun CampBnbApp(appViewSettings: AppViewSettingController) {
 
     val nav = rememberNavController()
+
+
     NavHost(navController = nav, startDestination = Screen.Start) {
+        // Start
         composable<Screen.Start> {
             StartScreen(onGetStarted = { nav.navigate(Screen.Login) })
         }
+        // Login
         composable<Screen.Login> {
             LoginScreen(
-                onLogin = { username, role, rememberMe -> /* TODO: sign in, then go to the role's home */ },
+                onLogin = { username, role, rememberMe ->
+                /* TODO: sign in, then go to the role's home */ },
                 onSignUpClick = { nav.navigate(Screen.SignUp) }
             )
         }
+        // SignUp
         composable<Screen.SignUp> {
             SignUpScreen(
-                onSignUp = { email, username -> /* TODO: create the account */ nav.navigate("role") },
+                onSignUp = { email, username ->
+                    /* TODO: create the account */ nav.navigate("role") },
                 onLoginClick = { nav.navigateUp() }
             )
         }
+        // Role Selection
         composable<Screen.Role> {
-            RoleSelectScreen(onRoleSelected = { role -> /* TODO: save the role, go to its home */ })
+            RoleSelectScreen(onRoleSelected = { role ->
+            /* TODO: save the role, go to its home */ })
         }
         composable<Screen.Login> {
             LoginScreen(
-                onLogin = { _, role, _ ->   // TODO: authenticate first
+                onLogin = { _, role, _ ->
+                    // TODO: authenticate first
                     nav.navigate(Screen.Home(roleName = role)) {
                         popUpTo(Screen.Start) {
                             inclusive = true
