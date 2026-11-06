@@ -17,12 +17,17 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.campbnb.controller.LotteryController
+import com.example.campbnb.models.Campsite
 import com.example.campbnb.models.Lottery
 import com.example.campbnb.models.LotteryModel
 import com.example.campbnb.models.ViewObserver
@@ -41,6 +46,7 @@ import com.google.firebase.auth.FirebaseAuth
  * 06-11-26: Prompted gemini 3.6 to help me fix bug where the incorrect owner ID is passed in
  * making the lotteries not display. Provided a simple few line edit.
  * 06-11-26: Prompted gemini 3.6 to fill out kdocs
+ * 06-11-26: Prompted gemini 3.6 to help fix bug where campite names where being displayed instead of their IDs
  *
  * @property goHome Callback function to navigate to the home screen.
  * @property goBack Callback function to navigate backwards.
@@ -94,9 +100,14 @@ class LotteryMonitorActivity(
         val resolvedOwnerId = ownerId.ifBlank {
             FirebaseAuth.getInstance().currentUser?.uid ?: DeviceId.get(context) }
 
-        LaunchedEffect(ownerId) {
+        var campsitesMap by remember { mutableStateOf<Map<String, Campsite>>(emptyMap()) }
+
+        LaunchedEffect(resolvedOwnerId) {
             if (resolvedOwnerId.isNotBlank()) {
                 controller.loadOwnerLotteries(resolvedOwnerId)
+                controller.loadOwnerCampsites(resolvedOwnerId) { fetchedCampsites ->
+                    campsitesMap = fetchedCampsites.associateBy { it.id }
+                }
             }
         }
 
@@ -134,6 +145,7 @@ class LotteryMonitorActivity(
                     .fillMaxWidth()
             ) {
                 items(model.lotteryList) { lottery ->
+                    val campsiteNames = lottery.campsiteIds.map { id -> campsitesMap[id]?.campName ?: id }
                     Card(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -152,7 +164,7 @@ class LotteryMonitorActivity(
                                 verticalArrangement = Arrangement.spacedBy(4.dp)
                             ) {
                                 Text(
-                                    text = "Campsite(s): ${lottery.campsiteIds.joinToString(", ").ifEmpty { "None" }}",
+                                    text = "Campsite(s): ${campsiteNames.joinToString(", ").ifEmpty { "None" }}",
                                     style = MaterialTheme.typography.titleMedium,
                                     fontWeight = FontWeight.Bold
                                 )

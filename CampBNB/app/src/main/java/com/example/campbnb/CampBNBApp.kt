@@ -38,6 +38,7 @@ import com.example.campbnb.data.UserRepository
 import com.example.campbnb.database.Database
 import com.example.campbnb.models.Campsite
 import com.example.campbnb.models.CampsiteModel
+import com.example.campbnb.models.Lottery
 import com.example.campbnb.models.LotteryModel
 import com.example.campbnb.models.Role
 import com.example.campbnb.models.User
@@ -62,6 +63,7 @@ import com.example.campbnb.ui.inbox.NotificationViewModel
 import com.example.campbnb.ui.lottery.LotteryDetailsActivity
 import com.example.campbnb.ui.lottery.LotteryEditActivity
 import com.example.campbnb.ui.lottery.LotteryMonitorActivity
+import com.example.campbnb.ui.lottery.LotteryWaitlistActivity
 import com.example.campbnb.ui.search.SearchScreen
 import com.example.campbnb.ui.settings.SettingsScreen
 import com.example.campbnb.ui.shared.DeviceId
@@ -83,6 +85,8 @@ fun CampBnbApp(
     val userModel = remember { UserModel() }
     val userRepo = remember { UserRepository() }
     val userController = remember { UserController(userModel, userRepo) }
+
+    var selectedLottery by remember { mutableStateOf<Lottery?>(null) }
 
     NavHost(navController = nav, startDestination = Screen.Start) {
         // Start
@@ -227,7 +231,7 @@ fun CampBnbApp(
                     Database.Lotteries.readEngine()
                 ) { System.currentTimeMillis() }
             }
-            activity.LotteryEdit(model = model, controller = controller)
+            activity.LotteryEdit(model = model, controller = controller, initialLottery = selectedLottery)
         }
         // Lottery monitor (owner's list of lotteries)
         composable<Screen.LotteryMonitorActivity> {
@@ -235,8 +239,14 @@ fun CampBnbApp(
                 LotteryMonitorActivity(
                     { nav.navigate(Screen.Start /* TODO: CHANGE TO HOME */) },
                     { nav.navigateUp() },
-                    { nav.navigate(Screen.LotteryEditActivity) },
-                    { _ -> nav.navigate(Screen.LotteryDetailsActivity) },
+                    {
+                        selectedLottery = null
+                        nav.navigate(Screen.LotteryEditActivity)
+                    },
+                    { lottery ->
+                        selectedLottery = lottery
+                        nav.navigate(Screen.LotteryDetailsActivity)
+                    },
                     appViewSettings.toAppViewSetting()
                 )
             }
@@ -253,6 +263,30 @@ fun CampBnbApp(
             }
             activity.LotteryMonitor(model = model, controller = controller)
         }
+        composable<Screen.LotteryWaitlistActivity> {
+            val activity = remember {
+                LotteryWaitlistActivity(
+                    { nav.navigate(Screen.Start) },
+                    { nav.navigateUp() },
+                    appViewSettings = appViewSettings.toAppViewSetting()
+                )
+            }
+            val model = remember { LotteryModel() }
+            val repo = remember { LotteryRepository() }
+            val controller = remember {
+                LotteryController(
+                    model,
+                    repo,
+                    Database.Lotteries.readEngine()
+                ) { System.currentTimeMillis() }
+            }
+            activity.LotteryWaitlist(
+                model = model,
+                controller = controller,
+                selectedLottery = selectedLottery
+            )
+        }
+
 
         composable<Screen.Reservations> {
 
@@ -286,7 +320,7 @@ fun CampBnbApp(
                 )
             }
             val model = remember { LotteryModel() }
-            activity.LotteryDetails(model = model)
+            activity.LotteryDetails(model = model, selectedLottery = selectedLottery)
         }
 
         // Notification and message destinations
