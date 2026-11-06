@@ -1,15 +1,11 @@
 package com.example.campbnb.ui.campsite
 
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import com.example.campbnb.controller.LotteryController
@@ -20,9 +16,10 @@ import com.example.campbnb.ui.shared.observeModel
 // Todo: no countdown to the end of registration yet.
 
 /**
- * View: the lottery block for the Details screen (US 01.01.06, 01.02.01, 01.02.02). Shows
- * whether the campsite has an open lottery and offers Join Lottery or Leave Lottery.
- * It loads the lottery status and redraws itself, so the Details screen only has to place it.
+ * View: the lottery status block for the Details screen (US 01.01.06, 01.02.01, 01.02.02).
+ * Loads whether the campsite has an open lottery and whether the user is on its waiting
+ * list, and shows that plus any join/leave message. The Join/Leave action itself is the
+ * Details screen's floating button, labelled by [lotteryButtonText].
  */
 @Composable
 fun LotteryJoinSection(
@@ -37,33 +34,11 @@ fun LotteryJoinSection(
         controller.loadEntrantStatus(campsiteId, userId)
     }
 
-    val lottery = model.entrantLottery
-    val isOnWaitlist = model.entrantIsOnWaitlist
-    val position = model.entrantPosition
-
     Column(modifier = modifier) {
         Text(
-            text = lotteryStatusText(lottery, isOnWaitlist, position),
+            text = lotteryStatusText(model.entrantLottery, model.entrantIsOnWaitlist, model.entrantPosition),
             modifier = Modifier.testTag("lottery_status")
         )
-        if (lottery != null) {
-            if (isOnWaitlist) {
-                Button(
-                    onClick = { controller.leave(lottery, userId) },
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFD32F2F)),
-                    modifier = Modifier.fillMaxWidth().padding(top = 8.dp).testTag("leave_lottery")
-                ) {
-                    Text("Leave Lottery")
-                }
-            } else {
-                Button(
-                    onClick = { controller.join(lottery, userId) },
-                    modifier = Modifier.fillMaxWidth().padding(top = 8.dp).testTag("join_lottery")
-                ) {
-                    Text("Join Lottery")
-                }
-            }
-        }
         if (model.statusMessage.isNotBlank()) {
             Text(
                 text = model.statusMessage,
@@ -73,7 +48,7 @@ fun LotteryJoinSection(
     }
 }
 
-/** The line shown above the Join/Leave button. */
+/** The status line shown on the Details screen. */
 fun lotteryStatusText(lottery: Lottery?, joined: Boolean, position: Int): String {
     if (lottery == null) {
         return "No active lottery"
@@ -82,4 +57,15 @@ fun lotteryStatusText(lottery: Lottery?, joined: Boolean, position: Int): String
         return "You are on the waiting list (Position: $position)"
     }
     return "Lottery open for entries"
+}
+
+/** The floating button's label for the current lottery state. */
+fun lotteryButtonText(model: LotteryModel): String {
+    if (model.entrantLottery == null) {
+        return "No Active Lottery"
+    }
+    if (model.entrantIsOnWaitlist) {
+        return "Leave Lottery"
+    }
+    return "Enter Lottery"
 }
