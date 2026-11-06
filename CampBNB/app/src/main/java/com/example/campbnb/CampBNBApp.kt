@@ -45,6 +45,7 @@ import com.example.campbnb.models.User
 import com.example.campbnb.models.UserModel
 import com.example.campbnb.ui.Screens.DeviceSignInScreen
 import com.example.campbnb.notifications.NotificationRoutes
+import com.example.campbnb.ui.Screens.CampsiteCardData
 import com.example.campbnb.ui.Screens.ExploreScreen
 import com.example.campbnb.ui.Screens.HomeDestination
 import com.example.campbnb.ui.Screens.HomeScreen
@@ -150,10 +151,41 @@ fun CampBnbApp(
                 }
             })
         }
+
         // Home (Explore plus the role's bottom bar)
         composable<Screen.Home> { entry ->
             val route = entry.toRoute<Screen.Home>()
             val role = route.role
+
+            val context = LocalContext.current
+            val campsiteRepository = remember { CampsiteRepository() }
+
+            var campsiteCards by remember {
+                mutableStateOf<List<CampsiteCardData>>(emptyList())
+            }
+
+            LaunchedEffect(Unit) {
+                campsiteRepository.getAll(
+                    onSuccess = { campsites ->
+                        campsiteCards = campsites.map { campsite ->
+                            CampsiteCardData(
+                                id = campsite.id,
+                                name = campsite.campName,
+                                location = campsite.campLoc,
+                                maxOccupancy = campsite.maxOccupancy
+                            )
+                        }
+                    },
+                    onFailure = { error ->
+                        Toast.makeText(
+                            context,
+                            "Could not load campsites: ${error.message}",
+                            Toast.LENGTH_LONG
+                        ).show()
+                    }
+                )
+            }
+
             HomeScreen(
                 role = role,
                 initialTab = route.tab,
@@ -170,7 +202,16 @@ fun CampBnbApp(
                 },
                 exploreContent = {
                     ExploreScreen(
-                        onSettingsClick = { nav.navigate(Screen.Settings(role)) }
+                        recommended = campsiteCards,
+                        newSites = campsiteCards,
+                        onSettingsClick = {
+                            nav.navigate(Screen.Settings(role))
+                        },
+                        onCampsiteClick = { campsite ->
+                            nav.navigate(
+                                Screen.CampsiteDetailsScreen(role, campsite.id)
+                            )
+                        }
                     )
                 },
                 appViewSettings = appViewSettings.toAppViewSetting()
