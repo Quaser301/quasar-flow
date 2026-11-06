@@ -16,6 +16,9 @@ class CampsiteModel : ObservableModel<CampsiteModel>() {
     var statusMessage: String = ""
         private set
 
+    var ownerId: String = ""
+        private set
+
     /** Stores every campsite and shows all of them. */
     fun setCampsites(list: List<Campsite>) {
         allCampsites = list

@@ -40,8 +40,14 @@ import java.util.Locale
  * 05-11-26: Prompted gemini-3.5 to create the skeleton ui. Requested A display of the selected
  * lottery details with two buttons at the bottom that's cohesive with the UI theme of the
  * home screen.
+ * 06-11-26: Prompted gemini 3.6 to fill out kdocs
+ *
+ * @property returnHome Callback function to navigate back to the home screen.
+ * @property navigateBackwards Callback function to navigate backwards in the navigation stack.
+ * @property onEditLottery Callback function to navigate to the lottery edit screen for a lottery.
+ * @property onViewWaitlist Callback function to navigate to the waitlist screen for a lottery.
+ * @property appViewSettings Current view settings used for window verification and access checks.
  */
-
 class LotteryDetailsActivity(
     val returnHome: () -> Unit,
     val navigateBackwards: () -> Unit,
@@ -49,6 +55,15 @@ class LotteryDetailsActivity(
     val onViewWaitlist: (Lottery?) -> Unit = {},
     val appViewSettings: AppViewSetting
 ) {
+    /**
+     * Renders detailed information for a selected lottery.
+     *
+     * Displays status, campsites, winner count, waitlist capacity, and registration/booking
+     * date ranges, along with buttons to view the waitlist or edit the lottery.
+     *
+     * @param model The lottery state model shown by views.
+     * @param selectedLottery The [Lottery] instance whose details are displayed; null if none selected.
+     */
     @Composable
     fun LotteryDetails(
         model: LotteryModel,
@@ -155,6 +170,12 @@ class LotteryDetailsActivity(
         }
     }
 
+    /**
+     * Helper composable row for displaying a labeled key-value pair.
+     *
+     * @param label The category title or property name.
+     * @param value The value associated with the label.
+     */
     @Composable
     private fun InfoRow(label: String, value: String) {
         Row(
