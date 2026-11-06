@@ -3,11 +3,13 @@ package com.example.campbnb.database
 
 import com.example.campbnb.models.Notification
 import android.annotation.SuppressLint
+import com.example.campbnb.database.readEngineFor
 import com.example.campbnb.models.Lottery
 import com.example.campbnb.models.Campsite
 import com.example.campbnb.models.Rating
 import com.example.campbnb.models.User
 import com.example.campbnb.database.transactionEngine
+import com.example.campbnb.database.writeEngineFor
 import com.google.firebase.firestore.FirebaseFirestore
 
 /**
@@ -74,7 +76,7 @@ object Database {
         }
     }
 
-     * The transaction engine for this Firestore instance.
+     /** The transaction engine for this Firestore instance.
      *
      * Unlike the read and write engines, no transaction engine is registered per schema: a
      * transaction spans whatever collections it needs to hold its invariants, so one engine
