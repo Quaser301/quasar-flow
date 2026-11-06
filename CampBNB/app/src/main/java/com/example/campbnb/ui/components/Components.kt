@@ -144,6 +144,26 @@ fun DropdownArrow(modifier: Modifier = Modifier, color: Color = Color.DarkGray) 
     }
 }
 
+/** Left-pointing chevron glyph for going back, drawn like the dropdown arrow. */
+@Composable
+fun BackArrow(modifier: Modifier = Modifier, color: Color = Color.DarkGray) {
+    Canvas(modifier.size(width = 16.dp, height = 18.dp)) {
+        // the chevron band, so it reads like a bold "<" without needing a stroke.
+        val thickness = size.height * 0.28f
+        val innerPoint = thickness * (size.width / (size.height / 2f))
+        val chevron = Path().apply {
+            moveTo(size.width, 0f)
+            lineTo(0f, size.height / 2f)
+            lineTo(size.width, size.height)
+            lineTo(size.width, size.height - thickness)
+            lineTo(innerPoint, size.height / 2f)
+            lineTo(size.width, thickness)
+            close()
+        }
+        drawPath(chevron, color)
+    }
+}
+
 /** Grey dropdown that shows "Role" until the user picks one. */
 @Composable
 fun RoleDropdown(selected: UserRole?, onSelected: (UserRole) -> Unit) {

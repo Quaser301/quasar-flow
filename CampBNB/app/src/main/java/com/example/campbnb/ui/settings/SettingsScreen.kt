@@ -20,6 +20,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.example.campbnb.ui.components.BackArrow
 import com.example.campbnb.ui.components.GradientBarButton
 import com.example.campbnb.ui.components.UserRole
 import com.example.campbnb.ui.theme.ButtonStart
@@ -122,10 +123,13 @@ private fun SettingsTopBar(display: SettingsDisplayController) {
             .height(56.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        GradientBarButton(
-            "< back",
-            onClick = { display.pressBack() }
-        )
+        Box(
+            Modifier
+                .clickable(onClick = { display.pressBack() })
+                .padding(12.dp)
+        ) {
+            BackArrow()
+        }
         Box(
             modifier = Modifier.weight(1f),
             contentAlignment = Alignment.Center
