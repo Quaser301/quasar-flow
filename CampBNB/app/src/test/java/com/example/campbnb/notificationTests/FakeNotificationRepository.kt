@@ -1,4 +1,4 @@
-package com.example.campbnb
+package com.example.campbnb.notificationTests
 
 import com.example.campbnb.data.NotificationRepository
 import com.example.campbnb.data.NotificationUpdate
@@ -9,6 +9,10 @@ class FakeNotificationRepository : NotificationRepository {
     val saved = mutableMapOf<String, Notification>()
     var saveCalls = 0
     var failNextSave = false
+    var stopCalls = 0
+
+    private var listeningUserId: String? = null
+    private var listener: ((NotificationUpdate) -> Unit)? = null
 
     override fun saveAll(notifications: List<Notification>, onDone: (Result<Unit>) -> Unit) {
         saveCalls++
@@ -21,14 +25,38 @@ class FakeNotificationRepository : NotificationRepository {
         onDone(Result.success(Unit))
     }
 
+    /** Simulates a Firestore snapshot update in tests. */
+    fun emit(update: NotificationUpdate) {
+        listener?.invoke(update)
+    }
+
     override fun listenForUser(
         userId: String,
         onUpdate: (NotificationUpdate) -> Unit,
         onError: (Exception) -> Unit
-    ): () -> Unit = { }
+    ): () -> Unit {
 
-    override fun markRead(notificationId: String, onDone: (Result<Unit>) -> Unit) {
-        saved[notificationId]?.status = NotificationStatus.READ
+        listeningUserId = userId
+        listener = onUpdate
+        return {
+            stopCalls++
+            listener = null
+            listeningUserId = null
+        }
+    }
+
+
+
+    override fun markRead(
+        notificationId: String,
+        onDone: (Result<Unit>) -> Unit
+    ) {
+        val notification = saved[notificationId]
+        if (notification == null) {
+            onDone(Result.failure(NoSuchElementException(notificationId)))
+            return
+        }
+        notification.status = NotificationStatus.READ
         onDone(Result.success(Unit))
     }
 }
