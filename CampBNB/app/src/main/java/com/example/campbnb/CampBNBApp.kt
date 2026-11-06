@@ -55,6 +55,7 @@ import com.example.campbnb.ui.campsite.CampsiteRegistrationForm
 import com.example.campbnb.ui.components.GradientButton
 import com.example.campbnb.ui.components.UserRole
 import com.example.campbnb.ui.details.CampsiteDetailsScreen
+import com.example.campbnb.ui.details.placeholderDetails
 import com.example.campbnb.ui.inbox.CorrespondenceScreen
 import com.example.campbnb.ui.inbox.NotificationInboxScreen
 import com.example.campbnb.ui.inbox.NotificationViewModel
@@ -64,6 +65,7 @@ import com.example.campbnb.ui.lottery.LotteryMonitorActivity
 import com.example.campbnb.ui.search.SearchScreen
 import com.example.campbnb.ui.settings.SettingsScreen
 import com.example.campbnb.ui.shared.DeviceId
+import com.example.campbnb.ui.shared.toUserRole
 import com.example.campbnb.viewModels.AppView
 import com.example.campbnb.viewModels.AppViewSettingController
 import com.example.campbnb.viewModels.simpleViewModelFactory
@@ -151,7 +153,8 @@ fun CampBnbApp(
                             onOpenLotteries = { nav.navigate(Screen.LotteryMonitorActivity) },
                             onOpenReservations = { nav.navigate(Screen.Reservations) }
                         )
-                        else -> PlaceholderTab(destination)
+                    } else {
+                        PlaceholderTab(destination)
                     }
                 },
                 exploreContent = {
