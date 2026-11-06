@@ -3,12 +3,14 @@ package com.example.campbnb.models
 class Campsite(
     val id: String = "",
     val ownerId: String = "",
-    val campName: String = "",
-    val campLoc: String = "",
-    val campDesc: String = "",
-    val campAmenities: List<String> = emptyList(),
+    val CampName: String = "",
+    val CampLoc: String = "",
+    val CampDesc: String = "",
+    val CampAmenities: List<String> = emptyList(),
     val geoLocation: String = "",
-    val campImg: String = "",
+    val CampImg: String = "",
     val maxOccupancy: Int = 0,
-    val tags: List<String> = emptyList()
+    val tags: List<String> = emptyList(),
+    val cancelPolicy: String = "",
+    val CampPrice: Double = 0.0,
 ) {}

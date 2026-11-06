@@ -16,13 +16,14 @@ class NotificationController (
     private val repo: NotificationRepository,
     private val optOutChecker: OptOutChecker = OptOutChecker.AllowAll
 ) {
-    fun notifyWinners (
+    fun notifyWinners(
         lotteryId: String,
         campsiteName: String,
         winnerIds: List<String>,
         onDone: (Result<Int>) -> Unit
     ) = sendLotteryResult(NotificationType.WIN, lotteryId, campsiteName, winnerIds, onDone)
-    fun listen (
+
+    fun listen(
         userId: String,
         onUpdate: (NotificationUpdate) -> Unit,
         onError: (Exception) -> Unit
@@ -79,6 +80,7 @@ class NotificationController (
                 "You won the lottery for $place!" to
                         "Congratulations! You were selected in the draw for $place. " +
                         "Action needed: open the app and choose your dates before the booking window closes."
+
             else -> throw IllegalArgumentException("$type is not a lottery result")
         }
         return Notification(
@@ -96,4 +98,24 @@ class NotificationController (
         fun sortNewestFirst(list: List<Notification>): List<Notification> =
             list.sortedByDescending { it.sentAt?.seconds ?: Long.MAX_VALUE }
     }
+
+    /**
+     * Sends notifications to users about reservation events.
+     *
+     * [ReservationController] calls this class when a reservation is confirmed, cancelled or
+     * rejected, so the other party finds out without the controller knowing how the message is
+     * delivered. Callers don't wait for a result: a notification that fails to send never
+     * fails the reservation itself.
+     *
+     * Commands:
+     *  - [send]: Delivers one notification to one user.
+     *
+     * @author Zino
+     * @see ReservationController
+     */
+
+    fun send(recipientId: String, type: String, details: kotlin.collections.Map<String, String>) {
+
+    }
 }
+
