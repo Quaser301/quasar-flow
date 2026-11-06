@@ -2,51 +2,75 @@ package com.example.campbnb.ui.components
 
 import androidx.annotation.DrawableRes
 import androidx.compose.foundation.Image
-import androidx.compose.foundation.Canvas
-import androidx.compose.ui.graphics.Path
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextField
+import androidx.compose.material3.TextFieldDefaults
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.campbnb.ui.theme.*
+import com.example.campbnb.ui.theme.ButtonGradient
+import com.example.campbnb.ui.theme.FieldGrey
+import com.example.campbnb.ui.theme.LinkBlue
+import com.example.campbnb.ui.theme.ScreenGradient
 import kotlinx.serialization.Serializable
 
 /** The role a user signs in or registers as. */
 @Serializable // make Serializable so that Navigation works
 enum class UserRole(val label: String) { CAMPER("Camper"), OWNER("Owner"), ADMIN("Admin") }
 
-/** Pill-shaped button with the green left-to-right gradient. */
+/** Pill-shaped button with a gradient background (green by default). */
 @Composable
 fun GradientButton(
     text: String,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
-    enabled: Boolean = true
+    enabled: Boolean = true,
+    brush: Brush = ButtonGradient,
+    height: Dp = 44.dp
 ) {
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .height(44.dp)
+            .height(height)
             .alpha(if (enabled) 1f else 0.5f)
             .clip(RoundedCornerShape(50))
-            .background(ButtonGradient)
+            .background(brush)
             .clickable(enabled = enabled, onClick = onClick),
         contentAlignment = Alignment.Center
     ) {
@@ -185,7 +209,7 @@ fun RoleDropdown(selected: UserRole?, onSelected: (UserRole) -> Unit) {
                 color = if (selected == null) Color.DarkGray else Color.Black,
                 modifier = Modifier.weight(1f)
             )
-            DropdownArrow()
+            ArrowDownGlyph()
         }
         DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
             UserRole.entries.forEach { role ->
@@ -195,6 +219,21 @@ fun RoleDropdown(selected: UserRole?, onSelected: (UserRole) -> Unit) {
                 )
             }
         }
+    }
+}
+
+/** A grey circular button with a short text label, like Settings and QR Code. */
+@Composable
+fun CircleLabelButton(label: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    Box(
+        modifier
+            .size(48.dp)
+            .clip(CircleShape)
+            .background(FieldGrey)
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(label, fontSize = 10.sp, lineHeight = 11.sp, textAlign = TextAlign.Center, color = Color.Black)
     }
 }
 

@@ -11,6 +11,13 @@ val ButtonStart = Color(0xFF75B04F)
 val ButtonEnd = Color(0xFF2F7526)
 val FieldGrey = Color(0xFFD9D9D9)
 val LinkBlue = Color(0xFF2E9BDA)
+val StarTeal = Color(0xFF5BC0DE)
+val EyePink = Color(0xFFF0A8A8)
+val DeleteStart = Color(0xFFA64545)
+val DeleteEnd = Color(0xFF6B1212)
+
+/** Red pill button for destructive actions like Delete Site. */
+val DeleteGradient = Brush.horizontalGradient(listOf(DeleteStart, DeleteEnd))
 
 /** Start, Login and Sign Up backgrounds: dark green fading to light green. */
 val ScreenGradient = Brush.verticalGradient(listOf(GreenTop, GreenMid))
