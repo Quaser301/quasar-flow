@@ -28,7 +28,6 @@ fun <M> observeModel(model: ObservableModel<M>): Int {
 
     DisposableEffect(model) {
         val observer = object : ViewObserver<M> {
-            /** One model update: bumps the version so the calling screen re-runs. */
             override fun update(changedModel: M) {
                 version = version + 1
             }

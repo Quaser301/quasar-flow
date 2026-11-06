@@ -10,9 +10,7 @@ import kotlinx.coroutines.flow.asStateFlow
 
 sealed interface InboxState {
     data object Loading : InboxState
-    /** Inbox loaded; items are newest first. */
     data class Ready(val items: List<Notification>) : InboxState
-    /** The inbox failed to load; message is shown instead. */
     data class Error(val message: String) : InboxState
 }
 
@@ -32,8 +30,6 @@ class NotificationViewModel(
         start()
     }
 
-    /** Restarts live following of the user's notifications; a blank userId is
-     *     a hard error state. */
     fun start() {
         stopListening?.invoke()
         _state.value = InboxState.Loading
@@ -58,21 +54,18 @@ class NotificationViewModel(
         )
     }
 
-    /** Opening an unread notification marks it read. */
     fun open(notification: Notification) {
         if (notification.status == NotificationStatus.UNREAD) {
             controller.markRead(notification.id)
         }
     }
 
-    /** Marks every unread item of the loaded inbox as read. */
     fun markAllRead() {
         val items = (_state.value as? InboxState.Ready)?.items ?: return
         items.filter { it.status == NotificationStatus.UNREAD }
             .forEach { controller.markRead(it.id) }
     }
 
-    /** Teardown: stops the live listener. */
     override fun onCleared() {
         stopListening?.invoke()
         stopListening = null

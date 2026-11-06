@@ -244,7 +244,6 @@ fun CampsiteDetailsScreen(
     }
 }
 
-/** One amenity tag drawn as a pill. */
 @Composable
 private fun TagChip(label: String) {
     Box(

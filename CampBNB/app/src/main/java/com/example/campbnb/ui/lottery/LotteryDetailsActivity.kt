@@ -78,7 +78,6 @@ class LotteryDetailsActivity(
             )
         )
 
-        /** Human-readable booking window for display; unset dates read as not set. */
         fun formatDateRange(start: Long, end: Long): String {
             if (start == 0L || end == 0L) return "Not set"
             val formatter = SimpleDateFormat("MMM dd, yyyy", Locale.getDefault())

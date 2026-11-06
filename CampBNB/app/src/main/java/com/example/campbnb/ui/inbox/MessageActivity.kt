@@ -106,8 +106,6 @@ fun MessagesScreen(
     }
 }
 
-/** The chat list: one row per chat, a placeholder when there are none.
- * @param onOpen called with the chat of a tapped row */
 @Composable
 private fun ConversationList(
     conversations: List<Conversation>,
@@ -131,8 +129,6 @@ private fun ConversationList(
     }
 }
 
-/** One chat: last text and elapsed time, bold when unread, with a count badge.
- * @param onClick called when the row is tapped */
 @Composable
 private fun ConversationRow(
     conversation: Conversation,
@@ -188,8 +184,6 @@ private fun ConversationRow(
     }
 }
 
-/** An open chat as bubbles, newest kept in view; back and send route through
- *     onBack and onSend. */
 @Composable
 private fun ChatThread(
     currentUserId: String,
@@ -294,9 +288,6 @@ private fun ChatThread(
     }
 }
 
-/** A single message: right-aligned if it belongs to the viewer, left otherwise,
- *     with its relative time.
- * @param mine whether this message belongs to the viewer */
 @Composable
 private fun MessageBubble(
     message: Message,
@@ -332,7 +323,6 @@ private fun MessageBubble(
     }
 }
 
-/** Human elapsed-time label for a timestamp; undated reads as just now. */
 private fun relativeTime(seconds: Long?): String =
     seconds?.let {
         DateUtils.getRelativeTimeSpanString(

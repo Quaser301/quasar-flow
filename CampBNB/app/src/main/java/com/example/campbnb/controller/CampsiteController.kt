@@ -54,8 +54,6 @@ class CampsiteController (
         model.setVisibleCampsites(results)
     }
 
-    /** Case-insensitive match of the query against name, location, or any tag;
-     *     an empty query matches everything. */
     /** Kept so existing callers and tests still compile. */
     fun search(query: String, guests: Int?) {
         search(query, SearchFilters(guests = guests))
@@ -130,8 +128,6 @@ class CampsiteController (
         return false
     }
 
-    /** True when the campsite sleeps at least the requested party size;
-     *     no size requested means no filter. */
     private fun matchesGuests(campsite: Campsite, guests: Int?): Boolean {
         if (guests == null) {
             return true
@@ -186,11 +182,6 @@ class CampsiteController (
         model.setRatings(updated)
     }
     // Registers a new campsite for the current user
-    /** Publishes a new campsite owned by this user; a blank owner is refused through the
-     *     model's status message and reports false.
-     * @param campsite the details the owner filled in
-     * @param ownerId the signed-in owner publishing it
-     * @param onComplete called with whether the registration was saved */
     fun registerCampsite(
         campsite: Campsite,
         ownerId: String,
