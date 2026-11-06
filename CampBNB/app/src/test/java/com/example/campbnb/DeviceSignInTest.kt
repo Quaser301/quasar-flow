@@ -22,10 +22,10 @@ class DeviceSignInTest {
         display.rememberDevice("   ")
         display.noticeFrom("Could not read this device's id, so sign-on is unavailable.")
 
-        assertTrue("blank reads leave no identity behind", display.deviceId().value.isEmpty())
+        assertTrue("blank reads leave no identity behind", display.deviceId.value.isEmpty())
         assertTrue(
             "the reason is visible so the entrant knows why sign-on is off",
-            display.notice().value == "Could not read this device's id, so sign-on is unavailable."
+            display.notice.value == "Could not read this device's id, so sign-on is unavailable."
         )
     }
 
@@ -35,13 +35,13 @@ class DeviceSignInTest {
 
         display.rememberDevice("dev-1")
 
-        assertTrue("the readable id is written down", display.deviceId().value == "dev-1")
+        assertTrue("the readable id is written down", display.deviceId.value == "dev-1")
 
         display.rememberDevice("dev-2")
 
         assertTrue(
             "no later read replaces the identity the session signed on with",
-            display.deviceId().value == "dev-1"
+            display.deviceId.value == "dev-1"
         )
     }
 
@@ -50,11 +50,11 @@ class DeviceSignInTest {
         val display = DeviceSignInController()
 
         display.noticeFrom("Try again near the device reader")
-        assertTrue("the notice appears", display.notice().value == "Try again near the device reader")
+        assertTrue("the notice appears", display.notice.value == "Try again near the device reader")
 
         display.clearNotice()
 
-        assertTrue("clearing leaves nothing shown", display.notice().value.isEmpty())
+        assertTrue("clearing leaves nothing shown", display.notice.value.isEmpty())
     }
 
     @Test
@@ -64,6 +64,6 @@ class DeviceSignInTest {
         display.rememberDevice("dev-same")
         display.rememberDevice("dev-same")
 
-        assertTrue("an unchanging identity stays put", display.deviceId().value == "dev-same")
+        assertTrue("an unchanging identity stays put", display.deviceId.value == "dev-same")
     }
 }

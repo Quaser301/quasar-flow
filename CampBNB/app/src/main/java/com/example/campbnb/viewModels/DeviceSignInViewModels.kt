@@ -24,18 +24,14 @@ class DeviceSignInController : ViewModel() {
     private val _notice = MutableStateFlow("")
 
     /**
-     * Provides the remembered device id.
-     *
-     * @return A readonly [StateFlow] of it; empty until a readable id was written down.
+     * The remembered device id.
      */
-    fun deviceId(): StateFlow<String> = _deviceId.asStateFlow()
+    val deviceId = _deviceId.asStateFlow()
 
     /**
-     * Provides the current notice.
-     *
-     * @return A readonly [StateFlow] of it; empty when there is none.
+     * Provides the current NOTICE string. Blank if no notice is set.
      */
-    fun notice(): StateFlow<String> = _notice.asStateFlow()
+    val notice = _notice.asStateFlow()
 
     /**
      * Writes down a readable device id if none is remembered yet. A blank read is

@@ -15,9 +15,15 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.toRoute
 import com.example.campbnb.controller.LotteryController
+import com.example.campbnb.controller.UserController
 import com.example.campbnb.data.LotteryRepository
+import com.example.campbnb.data.UserRepository
 import com.example.campbnb.database.Database
 import com.example.campbnb.models.LotteryModel
+import com.example.campbnb.models.Role
+import com.example.campbnb.models.User
+import com.example.campbnb.models.UserModel
+import com.example.campbnb.ui.Screens.DeviceSignInScreen
 import com.example.campbnb.ui.Screens.HomeDestination
 import com.example.campbnb.ui.Screens.HomeScreen
 import com.example.campbnb.ui.Screens.LoginScreen
@@ -28,15 +34,22 @@ import com.example.campbnb.ui.Screens.StartScreen
 import com.example.campbnb.ui.lottery.LotteryDetailsActivity
 import com.example.campbnb.ui.lottery.LotteryEditActivity
 import com.example.campbnb.ui.lottery.LotteryMonitorActivity
+import com.example.campbnb.ui.shared.DeviceId
+import com.example.campbnb.ui.shared.toUserRole
 import com.example.campbnb.viewModels.AppViewSettingController
 
 @Composable
 fun CampBnbApp(appViewSettings: AppViewSettingController) {
 
     val nav = rememberNavController()
+    val context = LocalContext.current
+    val userModel = remember { UserModel() }
+    val userRepo = remember { UserRepository() }
+    val userController = remember { UserController(userModel, userRepo) }
+
     NavHost(navController = nav, startDestination = Screen.Start) {
         composable<Screen.Start> {
-            StartScreen(onGetStarted = { nav.navigate(Screen.Login) })
+                StartScreen(onGetStarted = { nav.navigate(Screen.Login) })
         }
         composable<Screen.CampsiteEditActivity> {
             val context = LocalContext.current
@@ -87,31 +100,34 @@ fun CampBnbApp(appViewSettings: AppViewSettingController) {
                 }
             )
         }
-        composable<Screen.SignUp> {
-            SignUpScreen(
-                onSignUp = { email, username -> /* TODO: create the account */ nav.navigate(Screen.Role) },
-                onLoginClick = { nav.navigateUp() }
-            )
-        }
-        composable<Screen.Role> {
-            RoleSelectScreen(onRoleSelected = { role -> /* TODO: save the role, go to its home */ })
-        }
+
         composable<Screen.Login> {
-            LoginScreen(
-                onLogin = { _, role, _ ->   // TODO: authenticate first
-                    nav.navigate(Screen.Home(roleName = role)) {
-                        popUpTo(Screen.Start) {
-                            inclusive = true
-                        }
+            DeviceSignInScreen(
+                readDevice = { DeviceId.get(context, {""}) },
+                userController = userController,
+                onEntered = {
+                    val role = userModel.currentUser?.roles?.firstOrNull()?: Role.ENTRANT
+                    nav.navigate(Screen.Home(roleName = toUserRole(role))) {
+                        popUpTo(Screen.Start) { inclusive = true }
                     }
                 },
-                onSignUpClick = { nav.navigate(Screen.SignUp) }
+                onNotFound = {
+                    nav.navigate(Screen.SignUp)
+                }
             )
         }
         composable<Screen.SignUp> {
             SignUpScreen(
-                onSignUp = { email, username -> /* TODO: create the account */ nav.navigate(Screen.Role) },
-                onLoginClick = { nav.navigateUp() }
+                onSignUp = { email, username, phoneNumber ->
+                    val newUser = User(
+                        deviceId = DeviceId.get(context),
+                        name = username,
+                        email = email,
+                        phone = phoneNumber,
+                        roles = listOf(Role.ADMIN)
+                    )
+                    Database.Users.writeEngine().save(newUser, { /* TODO: handle the complete */})
+                    nav.navigate(Screen.Role) },
             )
         }
         composable<Screen.Role> {
