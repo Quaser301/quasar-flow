@@ -1,5 +1,6 @@
 package com.example.campbnb.ui.lottery
 
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -14,19 +15,25 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.navigation.NavController
 import com.example.campbnb.controller.LotteryController
 import com.example.campbnb.models.LotteryModel
 import com.example.campbnb.models.ViewObserver
 import com.example.campbnb.ui.shared.AppViewModificationIsValidForCurrentWindowChecker
 import com.example.campbnb.viewModels.AppView
 import com.example.campbnb.viewModels.AppViewSetting
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+
+/**
+ * 05-11-26: Prompted gemini 3.6 to integrate the card layout I created for assignment 1 to
+ * display the owners active lotteries.
+ */
 
 class LotteryMonitorActivity(
     val goHome: () -> Unit,
@@ -41,6 +48,7 @@ class LotteryMonitorActivity(
     fun LotteryMonitor(
         model: LotteryModel,
         controller: LotteryController,
+        ownerId: String = ""
     ) {
         AppViewModificationIsValidForCurrentWindowChecker(
             goHome,
@@ -49,8 +57,19 @@ class LotteryMonitorActivity(
                 AppView.EntrantView,
                 AppView.AdminView
             )
-
         )
+        LaunchedEffect(ownerId) {
+            if (ownerId.isNotBlank()) {
+                controller.loadOwnerLotteries(ownerId)
+            }
+        }
+
+        fun formatDateRange(start: Long, end: Long): String {
+            if (start == 0L || end == 0L) return "Not set"
+            val formatter = SimpleDateFormat("MMM dd, yyyy", Locale.getDefault())
+            return "${formatter.format(Date(start))} - ${formatter.format(Date(end))}"
+        }
+
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -89,35 +108,51 @@ class LotteryMonitorActivity(
                     Card(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(vertical = 4.dp),
+                            .padding(vertical = 6.dp),
                         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
                     ) {
-                        Row(
+                        Column(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(12.dp),
-                            verticalAlignment = Alignment.CenterVertically
+                                .padding(16.dp),
+                            verticalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
-//                            Text(
-//                                text = "${lottery.playedDifficulty}",
-//                                modifier = Modifier.weight(0.8f),
-//                                style = MaterialTheme.typography.bodyMedium,
-//                                textAlign = TextAlign.Center
-//                            )
-//                            Text(
-//                                text = lottery.playedInput,
-//                                modifier = Modifier.weight(1.2f),
-//                                style = MaterialTheme.typography.bodyMedium,
-//                                textAlign = TextAlign.Center
-//                            )
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = "Status: ${lottery.statusAt(System.currentTimeMillis())}",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Text(
+                                    text = "Winners: ${lottery.numberOfWinners}",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    fontWeight = FontWeight.Medium
+                                )
+                            }
+
+                            Text(
+                                text = "Waitlist Capacity: ${lottery.waitlistCapacity ?: "Unlimited"}",
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+
+                            Text(
+                                text = "Registration: ${formatDateRange(lottery.registrationStart, lottery.registrationEnd)}",
+                                style = MaterialTheme.typography.bodySmall
+                            )
+
+                            Text(
+                                text = "Booking: ${formatDateRange(lottery.bookingStart, lottery.bookingEnd)}",
+                                style = MaterialTheme.typography.bodySmall
+                            )
                         }
                     }
                 }
             }
             Spacer(Modifier.height(16.dp))
-
-
         }
     }
-
 }

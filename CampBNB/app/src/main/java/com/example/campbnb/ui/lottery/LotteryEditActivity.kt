@@ -79,7 +79,6 @@ class LotteryEditActivity(
     fun LotteryEdit(
         model: LotteryModel,
         controller: LotteryController,
-        ownerCampsites: List<Campsite> = emptyList(),
         ownerId: String = ""
     ) {
         AppViewModificationIsValidForCurrentWindowChecker(
@@ -121,7 +120,7 @@ class LotteryEditActivity(
             bookingEnd = bookingEndMillis ?: 0L
         )//Moved from button functionality to allow validation of the object
 
-        LaunchedEffect(ownerId) { //pulls owner Id whenever screen launched
+        LaunchedEffect(ownerId) { //pulls owner's campsites from firebase
             controller.loadOwnerCampsites(ownerId) { fetchedCampsites ->
                 ownerCampsitesList = fetchedCampsites
             }
