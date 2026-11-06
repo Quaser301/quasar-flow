@@ -172,6 +172,9 @@ fun CampBnbApp(
             var campsiteCards by remember {
                 mutableStateOf<List<CampsiteCardData>>(emptyList())
             }
+            var pendingBookings by remember {
+                mutableStateOf<List<BookingCardData>>(emptyList())
+            }
             val userId = DeviceId.get(context)
 
             var confirmedBookings by remember(userId) {
@@ -269,16 +272,22 @@ fun CampBnbApp(
                                 }
                             )
                         }
-
                         HomeDestination.BOOKINGS -> {
                             BookingsScreen(
                                 confirmedBookings = confirmedBookings,
-                                pendingBookings = emptyList(),
+                                pendingBookings = pendingBookings,
                                 selectedTab = selectedBookingTab,
                                 onTabSelected = { selectedBookingTab = it },
                                 onBookingClick = { booking ->
-                                    // Booking details navigation can be connected here.
+                                    // Booking details navigation can be added here later.
                                 }
+                            )
+                        }
+
+                        HomeDestination.MESSAGES -> {
+                            CorrespondenceDestination(
+                                nav = nav,
+                                initialTab = 1
                             )
                         }
 
