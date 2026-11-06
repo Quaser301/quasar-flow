@@ -23,8 +23,13 @@ import com.example.campbnb.viewModels.AppView
 @Serializable
 sealed interface Screen {
     // the app's entry point.
+
     @Serializable
     data class Home(val roleName: UserRole): Screen
+
+    // the screen where a Campsite Owner registers a new campsite.
+    @Serializable
+    data object CampsiteEditActivity : Screen
 
     // the screen where a Campsite Owner edits their lottery settings.
     @Serializable
