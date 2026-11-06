@@ -1,5 +1,3 @@
 package com.example.campbnb.models
 
-class Role {
-    // A
-}
+enum class Role { ENTRANT, OWNER, ADMIN }

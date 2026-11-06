@@ -79,7 +79,7 @@ class LotteryEditActivity(
     fun LotteryEdit(
         model: LotteryModel,
         controller: LotteryController,
-        ownerCampsites: List<Campsite> = emptyList(),
+        initialLottery: Lottery? = null,
         ownerId: String = ""
     ) {
         AppViewModificationIsValidForCurrentWindowChecker(
@@ -110,6 +110,17 @@ class LotteryEditActivity(
 
         var ownerCampsitesList by remember { mutableStateOf<List<Campsite>>(emptyList()) }
 
+        LaunchedEffect(initialLottery) {
+            if (initialLottery != null) {
+                numberOfWinners = initialLottery.numberOfWinners.toString()
+                waitlistCapacity = initialLottery.waitlistCapacity?.toString() ?: ""
+                regStartMillis = initialLottery.registrationStart
+                regEndMillis = initialLottery.registrationEnd
+                bookingStartMillis = initialLottery.bookingStart
+                bookingEndMillis = initialLottery.bookingEnd
+            }
+        }
+
         val lotteryToSave = Lottery(
             ownerId = ownerId,
             campsiteIds = if (selectedCampsite != null) listOf(selectedCampsite!!.id) else emptyList(),
@@ -121,7 +132,7 @@ class LotteryEditActivity(
             bookingEnd = bookingEndMillis ?: 0L
         )//Moved from button functionality to allow validation of the object
 
-        LaunchedEffect(ownerId) { //pulls owner Id whenever screen launched
+        LaunchedEffect(ownerId) { //pulls owner's campsites from firebase
             controller.loadOwnerCampsites(ownerId) { fetchedCampsites ->
                 ownerCampsitesList = fetchedCampsites
             }
@@ -286,7 +297,7 @@ class LotteryEditActivity(
                     enabled = lotteryToSave.isValid(System.currentTimeMillis()),
                     onClick = {
 
-                        // 1. Call controller to save to Firestore
+                        //Call controller to save to Firestore
                         controller.saveLottery(
                             lottery = lotteryToSave,
                             onSuccess = {

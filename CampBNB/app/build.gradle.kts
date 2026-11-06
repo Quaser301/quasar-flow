@@ -39,6 +39,7 @@ android {
 
 dependencies {
     implementation(platform(libs.firebase.bom))
+    implementation(libs.androidx.ui.test.junit4)
     implementation(libs.firebase.firestore)
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.firebase.auth)

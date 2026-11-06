@@ -113,6 +113,10 @@ class LotteryController(
      * model's status message.
      */
     fun join(lottery: Lottery, userId: String) {
+        if (userId.isBlank()) {
+            model.setStatusMessage("Please sign in before joining a lottery")
+            return
+        }
         val now = clock()
         if (!isRegistrationOpen(lottery, now)) {
             model.setStatusMessage("Registration is closed")
@@ -135,6 +139,10 @@ class LotteryController(
 
     /** Takes the user off the waiting list (US 01.02.02). */
     fun leave(lottery: Lottery, userId: String) {
+        if (userId.isBlank()) {
+            model.setStatusMessage("Please sign in before leaving a lottery")
+            return
+        }
         repo.removeEntry(
             lottery.id,
             userId,
@@ -206,6 +214,12 @@ class LotteryController(
     }
     fun saveLottery(lottery: Lottery, onSuccess: () -> Unit, onFailure: (Exception) -> Unit) {
         repo.save(lottery, onSuccess, onFailure)
+    }
+    fun loadOwnerLotteries(ownerId : String){
+        repo.getLotteriesForOwner(ownerId,
+            onSuccess = { lotteries -> model.setLotteries(lotteries) },
+            onFailure = { error -> model.setStatusMessage("Could not load lotteries: " + error.message) }
+        )
     }
 
 
