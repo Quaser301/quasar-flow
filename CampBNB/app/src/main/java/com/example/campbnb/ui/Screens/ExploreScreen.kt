@@ -22,6 +22,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.campbnb.ui.components.CircleLabelButton
 import com.example.campbnb.ui.components.MenuGlyph
 import com.example.campbnb.ui.components.SearchGlyph
 import com.example.campbnb.ui.theme.FieldGrey
@@ -69,7 +70,7 @@ fun ExploreScreen(
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 CampSearchBar(query, { query = it }, onSearch, Modifier.weight(1f), onMenuClick = onMenuClick)
-                SettingsButton(onSettingsClick)
+                CircleLabelButton("Settings", onSettingsClick)
             }
         }
         item { MapPlaceholder() }

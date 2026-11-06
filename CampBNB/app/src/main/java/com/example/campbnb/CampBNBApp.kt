@@ -1,15 +1,19 @@
 package com.example.campbnb
-import com.example.campbnb.controller.CampsiteController
-import com.example.campbnb.data.CampsiteRepository
-import com.example.campbnb.models.CampsiteModel
-import com.google.firebase.auth.FirebaseAuth
-import android.widget.Toast
-import androidx.compose.ui.platform.LocalContext
-import com.example.campbnb.ui.campsite.CampsiteRegistrationForm
-import androidx.compose.material3.Button
+
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.navigation.NavController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
@@ -18,6 +22,7 @@ import com.example.campbnb.controller.LotteryController
 import com.example.campbnb.data.LotteryRepository
 import com.example.campbnb.database.Database
 import com.example.campbnb.models.LotteryModel
+import com.example.campbnb.ui.Screens.ExploreScreen
 import com.example.campbnb.ui.Screens.HomeDestination
 import com.example.campbnb.ui.Screens.HomeScreen
 import com.example.campbnb.ui.Screens.LoginScreen
@@ -25,124 +30,108 @@ import com.example.campbnb.ui.Screens.PlaceholderTab
 import com.example.campbnb.ui.Screens.RoleSelectScreen
 import com.example.campbnb.ui.Screens.SignUpScreen
 import com.example.campbnb.ui.Screens.StartScreen
-import com.example.campbnb.ui.lottery.LotteryDetailsActivity
+import com.example.campbnb.ui.components.GradientButton
+import com.example.campbnb.ui.components.UserRole
+import com.example.campbnb.ui.details.CampsiteDetailsScreen
+import com.example.campbnb.ui.details.placeholderDetails
 import com.example.campbnb.ui.lottery.LotteryEditActivity
 import com.example.campbnb.ui.lottery.LotteryMonitorActivity
+import com.example.campbnb.ui.search.SearchScreen
 import com.example.campbnb.viewModels.AppViewSettingController
 
 @Composable
 fun CampBnbApp(appViewSettings: AppViewSettingController) {
 
     val nav = rememberNavController()
+
     NavHost(navController = nav, startDestination = Screen.Start) {
+        // Start
         composable<Screen.Start> {
             StartScreen(onGetStarted = { nav.navigate(Screen.Login) })
         }
-        composable<Screen.CampsiteEditActivity> {
-            val context = LocalContext.current
-
-            val model = remember { CampsiteModel() }
-            val repo = remember { CampsiteRepository() }
-            val controller = remember {
-                CampsiteController(model, repo)
-            }
-
-            CampsiteRegistrationForm(
-                onBack = {
-                    nav.navigateUp()
-                },
-                onUpload = { campsite, imageUri ->
-
-                    val ownerId = FirebaseAuth.getInstance().currentUser?.uid
-
-                    if (ownerId == null) {
-                        Toast.makeText(
-                            context,
-                            "You must be logged in",
-                            Toast.LENGTH_SHORT
-                        ).show()
-                    } else {
-                        controller.registerCampsite(
-                            campsite = campsite,
-                            ownerId = ownerId,
-                            onComplete = { success ->
-                                if (success) {
-                                    Toast.makeText(
-                                        context,
-                                        "Campsite registered successfully!",
-                                        Toast.LENGTH_SHORT
-                                    ).show()
-
-                                    nav.navigateUp()
-                                } else {
-                                    Toast.makeText(
-                                        context,
-                                        "Could not register campsite",
-                                        Toast.LENGTH_SHORT
-                                    ).show()
-                                }
-                            }
-                        )
-                    }
-                }
-            )
-        }
-        composable<Screen.SignUp> {
-            SignUpScreen(
-                onSignUp = { email, username -> /* TODO: create the account */ nav.navigate(Screen.Role) },
-                onLoginClick = { nav.navigateUp() }
-            )
-        }
-        composable<Screen.Role> {
-            RoleSelectScreen(onRoleSelected = { role -> /* TODO: save the role, go to its home */ })
-        }
+        // Login
         composable<Screen.Login> {
             LoginScreen(
-                onLogin = { _, role, _ ->   // TODO: authenticate first
+                onLogin = { _, role, _ ->
+                    // TODO: authenticate first
                     nav.navigate(Screen.Home(roleName = role)) {
-                        popUpTo(Screen.Start) {
-                            inclusive = true
-                        }
+                        popUpTo(Screen.Start) { inclusive = true }
                     }
                 },
                 onSignUpClick = { nav.navigate(Screen.SignUp) }
             )
         }
+        // SignUp
         composable<Screen.SignUp> {
             SignUpScreen(
-                onSignUp = { email, username -> /* TODO: create the account */ nav.navigate(Screen.Role) },
+                onSignUp = { _, _ ->
+                    // TODO: create the account
+                    nav.navigate(Screen.Role)
+                },
                 onLoginClick = { nav.navigateUp() }
             )
         }
+        // Role Selection
         composable<Screen.Role> {
             RoleSelectScreen(onRoleSelected = { role ->
                 nav.navigate(Screen.Home(roleName = role)) {
-                    popUpTo(Screen.Start) {
-                        inclusive = true
-                    }
+                    popUpTo(Screen.Start) { inclusive = true }
                 }
             })
         }
+        // Home (Explore plus the role's bottom bar)
         composable<Screen.Home> { entry ->
-            val role = entry.toRoute<Screen.Home>().roleName
-            HomeScreen(role = role,
-                destinationContent = { destination ->
-                    when (destination) {
-                        HomeDestination.MY_CAMPSITES -> {
-                            Button(
-                                onClick = {
-                                    nav.navigate(Screen.CampsiteEditActivity)
-                                }
-                            ) {
-                                Text("Register Campsite")
-                            }
+            val route = entry.toRoute<Screen.Home>()
+            HomeScreen(
+                role = route.roleName,
+                initialTab = route.tab,
+                exploreContent = {
+                    ExploreScreen(
+                        onCampsiteClick = {
+                            nav.navigate(Screen.CampsiteDetail(route.roleName, it.id))
+                        },
+                        onSearch = { query ->
+                            nav.navigate(Screen.Search(route.roleName, query))
                         }
-                        else -> PlaceholderTab(destination)
+                    )
+                },
+                destinationContent = { destination ->
+                    if (destination == HomeDestination.MY_CAMPSITES) {
+                        MyCampsitesTab(
+                            onOpenLotteries = { nav.navigate(Screen.LotteryMonitorActivity) }
+                        )
+                    } else {
+                        PlaceholderTab(destination)
                     }
                 },
                 appViewSettings = appViewSettings.toAppViewSetting()
             )
         }
+        // Search
+        composable<Screen.Search> { entry ->
+            val route = entry.toRoute<Screen.Search>()
+            SearchScreen(
+                initialQuery = route.query,
+                onCampsiteClick = {
+                    nav.navigate(Screen.CampsiteDetail(route.roleName, it.id))
+                },
+                onQrClick = { /* TODO: open QR scanner */ }
+            )
+        }
+        // Campsite details
+        composable<Screen.CampsiteDetail> { entry ->
+            val route = entry.toRoute<Screen.CampsiteDetail>()
+            CampsiteDetailsScreen(
+                role = route.roleName,
+                campsite = placeholderDetails(route.campsiteId),
+                // navigateUp so a fast double tap can't go too far back
+                onBack = { nav.navigateUp() },
+                onTabSelected = { index -> nav.goHome(route.roleName, index) },
+                onEnterLottery = { /* TODO: enter the lottery */ },
+                onDeleteSite = { /* TODO: delete through the campsite controller */ }
+            )
+        }
+        // Lottery edit
         composable<Screen.LotteryEditActivity> {
             val activity = remember {
                 LotteryEditActivity(
@@ -155,21 +144,24 @@ fun CampBnbApp(appViewSettings: AppViewSettingController) {
             }
             val model = remember { LotteryModel() }
             val repo = remember { LotteryRepository() }
-            val controller = remember { LotteryController(
-                model,
-                repo,
-                Database.Lotteries.readEngine()
-            ) { System.currentTimeMillis() } }
+            val controller = remember {
+                LotteryController(
+                    model,
+                    repo,
+                    Database.Lotteries.readEngine()
+                ) { System.currentTimeMillis() }
+            }
             activity.LotteryEdit(model = model, controller = controller)
         }
+        // Lottery monitor (owner's list of lotteries)
         composable<Screen.LotteryMonitorActivity> {
             val activity = remember {
                 LotteryMonitorActivity(
-                    { nav.navigate(Screen.Start /* TODO: CHANGE TO HOME */) },
-                    { nav.navigateUp() },
-                    { nav.navigate(Screen.LotteryEditActivity) },
-                    { nav.navigate(Screen.LotteryDetailsActivity) },
-                    appViewSettings.toAppViewSetting()
+                    goHome = { nav.goHome(UserRole.OWNER) },
+                    goBack = { nav.navigateUp() },
+                    goToCreateLottery = { nav.navigate(Screen.LotteryEditActivity) },
+                    goToLotteryDetails = { /* TODO: needs a route that carries the lottery's id */ },
+                    appViewSettings = appViewSettings.toAppViewSetting()
                 )
             }
             val model = remember { LotteryModel() }
@@ -179,20 +171,37 @@ fun CampBnbApp(appViewSettings: AppViewSettingController) {
                     model,
                     repo,
                     Database.Lotteries.readEngine()
-                ) {
-                    System.currentTimeMillis()
-                }
+                ) { System.currentTimeMillis() }
             }
-            activity.LotteryMonitor(model = model, controller = controller)
+            val ownerId = "" // TODO: the signed-in owner's id. Until set, the list stays empty.
+            activity.LotteryMonitor(model = model, controller = controller, ownerId = ownerId)
         }
-        composable<Screen.LotteryDetailsActivity> {
-            val activity = remember {
-                LotteryDetailsActivity(
-                    { nav.navigate(Screen.LotteryMonitorActivity) },
-                    { nav.navigateUp() },
-                    appViewSettings.toAppViewSetting()
-                )
-            }
-        }
+    }
+}
+
+/**
+ * Goes to the home page on the given tab, clearing any screens opened on top of it.
+ *
+ * @param role The signed-in role, which decides the bottom bar.
+ * @param tab Index of the bottom bar tab to open.
+ */
+private fun NavController.goHome(role: UserRole, tab: Int = 0) {
+    navigate(Screen.Home(roleName = role, tab = tab)) {
+        popUpTo<Screen.Home> { inclusive = true }
+        launchSingleTop = true
+    }
+}
+
+/** Owner's My Campsites tab. For now it links to the lottery list. */
+@Composable
+private fun MyCampsitesTab(onOpenLotteries: () -> Unit) {
+    Column(
+        Modifier.fillMaxSize().padding(24.dp),
+        verticalArrangement = Arrangement.Center,
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text("My Campsites", fontSize = 22.sp)
+        Spacer(Modifier.height(16.dp))
+        GradientButton("My Lotteries", onOpenLotteries)
     }
 }

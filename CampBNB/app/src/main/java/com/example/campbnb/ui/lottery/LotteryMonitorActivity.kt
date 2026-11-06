@@ -43,8 +43,10 @@ class LotteryMonitorActivity(
     val goToLotteryDetails: (Lottery) -> Unit,
     val appViewSettings: AppViewSetting
 ) : ViewObserver<LotteryModel> {
-    override fun update(model: LotteryModel) { // why is this here???
-    }
+
+    // Required by ViewObserver. The list recomposes through the Compose state in
+    // LotteryModel, so there is nothing to do here.
+    override fun update(model: LotteryModel) {}
 
     // List of all lotteries
     @Composable
