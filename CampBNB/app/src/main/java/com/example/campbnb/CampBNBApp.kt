@@ -16,6 +16,7 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.toRoute
 import com.example.campbnb.controller.LotteryController
 import com.example.campbnb.data.LotteryRepository
+import com.example.campbnb.database.Database
 import com.example.campbnb.models.LotteryModel
 import com.example.campbnb.ui.Screens.HomeDestination
 import com.example.campbnb.ui.Screens.HomeScreen
@@ -85,6 +86,15 @@ fun CampBnbApp(appViewSettings: AppViewSettingController) {
                 }
             )
         }
+        composable<Screen.SignUp> {
+            SignUpScreen(
+                onSignUp = { email, username -> /* TODO: create the account */ nav.navigate(Screen.Role) },
+                onLoginClick = { nav.navigateUp() }
+            )
+        }
+        composable<Screen.Role> {
+            RoleSelectScreen(onRoleSelected = { role -> /* TODO: save the role, go to its home */ })
+        }
         composable<Screen.Login> {
             LoginScreen(
                 onLogin = { _, role, _ ->   // TODO: authenticate first
@@ -126,10 +136,10 @@ fun CampBnbApp(appViewSettings: AppViewSettingController) {
                                 Text("Register Campsite")
                             }
                         }
-
                         else -> PlaceholderTab(destination)
                     }
-                }
+                },
+                appViewSettings = appViewSettings.toAppViewSetting()
             )
         }
         composable<Screen.LotteryEditActivity> {
@@ -147,9 +157,8 @@ fun CampBnbApp(appViewSettings: AppViewSettingController) {
             val controller = remember { LotteryController(
                 model,
                 repo,
-                TODO(),
-                TODO()
-            ) }
+                Database.Lotteries.readEngine()
+            ) { System.currentTimeMillis() } }
             activity.LotteryEdit(model = model, controller = controller)
         }
         composable<Screen.LotteryMonitorActivity> {
@@ -162,7 +171,15 @@ fun CampBnbApp(appViewSettings: AppViewSettingController) {
             }
             val model = remember { LotteryModel() }
             val repo = remember { LotteryRepository() }
-            val controller = remember { LotteryController(model, repo, TODO(), TODO()) }
+            val controller = remember {
+                LotteryController(
+                    model,
+                    repo,
+                    Database.Lotteries.readEngine()
+                ) {
+                    System.currentTimeMillis()
+                }
+            }
             activity.LotteryMonitor(model = model, controller = controller)
         }
     }
