@@ -12,9 +12,12 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.campbnb.models.Notification
 import com.example.campbnb.ui.theme.FieldGrey
 import com.example.campbnb.viewModels.NotificationLogDisplayController
-import google.firebase.Timestamp
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import com.google.firebase.Timestamp
 import java.text.SimpleDateFormat
 import java.util.Calendar
+import java.util.Date
 import java.util.Locale
 
 /**
@@ -100,8 +103,8 @@ fun latestSentAtOf(members: List<Notification>): Timestamp? {
  * @return The one-line summary the dropdown bar shows.
  */
 fun summaryLine(group: NotificationLogGroup): String {
-    val sender = if (group.senderId.isEmpty) "the system" else group.senderId
-    return "sent by $sender  -  ${group.recipientIds.count} recipient(s)  -  ${describeTimestamp(group.sentAt)}"
+    val sender = if (group.senderId.isEmpty()) "the system" else group.senderId
+    return "sent by $sender  -  ${group.recipientIds.count()} recipient(s)  -  ${describeTimestamp(group.sentAt)}"
 }
 
 /**
@@ -112,7 +115,7 @@ fun summaryLine(group: NotificationLogGroup): String {
  */
 fun describeTimestamp(sentAt: Timestamp?): String {
     if (sentAt == null) return "no saved timestamp"
-    val calendar = Calendar.getInstance().apply { time = sentAt.toDate() }
+    val calendar = Calendar.getInstance().apply { time = Date(sentAt.seconds * 1000L) }
     return SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.US).format(calendar.time)
 }
 
@@ -125,7 +128,7 @@ fun describeTimestamp(sentAt: Timestamp?): String {
  * @return That receiver&apos;s profile reference, or an empty when past the end.
  */
 fun notificationLogProfileAt(group: NotificationLogGroup, index: Int): String =
-    if (0 <= index && index < group.recipientIds.count) group.recipientIds[index] else ""
+    if (0 <= index && index < group.recipientIds.count()) group.recipientIds[index] else ""
 
 /** Whether the named log dropdown is open in the screen&apos;s collected open-names value. */
 private fun openIn(logName: String, openedNames: String): Boolean =
@@ -160,8 +163,8 @@ fun NotificationLogScreen(
     val openedNames = display.openedLogNames().collectAsStateWithLifecycle()
     val logs = notificationLogGroupsFor(notifications)
 
-    if (logs.count == 0) {
-        Box(Modifier.fill(), contentAlignment = Alignment.Center) {
+    if (logs.isEmpty()) {
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             Text("No logs to show!", fontSize = 22.sp, color = FieldGrey)
         }
     } else {
@@ -244,8 +247,14 @@ private fun NotificationLogDetail(
     profileText: (String) -> String,
 ) {
     Column {
-        ListView(group.recipientIds.count) { index ->
-            Text(profileText(notificationLogProfileAt(group, index)), fontSize = 16.sp)
+        // no virtualized list exists in this toolchain: rows are drawn one per model index
+        // under a scroll, so the data stays indexed-lazy and the viewport scrolls.
+        Box(Modifier.verticalScroll(rememberScrollState())) {
+            Column {
+                for (index in 0..group.recipientIds.count() - 1) {
+                    Text(profileText(notificationLogProfileAt(group, index)), fontSize = 16.sp)
+                }
+            }
         }
         Text(group.title, fontSize = 18.sp)
         Text(group.message, fontSize = 16.sp)

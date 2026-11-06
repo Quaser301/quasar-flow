@@ -1,4 +1,4 @@
-package com.example.campbnb
+package com.example.campbnb.notificationTests
 
 /**
  * NOTICE: This file was AI-assisted. The verbatim prompt for this work is recorded in
@@ -19,7 +19,7 @@ import com.example.campbnb.ui.notification.notificationLogGroupsFor
 import com.example.campbnb.ui.notification.notificationLogProfileAt
 import com.example.campbnb.ui.notification.summaryLine
 import com.example.campbnb.viewModels.NotificationLogDisplayController
-import google.firebase.Timestamp
+import com.google.firebase.Timestamp
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -47,23 +47,23 @@ class NotificationLogTest {
         )
         assertTrue(
             "the other dropdowns stay closed",
-            ("\nlog-b\n") not in display.openedLogNames().value
+            !(("\nlog-b\n") in display.openedLogNames().value)
         )
 
         display.toggleGroup("log-a")
         assertTrue(
             "tapping again closes it",
-            ("\nlog-a\n") not in display.openedLogNames().value
+            !(("\nlog-a\n") in display.openedLogNames().value)
         )
     }
 
     @Test
     fun test_WithNoLogsThereAreNoEntriesToShow() {
-        val logs = notificationLogGroupsFor([])
+        val logs = notificationLogGroupsFor(emptyList())
 
         assertTrue(
             "no saved records means no log entries, so the screen takes its centered message branch",
-            logs.count == 0
+            logs.count() == 0
         )
     }
 
@@ -77,7 +77,7 @@ class NotificationLogTest {
                 title = "You won!",
                 message = "Hello <Name>, You were selected!",
                 lotteryId = "lot-l1",
-                sentAt = Timestamp(1_600_000_100L, 0)
+                sentAt = Timestamp(1600000100L, 0)
             )
         }
         // one owner notice to twenty-five entrants, saved earlier.
@@ -89,7 +89,7 @@ class NotificationLogTest {
                 title = "Camp closing",
                 message = "The camp closes Friday.",
                 campsiteName = "Pine Ridge",
-                sentAt = Timestamp(1_600_000_000L, 0)
+                sentAt = Timestamp(1600000000L, 0)
             )
         }
         // one late message pair to five entrants, the newest record of all.
@@ -101,21 +101,21 @@ class NotificationLogTest {
                 title = "New message",
                 message = "See you at the gate.",
                 reservationId = "res-3",
-                sentAt = Timestamp(1_600_000_200L, 0)
+                sentAt = Timestamp(1600000200L, 0)
             )
         }
 
         val logs = notificationLogGroupsFor(winners + notices + messages)
 
-        assertTrue("three broadcasts make three log entries", logs.count == 3)
+        assertTrue("three broadcasts make three log entries", logs.count() == 3)
         assertTrue("the newest broadcast is first", logs[0].title == "New message")
         assertTrue("its sender is the user who sent it", logs[0].senderId == "camper-7")
         assertTrue("the winner broadcast comes second", logs[1].title == "You won!")
         assertTrue("the oldest broadcast comes last", logs[2].title == "Camp closing")
 
-        assertTrue("the winner entry counts every receiver", logs[1].recipientIds.count == 40)
-        assertTrue("the notice entry counts its twenty-five receivers", logs[2].recipientIds.count == 25)
-        assertTrue("the message entry counts its five receivers", logs[0].recipientIds.count == 5)
+        assertTrue("the winner entry counts every receiver", logs[1].recipientIds.count() == 40)
+        assertTrue("the notice entry counts its twenty-five receivers", logs[2].recipientIds.count() == 25)
+        assertTrue("the message entry counts its five receivers", logs[0].recipientIds.count() == 5)
 
         assertTrue(
             "placeholders in a notification body are kept exactly as written",
@@ -125,7 +125,7 @@ class NotificationLogTest {
             "the summary line carries sender, count and timestamp in order",
             "sent by the system" in summaryLine(logs[1]) &&
                     "40 recipient(s)" in summaryLine(logs[1]) &&
-                    "no saved" not in summaryLine(logs[1])
+                    !("no saved" in summaryLine(logs[1]))
         )
 
         assertTrue("the second dropdown can scroll to any receiver", notificationLogProfileAt(logs[1], 39) == "camper-40")

@@ -43,7 +43,7 @@ class NotificationLogDisplayController(val onBack: () -> Unit): ViewModel() {
         val marker = "\n" + logName + "\n"
         val opened = _openedLogNames.value
         _openedLogNames.value =
-            if (marker in opened) opened.minus(marker) else opened.plus(marker)
+            if (marker in opened) opened.replace(marker, "") else opened.plus(marker)
     }
 
     /**
