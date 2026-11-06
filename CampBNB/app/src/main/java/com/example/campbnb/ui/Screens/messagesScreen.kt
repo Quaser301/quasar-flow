@@ -55,56 +55,7 @@ import com.example.campbnb.viewModels.MessagesState
  *
  * @param currentUserId the signed-in user, used to decide which messages are "mine"
  */
-@Composable
-fun MessagesScreen(
-    viewModel: MessageViewModel,
-    currentUserId: String
-) {
-    val state by viewModel.state.collectAsState()
 
-    when (val current = state) {
-        MessagesState.Loading -> {
-            Box(
-                modifier = Modifier.fillMaxSize(),
-                contentAlignment = Alignment.Center
-            ) {
-                CircularProgressIndicator()
-            }
-        }
-
-        is MessagesState.Error -> {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(24.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Text(current.message)
-                Button(onClick = viewModel::start) {
-                    Text("Try again")
-                }
-            }
-        }
-
-        is MessagesState.Ready -> {
-            val open = current.openConversation
-            if (open == null) {
-                ConversationList(
-                    conversations = current.conversations,
-                    onOpen = { viewModel.open(it.reservationId) }
-                )
-            } else {
-                ChatThread(
-                    currentUserId = currentUserId,
-                    conversation = open,
-                    thread = current.thread,
-                    onBack = viewModel::close,
-                    onSend = { text, onResult -> viewModel.send(text, onResult) }
-                )
-            }
-        }
-    }
-}
 
 @Composable
 private fun ConversationList(
