@@ -258,4 +258,13 @@ class CampsiteController (
         )
         loadRatings()
     }
+
+    /** Loads the campsites registered by [ownerId] for the owner's My Campsites list (US 02.03.01). */
+    fun loadOwnerCampsites(ownerId: String) {
+        repo.getByOwner(
+            ownerId,
+            onSuccess = { campsites -> model.setOwnedCampsites(campsites) },
+            onFailure = { error -> model.setStatusMessage("Could not load your campsites: " + error.message) }
+        )
+    }
 }
