@@ -6,6 +6,9 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import com.example.campbnb.ui.theme.CampBnbTheme
 import com.example.campbnb.viewModels.AppViewSettingController
 import com.example.campbnb.notifications.NotificationChannels
@@ -21,6 +24,9 @@ class MainActivity : ComponentActivity() {
             SystemNotifier(applicationContext)
         )
     }
+
+    // Route to open after the user taps a notification banner. Null when there is none.
+    private var pendingRoute by mutableStateOf<String?>(null)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -41,7 +47,11 @@ class MainActivity : ComponentActivity() {
                     AppContainer.currentUserId = deviceId
                     watcher.start(deviceId)
                 }
-                CampBnbApp(appViewSettingsControl)
+                CampBnbApp(
+                    appViewSettings = appViewSettingsControl,
+                    pendingRoute = pendingRoute,
+                    onPendingRouteHandled = { pendingRoute = null }
+                )
             }
         }
     }
@@ -65,6 +75,8 @@ class MainActivity : ComponentActivity() {
         if (!notificationId.isNullOrBlank()) {
             AppContainer.notificationController.markRead(notificationId)
         }
+        // Open the screen the notification points to (for example "chat/{reservationId}").
+        pendingRoute = route
     }
 
     override fun onDestroy() {
