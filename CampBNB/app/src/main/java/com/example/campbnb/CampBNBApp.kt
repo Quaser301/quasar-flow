@@ -35,6 +35,10 @@ import com.example.campbnb.controller.NotificationController
 import com.example.campbnb.controller.ReservationFilter
 import com.example.campbnb.data.CampsiteRepository
 import com.example.campbnb.data.FirestoreNotificationRepository
+import com.example.campbnb.models.ReservationStatus
+import com.example.campbnb.models.BookingCardData
+import com.example.campbnb.ui.Screens.BookingsScreen
+import com.example.campbnb.ui.Screens.BookingTab
 import com.example.campbnb.data.LotteryRepository
 import com.example.campbnb.data.ReservationRepository
 import com.example.campbnb.data.UserRepository
@@ -168,6 +172,62 @@ fun CampBnbApp(
             var campsiteCards by remember {
                 mutableStateOf<List<CampsiteCardData>>(emptyList())
             }
+            val userId = DeviceId.get(context)
+
+            var confirmedBookings by remember(userId) {
+                mutableStateOf<List<BookingCardData>>(emptyList())
+            }
+
+            var selectedBookingTab by remember {
+                mutableStateOf(BookingTab.CONFIRMED)
+            }
+
+            LaunchedEffect(userId) {
+                reservationRepository.getForEntrant(
+                    entrantId = userId,
+                    onSuccess = { reservations ->
+
+                        val activeReservations = reservations.filter {
+                            it.status == ReservationStatus.ACTIVE
+                        }
+
+                        campsiteRepository.getAll(
+                            onSuccess = { allCampsites ->
+
+                                confirmedBookings = activeReservations.map { reservation ->
+                                    val campsiteName = allCampsites
+                                        .firstOrNull { it.id == reservation.campsiteId }
+                                        ?.campName ?: "Campsite"
+
+                                    BookingCardData(
+                                        id = reservation.lotteryEntryId,
+                                        lotteryId = "",
+                                        campsiteNames = listOf(campsiteName),
+                                        status = "Confirmed",
+                                        startDate = reservation.startDate,
+                                        endDate = reservation.endDate,
+                                        guests = reservation.guests
+                                    )
+                                }
+                            },
+                            onFailure = { error ->
+                                Toast.makeText(
+                                    context,
+                                    "Could not load campsite details: ${error.message}",
+                                    Toast.LENGTH_LONG
+                                ).show()
+                            }
+                        )
+                    },
+                    onFailure = { error ->
+                        Toast.makeText(
+                            context,
+                            "Could not load bookings: ${error.message}",
+                            Toast.LENGTH_LONG
+                        ).show()
+                    }
+                )
+            }
 
             LaunchedEffect(Unit) {
                 campsiteRepository.getAll(
@@ -195,14 +255,36 @@ fun CampBnbApp(
                 role = role,
                 initialTab = route.tab,
                 destinationContent = { destination ->
-                    if (destination == HomeDestination.MY_CAMPSITES) {
-                        MyCampsitesTab(
-                            onRegisterCampsite = { nav.navigate(Screen.CampsiteEditActivity) },
-                            onOpenLotteries = { nav.navigate(Screen.LotteryMonitorActivity) },
-                            onOpenReservations = { nav.navigate(Screen.Reservations) }
-                        )
-                    } else {
-                        PlaceholderTab(destination)
+                    when (destination) {
+                        HomeDestination.MY_CAMPSITES -> {
+                            MyCampsitesTab(
+                                onRegisterCampsite = {
+                                    nav.navigate(Screen.CampsiteEditActivity)
+                                },
+                                onOpenLotteries = {
+                                    nav.navigate(Screen.LotteryMonitorActivity)
+                                },
+                                onOpenReservations = {
+                                    nav.navigate(Screen.Reservations)
+                                }
+                            )
+                        }
+
+                        HomeDestination.BOOKINGS -> {
+                            BookingsScreen(
+                                confirmedBookings = confirmedBookings,
+                                pendingBookings = emptyList(),
+                                selectedTab = selectedBookingTab,
+                                onTabSelected = { selectedBookingTab = it },
+                                onBookingClick = { booking ->
+                                    // Booking details navigation can be connected here.
+                                }
+                            )
+                        }
+
+                        else -> {
+                            PlaceholderTab(destination)
+                        }
                     }
                 },
                 exploreContent = {
