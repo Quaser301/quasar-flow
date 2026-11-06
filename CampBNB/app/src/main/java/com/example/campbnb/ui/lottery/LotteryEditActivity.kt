@@ -39,6 +39,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
 import com.example.campbnb.controller.LotteryController
 import com.example.campbnb.models.Campsite
+import com.example.campbnb.models.Lottery
 import com.example.campbnb.models.LotteryModel
 import com.example.campbnb.models.ViewObserver
 import com.example.campbnb.ui.shared.AppViewModificationIsValidForCurrentWindowChecker
@@ -55,6 +56,8 @@ import java.util.Locale
  * 03-11-26: Prompted Gemini 3.6 Flash for how to integrate date range picker file
  * into this activity for the booking and registration fields.
  * 04-11-26: Used built in gemini flash 3.6 to add a few personal comments and kdoc comments
+ * 05-11-26: Prompted gemini 3.6 flash to structure my save button functionality which creates a lottery
+ * object based on the input fields and then saves it to firebase
  */
 // Note: injecting temporary comments cause I need to know what I'm doing.
 // remove once actual docs are available.
@@ -77,6 +80,7 @@ class LotteryEditActivity(
         model: LotteryModel,
         controller: LotteryController,
         ownerCampsites: List<Campsite> = emptyList(),
+        ownerId: String = ""
     ) {
         AppViewModificationIsValidForCurrentWindowChecker(
             returnHome,
@@ -103,6 +107,25 @@ class LotteryEditActivity(
         var bookingStartMillis by remember { mutableStateOf<Long?>(null) }
         var bookingEndMillis by remember { mutableStateOf<Long?>(null) }
         var showBookingDatePicker by remember { mutableStateOf(false) }
+
+        var ownerCampsitesList by remember { mutableStateOf<List<Campsite>>(emptyList()) }
+
+        val lotteryToSave = Lottery(
+            ownerId = ownerId,
+            campsiteIds = if (selectedCampsite != null) listOf(selectedCampsite!!.id) else emptyList(),
+            numberOfWinners = numberOfWinners.toIntOrNull() ?: 0,
+            waitlistCapacity = waitlistCapacity.toIntOrNull(), // null if blank
+            registrationStart = regStartMillis ?: 0L,
+            registrationEnd = regEndMillis ?: 0L,
+            bookingStart = bookingStartMillis ?: 0L,
+            bookingEnd = bookingEndMillis ?: 0L
+        )//Moved from button functionality to allow validation of the object
+
+        LaunchedEffect(ownerId) { //pulls owner Id whenever screen launched
+            controller.loadOwnerCampsites(ownerId) { fetchedCampsites ->
+                ownerCampsitesList = fetchedCampsites
+            }
+        }
 
         fun formatDateRange(start: Long?, end: Long?): String {
             if (start == null || end == null) return ""
@@ -160,13 +183,13 @@ class LotteryEditActivity(
                     expanded = dropdownExpanded,
                     onDismissRequest = { dropdownExpanded = false }
                 ) {
-                    if (ownerCampsites.isEmpty()) {
+                    if (ownerCampsitesList.isEmpty()) {
                         DropdownMenuItem(
                             text = { Text("No campsites available") },
                             onClick = { dropdownExpanded = false }
                         )
                     } else {
-                        ownerCampsites.forEach { campsite ->
+                        ownerCampsitesList.forEach { campsite ->
                             DropdownMenuItem(
                                 text = {
                                     Column {
@@ -260,15 +283,22 @@ class LotteryEditActivity(
                     Text("Cancel")
                 }
                 Button(
-                    //enabled = currentLottery.isValid(controller.now()),
+                    enabled = lotteryToSave.isValid(System.currentTimeMillis()),
                     onClick = {
-                        navigateBackwards()
+
+                        // 1. Call controller to save to Firestore
+                        controller.saveLottery(
+                            lottery = lotteryToSave,
+                            onSuccess = {
+                                navigateBackwards()
+                            },
+                            onFailure = { exception ->
+                            }
+                        )
                     },
                     modifier = Modifier.weight(1f)
                 ) {
-                    Text(
-                        if (selectedCampsite == null) "Save"
-                        else "Update")
+                    Text(if (selectedCampsite == null) "Save" else "Update")
                 }
             }
         }
