@@ -41,7 +41,8 @@ sealed interface Screen {
 
     @Serializable
     data object LotteryDetailsActivity: Screen
-
+    @Serializable
+    data object LotteryWaitlistActivity: Screen
     @Serializable
     data object Start: Screen
 
