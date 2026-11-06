@@ -108,4 +108,39 @@ class CampsiteController (
         updated.add(rating)
         model.setRatings(updated)
     }
+    // Registers a new campsite for the current user
+    fun registerCampsite(
+        campsite: Campsite,
+        ownerId: String,
+        onComplete: (boolean: Boolean) -> Unit
+
+    ){
+        if (ownerId.isBlank()) {
+            model.setStatusMessage("Please log in to register a campsite")
+            onComplete(false)
+            return
+        }
+        val newCampsite = Campsite(
+            ownerId = ownerId,
+            campName = campsite.campName,
+            campLoc = campsite.campLoc,
+            campDesc = campsite.campDesc,
+            campAmenities = campsite.campAmenities,
+            geoLocation = campsite.geoLocation,
+            campImg = campsite.campImg,
+            maxOccupancy = campsite.maxOccupancy,
+            tags = campsite.tags,
+            cancelPolicy = campsite.cancelPolicy,
+            campPrice = campsite.campPrice
+        )
+        repo.SaveCampsite(newCampsite) { result ->
+            if (result.isSuccess) {
+                model.setStatusMessage("Campsite registered successfully")
+                onComplete(true)
+            } else {
+                model.setStatusMessage("Failed to register campsite")
+                onComplete(false)
+        }
+        }
+    }
 }
