@@ -11,7 +11,10 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        // declare your static lifetime controllers here.
         val appViewSettingsControl = AppViewSettingController()
+
+
         setContent {
             CampBnbTheme {
                 CampBnbApp(appViewSettingsControl)

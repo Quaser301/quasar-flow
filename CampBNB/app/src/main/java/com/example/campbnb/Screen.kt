@@ -25,7 +25,7 @@ sealed interface Screen {
     // the app's entry point.
 
     @Serializable
-    data class Home(val roleName: UserRole): Screen
+    data class Home(val role: UserRole): Screen
 
     // the screen where a Campsite Owner registers a new campsite.
     @Serializable
@@ -50,4 +50,7 @@ sealed interface Screen {
 
     @Serializable
     data object Role: Screen
+
+    @Serializable
+    data class Settings(val role: UserRole): Screen
 }
