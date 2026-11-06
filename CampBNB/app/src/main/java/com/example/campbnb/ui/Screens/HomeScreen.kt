@@ -74,8 +74,19 @@ fun HomeScreen(
     destinationContent: @Composable (HomeDestination) -> Unit = { PlaceholderTab(it) },
     appViewSettings: AppViewSetting
 ) {
-    val tabs = remember(role) { tabsFor(role) }
-    var selected by rememberSaveable { mutableIntStateOf(initialTab.coerceIn(tabs.indices)) }
+    val viewState = appViewSettings.setting.collectAsStateWithLifecycle()
+    var tabs by remember() { mutableStateOf(tabsFor(role)) }
+
+    // note: NOT booting back to the home screen since we ARE the home screen.
+    LaunchedEffect(viewState) {
+        tabs = when (viewState.value) {
+            AppView.AdminView -> tabsFor(UserRole.ADMIN)
+            AppView.OwnerView -> tabsFor(UserRole.OWNER)
+            AppView.EntrantView -> tabsFor(UserRole.CAMPER)
+        }
+    }
+
+    var selected by rememberSaveable { mutableIntStateOf(0) }
 
     BackHandler(enabled = selected != 0) { selected = 0 }
 

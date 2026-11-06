@@ -41,8 +41,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -77,6 +75,40 @@ fun GradientButton(
         contentAlignment = Alignment.Center
     ) {
         Text(text, color = Color.White, fontSize = 18.sp)
+    }
+}
+
+/**
+ * Clone of [GradientButton] with knobs the Settings screens need: the caller sizes it
+ * instead of it forcing full width, and a second modifier styles the text so long
+ * labels or small heights stay readable.
+ *
+ * @param text The label drawn centered on the gradient pill.
+ * @param onClick Runs when the pill is pressed.
+ * @param modifier Outer sizing left to the caller, unlike the original.
+ * @param textModifier Styles the label; e.g. smaller fonts for long labels.
+ * @param height The pill height.
+ * @param enabled The pill stays but ignores presses while false.
+ */
+@Composable
+fun GradientBarButton(
+    text: String,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit = {},
+    textModifier: Modifier = Modifier,
+    height: Dp = 44.dp,
+    enabled: Boolean = true
+) {
+    Box(
+        modifier = modifier
+            .height(height)
+            .alpha(if (enabled) 1f else 0.5f)
+            .clip(RoundedCornerShape(50))
+            .background(ButtonGradient)
+            .clickable(enabled = enabled, onClick = onClick),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(text, color = Color.White, fontSize = 18.sp, modifier = textModifier)
     }
 }
 
@@ -119,6 +151,40 @@ fun LinkRow(prefix: String, link: String, onClick: () -> Unit) {
             textDecoration = TextDecoration.Underline,
             modifier = Modifier.clickable(onClick = onClick)
         )
+    }
+}
+
+/** Small downward-pointing triangle for dropdown fields. */
+@Composable
+fun DropdownArrow(modifier: Modifier = Modifier, color: Color = Color.DarkGray) {
+    Canvas(modifier.size(width = 14.dp, height = 8.dp)) {
+        val triangle = Path().apply {
+            moveTo(0f, 0f)
+            lineTo(size.width, 0f)
+            lineTo(size.width / 2f, size.height)
+            close()
+        }
+        drawPath(triangle, color)
+    }
+}
+
+/** Left-pointing chevron glyph for going back, drawn like the dropdown arrow. */
+@Composable
+fun BackArrow(modifier: Modifier = Modifier, color: Color = Color.DarkGray) {
+    Canvas(modifier.size(width = 16.dp, height = 18.dp)) {
+        // the chevron band, so it reads like a bold "<" without needing a stroke.
+        val thickness = size.height * 0.28f
+        val innerPoint = thickness * (size.width / (size.height / 2f))
+        val chevron = Path().apply {
+            moveTo(size.width, 0f)
+            lineTo(0f, size.height / 2f)
+            lineTo(size.width, size.height)
+            lineTo(size.width, size.height - thickness)
+            lineTo(innerPoint, size.height / 2f)
+            lineTo(size.width, thickness)
+            close()
+        }
+        drawPath(chevron, color)
     }
 }
 

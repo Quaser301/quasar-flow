@@ -30,13 +30,12 @@ import com.example.campbnb.ui.Screens.PlaceholderTab
 import com.example.campbnb.ui.Screens.RoleSelectScreen
 import com.example.campbnb.ui.Screens.SignUpScreen
 import com.example.campbnb.ui.Screens.StartScreen
-import com.example.campbnb.ui.components.GradientButton
 import com.example.campbnb.ui.components.UserRole
-import com.example.campbnb.ui.details.CampsiteDetailsScreen
-import com.example.campbnb.ui.details.placeholderDetails
+import com.example.campbnb.ui.lottery.LotteryDetailsActivity
 import com.example.campbnb.ui.lottery.LotteryEditActivity
 import com.example.campbnb.ui.lottery.LotteryMonitorActivity
-import com.example.campbnb.ui.search.SearchScreen
+import com.example.campbnb.ui.settings.SettingsScreen
+import com.example.campbnb.viewModels.AppView
 import com.example.campbnb.viewModels.AppViewSettingController
 
 @Composable
@@ -52,10 +51,17 @@ fun CampBnbApp(appViewSettings: AppViewSettingController) {
         // Login
         composable<Screen.Login> {
             LoginScreen(
-                onLogin = { _, role, _ ->
-                    // TODO: authenticate first
-                    nav.navigate(Screen.Home(roleName = role)) {
-                        popUpTo(Screen.Start) { inclusive = true }
+                onLogin = { _, role, _ ->   // TODO: authenticate first
+                    val targetView = when (role) {
+                        UserRole.ADMIN -> AppView.AdminView
+                        UserRole.OWNER -> AppView.OwnerView
+                        UserRole.CAMPER -> AppView.EntrantView
+                    }
+                    appViewSettings.changeViewTo(targetView)
+                    nav.navigate(Screen.Home(role = role)) {
+                        popUpTo(Screen.Start) {
+                            inclusive = true
+                        }
                     }
                 },
                 onSignUpClick = { nav.navigate(Screen.SignUp) }
@@ -74,24 +80,33 @@ fun CampBnbApp(appViewSettings: AppViewSettingController) {
         // Role Selection
         composable<Screen.Role> {
             RoleSelectScreen(onRoleSelected = { role ->
-                nav.navigate(Screen.Home(roleName = role)) {
-                    popUpTo(Screen.Start) { inclusive = true }
+                val targetView = when (role) {
+                    UserRole.ADMIN -> AppView.AdminView
+                    UserRole.OWNER -> AppView.OwnerView
+                    UserRole.CAMPER -> AppView.EntrantView
+                }
+                appViewSettings.changeViewTo(targetView)
+                nav.navigate(Screen.Home(role = role)) {
+                    popUpTo(Screen.Start) {
+                        inclusive = true
+                    }
                 }
             })
         }
         // Home (Explore plus the role's bottom bar)
         composable<Screen.Home> { entry ->
-            val route = entry.toRoute<Screen.Home>()
-            HomeScreen(
-                role = route.roleName,
-                initialTab = route.tab,
-                exploreContent = {
-                    ExploreScreen(
-                        onCampsiteClick = {
-                            nav.navigate(Screen.CampsiteDetail(route.roleName, it.id))
-                        },
-                        onSearch = { query ->
-                            nav.navigate(Screen.Search(route.roleName, query))
+            val role = entry.toRoute<Screen.Home>().role
+            HomeScreen(role = role,
+                destinationContent = { destination ->
+                    when (destination) {
+                        HomeDestination.MY_CAMPSITES -> {
+                            Button(
+                                onClick = {
+                                    nav.navigate(Screen.CampsiteEditActivity)
+                                }
+                            ) {
+                                Text("Register Campsite")
+                            }
                         }
                     )
                 },
@@ -103,6 +118,11 @@ fun CampBnbApp(appViewSettings: AppViewSettingController) {
                     } else {
                         PlaceholderTab(destination)
                     }
+                },
+                exploreContent = {
+                    ExploreScreen(
+                        onSettingsClick = { nav.navigate(Screen.Settings(role)) }
+                    )
                 },
                 appViewSettings = appViewSettings.toAppViewSetting()
             )
@@ -159,11 +179,11 @@ fun CampBnbApp(appViewSettings: AppViewSettingController) {
         composable<Screen.LotteryMonitorActivity> {
             val activity = remember {
                 LotteryMonitorActivity(
-                    goHome = { nav.goHome(UserRole.OWNER) },
-                    goBack = { nav.navigateUp() },
-                    goToCreateLottery = { nav.navigate(Screen.LotteryEditActivity) },
-                    goToLotteryDetails = { /* TODO: needs a route that carries the lottery's id */ },
-                    appViewSettings = appViewSettings.toAppViewSetting()
+                    { nav.navigate(Screen.Start /* TODO: CHANGE TO HOME */) },
+                    { nav.navigateUp() },
+                    { nav.navigate(Screen.LotteryEditActivity) },
+                    { lottery -> nav.navigate(Screen.LotteryDetailsActivity) },
+                    appViewSettings.toAppViewSetting()
                 )
             }
             val model = remember { LotteryModel() }
@@ -173,10 +193,34 @@ fun CampBnbApp(appViewSettings: AppViewSettingController) {
                     model,
                     repo,
                     Database.Lotteries.readEngine()
-                ) { System.currentTimeMillis() }
+                ) {
+                    System.currentTimeMillis()
+                }
             }
-            val ownerId = "" // TODO: the signed-in owner's id. Until set, the list stays empty.
-            activity.LotteryMonitor(model = model, controller = controller, ownerId = ownerId)
+            activity.LotteryMonitor(model = model, controller = controller)
+        }
+        composable<Screen.Settings> { entry ->
+            // need to know our role so we can show
+            // the relevant settings
+            val role = entry.toRoute<Screen.Settings>().role
+            SettingsScreen(
+                { nav.navigateUp() },
+                role,
+                appViewSettings
+            )
+        }
+        composable<Screen.LotteryDetailsActivity> {
+            val activity = remember {
+                LotteryDetailsActivity(
+                    returnHome = { nav.navigate(Screen.Start) },
+                    navigateBackwards = { nav.navigateUp() },
+                    onEditLottery = { lottery -> nav.navigate(Screen.LotteryEditActivity) },
+                    onViewWaitlist = { lottery -> /* TODO */ },
+                    appViewSettings = appViewSettings.toAppViewSetting()
+                )
+            }
+            val model = remember { LotteryModel() }
+            activity.LotteryDetails(model = model)
         }
     }
 }

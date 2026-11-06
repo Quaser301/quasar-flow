@@ -39,6 +39,7 @@ android {
 
 dependencies {
     implementation(platform(libs.firebase.bom))
+    implementation(libs.androidx.ui.test.junit4)
     implementation(libs.firebase.firestore)
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.firebase.auth)
@@ -51,6 +52,7 @@ dependencies {
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.lifecycle.viewmodel.compose)
+    implementation(libs.androidx.lifecycle.runtime.compose)
     implementation(libs.androidx.navigation.compose)
     implementation(libs.androidx.navigation.runtime.ktx)
     testImplementation(libs.junit)
