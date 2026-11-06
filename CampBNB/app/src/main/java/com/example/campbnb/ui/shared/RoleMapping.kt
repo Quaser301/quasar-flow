@@ -37,3 +37,14 @@ fun viewFor(role: Role): AppView {
     }
     return AppView.EntrantView
 }
+
+/** The [UserRole] whose tabs and buttons go with this app view. */
+fun roleFor(view: AppView): UserRole {
+    if (view == AppView.OwnerView) {
+        return UserRole.OWNER
+    }
+    if (view == AppView.AdminView) {
+        return UserRole.ADMIN
+    }
+    return UserRole.CAMPER
+}

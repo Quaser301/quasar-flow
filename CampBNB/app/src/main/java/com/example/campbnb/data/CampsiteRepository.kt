@@ -18,6 +18,17 @@ open class CampsiteRepository {
     open fun SaveCampsite(campsite: Campsite, onComplete: (Result<Exception?>) -> Unit) {
         Database.Campsites.writeEngine().save(campsite, onComplete)
     }
+
+    /**
+     * Deletes a campsite from Firestore using its document ID.
+     */
+    open fun deleteCampsite(
+        campsiteId: String,
+        onComplete: (Result<Exception?>) -> Unit
+    ) {
+        Database.Campsites.writeEngine().delete(campsiteId, onComplete)
+    }
+
     open fun getAll(onSuccess: (List<Campsite>) -> Unit, onFailure: (Exception) -> Unit) {
         Database.Campsites.readEngine().query().execute(onSuccess, onFailure)
     }
@@ -30,5 +41,12 @@ open class CampsiteRepository {
     /** Saves a rating; rating again replaces the old one because the id is the same. */
     open fun saveRating(rating: Rating, onComplete: (Result<Exception?>) -> Unit) {
         Database.Ratings.writeEngine().save(rating, onComplete)
+    }
+
+    /** Reads the campsites registered by one owner. */
+    open fun getByOwner(ownerId: String, onSuccess: (List<Campsite>) -> Unit, onFailure: (Exception) -> Unit) {
+        Database.Campsites.readEngine().query()
+            .whereEquals(Campsite::ownerId, ownerId)
+            .execute(onSuccess, onFailure)
     }
 }

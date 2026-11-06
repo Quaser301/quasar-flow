@@ -1,0 +1,8 @@
+{
+  "functions": [
+    {
+      "sourceDirectory": "functions",
+      "runtime": "nodejs24"
+    }
+  ]
+}
