@@ -31,7 +31,13 @@ import com.example.campbnb.ui.shared.DeviceId
 import com.example.campbnb.ui.shared.observeModel
 import com.example.campbnb.viewModels.AppView
 import com.example.campbnb.viewModels.AppViewSetting
-
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import com.example.campbnb.data.CampsiteRepository
 // Prompted Claude Sonnet 5.5 to build this screen the same way as LotteryMonitorActivity,
 // but listing the owner's campsites (US 02.03.01).
 
@@ -72,6 +78,15 @@ class CampsiteMonitorActivity(
         ownerId: String = ""
     ) {
         observeModel(model)
+        var campsiteToDelete by remember {
+            mutableStateOf<Campsite?>(null)
+        }
+
+        var deleteError by remember {
+            mutableStateOf("")
+        }
+
+        val repository = remember { CampsiteRepository() }
         AppViewModificationIsValidForCurrentWindowChecker(
             goHome,
             appViewSettings,
@@ -122,6 +137,11 @@ class CampsiteMonitorActivity(
             // Read the list here, outside the LazyColumn. CampsiteModel is not Compose state,
             // so LazyColumn only sees a new list if its content lambda captures the new list.
             val campsites = model.ownedCampsites
+            if (deleteError.isNotEmpty()) {
+                Text(
+                text = deleteError,
+                color = MaterialTheme.colorScheme.error)
+            }
 
             if (campsites.isEmpty()) {
                 Text(
@@ -181,6 +201,11 @@ class CampsiteMonitorActivity(
                                 Button(onClick = { goToEditCampsite(campsite) }) {
                                     Text("Edit")
                                 }
+                                Button(onClick = {
+                                    campsiteToDelete = campsite
+                                }) {
+                                    Text("Delete")
+                                }
                             }
                         }
                     }
@@ -205,6 +230,41 @@ class CampsiteMonitorActivity(
             }
 
             Spacer(Modifier.height(16.dp))
+        }
+        if (campsiteToDelete != null) {
+            val site = campsiteToDelete!!
+            AlertDialog(
+                onDismissRequest = {
+                    campsiteToDelete = null
+                },
+                title = { Text("Delete Campsite") },
+                text = { Text("Are you sure you want to delete ${site.campName}?") },
+                confirmButton = {
+                    TextButton(
+                        onClick = {
+                            repository.deleteCampsite(site.id) { result ->
+                                if (result.isSuccess) {
+                                    controller.loadOwnerCampsites(resolvedOwnerId)
+                                    campsiteToDelete = null
+                                } else {
+                                    deleteError = "Could not delete campsite"
+                                }
+                            }
+                        }
+                    ) {
+                        Text("Delete")
+                    }
+                },
+                dismissButton = {
+                    TextButton(
+                        onClick = {
+                            campsiteToDelete = null
+                        }
+                    ) {
+                        Text("Cancel")
+                    }
+                }
+            )
         }
     }
 }

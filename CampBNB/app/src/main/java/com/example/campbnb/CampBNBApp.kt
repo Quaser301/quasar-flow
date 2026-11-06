@@ -293,6 +293,19 @@ fun CampBnbApp(
                         else -> {
                             PlaceholderTab(destination)
                         }
+                        AdminProfilesScreen(
+                            { nav.goHome(role) },
+                            userModel
+                        )
+                    }
+                    else if (destination == HomeDestination.INBOX) {
+                        CorrespondenceDestination(
+                            nav = nav,
+                            initialTab = 0
+                        )
+                    }
+                    else {
+                        PlaceholderTab(destination)
                     }
                 },
                 exploreContent = {
