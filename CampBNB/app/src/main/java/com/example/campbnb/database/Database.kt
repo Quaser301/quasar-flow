@@ -10,6 +10,7 @@ import com.example.campbnb.models.Rating
 import com.example.campbnb.models.User
 import com.example.campbnb.database.transactionEngine
 import com.example.campbnb.database.writeEngineFor
+import com.example.campbnb.models.WaitingListEntry
 import com.google.firebase.firestore.FirebaseFirestore
 
 /**
@@ -122,6 +123,21 @@ object Database {
 
         fun writeEngine(): WriteEngine<Campsite> {
             return db.writeEngineFor<Campsite>(COLLECTION_NAME)
+        }
+    }
+
+    /**
+     * The Waiting List Collection. All [WaitingListEntry] records are stored here.
+     */
+    object WaitingListEntries {
+        const val COLLECTION_NAME = "waitingList"
+
+        fun readEngine(): QueryEngine<WaitingListEntry> {
+            return db.readEngineFor<WaitingListEntry>(COLLECTION_NAME)
+        }
+
+        fun writeEngine(): WriteEngine<WaitingListEntry> {
+            return db.writeEngineFor<WaitingListEntry>(COLLECTION_NAME)
         }
     }
 }

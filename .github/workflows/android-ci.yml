@@ -11,6 +11,9 @@
 #   revision every time and the cache stays valid.
 # - No Android SDK setup action: the plugin provisions its own toolchain
 #   area, and the runner's pre-installed SDK is used when present.
+# - The wrapper jar is invoked directly through the JDK launcher: the
+#   base tree ships the wrapper as jar plus properties only, and the
+#   shell-script gradlew that this step used to front it is not there.
 name: Android CI
 
 on:
@@ -54,9 +57,8 @@ jobs:
 
       - name: Compile the app and run the unit tests
         run: |
-          chmod +x CampBNB/gradlew
           cd CampBNB
-          ./gradlew -p app test --build-cache
+          java -jar gradle/wrapper/gradle-wrapper.jar -p app test --build-cache
 
       - name: Save the Android build and native-compile caches
         uses: actions/cache/save@v6
