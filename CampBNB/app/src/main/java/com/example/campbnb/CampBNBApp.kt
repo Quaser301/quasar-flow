@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -56,6 +57,8 @@ import com.example.campbnb.ui.Screens.PlaceholderTab
 import com.example.campbnb.ui.Screens.RoleSelectScreen
 import com.example.campbnb.ui.Screens.SignUpScreen
 import com.example.campbnb.ui.Screens.StartScreen
+import com.example.campbnb.ui.campsite.CampsiteOwnerActivity
+import com.example.campbnb.ui.campsite.CampsiteRatingSection
 import com.example.campbnb.ui.campsite.CampsiteRegistrationForm
 import com.example.campbnb.ui.components.GradientButton
 import com.example.campbnb.ui.components.UserRole
@@ -86,7 +89,6 @@ fun CampBnbApp(
     pendingRoute: String? = null,
     onPendingRouteHandled: () -> Unit = {}
 ) {
-
     val nav = rememberNavController()
     val context = LocalContext.current
     val userModel = remember { UserModel() }
@@ -109,6 +111,100 @@ fun CampBnbApp(
             StartScreen(onGetStarted = { nav.navigate(Screen.Login) })
         }
 
+        composable<Screen.EditCampsite> { backStackEntry ->
+            val campsiteId = backStackEntry.toRoute<Screen.EditCampsite>().campsiteId
+            val context = LocalContext.current
+
+
+            var campsite by remember(campsiteId) {
+                mutableStateOf<Campsite?>(null)
+            }
+
+            var isLoading by remember(campsiteId) {
+                mutableStateOf(true)
+            }
+
+            val repository = remember { CampsiteRepository() }
+            val controller = remember {
+                CampsiteController(CampsiteModel(), repository)
+            }
+
+            LaunchedEffect(campsiteId) {
+                repository.getAll(
+                    onSuccess = { campsites ->
+                        campsite = campsites.find { it.id == campsiteId &&
+                        it.ownerId == DeviceId.get(context) }
+                        isLoading = false
+                    },
+                    onFailure = {
+                        isLoading = false
+                    }
+                )
+            }
+
+            if (isLoading) {
+                Text("Loading campsite...")
+            } else if (campsite == null) {
+                Text("Campsite not found")
+            } else {
+                CampsiteRegistrationForm(
+                    existingCampsite = campsite,
+                    onBack = { nav.navigateUp() },
+                    onUpload = { updatedCampsite, _ ->
+                        controller.updateCampsite(
+                            updatedCampsite,
+                            DeviceId.get(context)
+                        ) { success ->
+                            if (success) {
+                                Toast.makeText(
+                                    context,
+                                    "Campsite updated successfully",
+                                    Toast.LENGTH_SHORT
+                                ).show()
+                                nav.navigateUp()
+                            }else
+                                Toast.makeText(
+                                    context,
+                                    "Failed to update campsite",
+                                    Toast.LENGTH_SHORT
+                                ).show()
+                        }
+                    }
+                )
+            }
+        }
+
+        composable<Screen.CampsiteEditActivity> {
+            val context = LocalContext.current
+            val controller = remember { CampsiteController(CampsiteModel(), CampsiteRepository()) }
+            CampsiteRegistrationForm(
+                onBack = { nav.navigateUp() },
+                onUpload = { campsite, _ ->
+                    controller.registerCampsite(campsite, DeviceId.get(context)) { success ->
+                        if (success) {
+                            nav.navigateUp()
+                        }
+                    }
+                }
+            )
+        }
+
+        // Login
+        composable<Screen.Login> {
+            LoginScreen(
+                onLogin = { _, role, _ ->
+                    val targetView = when (role) {
+                        UserRole.ADMIN -> AppView.AdminView
+                        UserRole.OWNER -> AppView.OwnerView
+                        UserRole.CAMPER -> AppView.EntrantView
+                    }
+                    appViewSettings.changeViewTo(targetView)
+                    nav.navigate(Screen.Home(role = role)) {
+                        popUpTo(Screen.Start) {
+                            inclusive = true
+                        }
+        }
+
         // Login
         composable<Screen.Login> {
             DeviceSignInScreen(
@@ -129,6 +225,10 @@ fun CampBnbApp(
         // SignUp
         composable<Screen.SignUp> {
             SignUpScreen(
+                onSignUp = { _, _ ->
+                    nav.navigate(Screen.Role)
+                },
+                onLoginClick = { nav.navigateUp() }
                 onSignUp = { email, username, phoneNumber ->
                     val newUser = User(
                         deviceId = DeviceId.get(context),
@@ -164,6 +264,9 @@ fun CampBnbApp(
             val route = entry.toRoute<Screen.Home>()
             val role = route.role
 
+            val exploreModel = remember { CampsiteModel() }
+            val exploreController = remember { CampsiteController(exploreModel, CampsiteRepository()) }
+            observeModel(exploreModel)
             val context = LocalContext.current
             val campsiteRepository = remember { CampsiteRepository() }
 
@@ -196,7 +299,22 @@ fun CampBnbApp(
             HomeScreen(
                 role = role,
                 initialTab = route.tab,
+
                 destinationContent = { destination ->
+                    if (destination == HomeDestination.MY_CAMPSITES && role == UserRole.OWNER) {
+                        CampsiteOwnerActivity(
+                            onEdit = { campsiteId ->
+                                nav.navigate(Screen.EditCampsite(campsiteId))
+                            },
+                            onRegister = {
+                                nav.navigate(Screen.CampsiteEditActivity)
+                            },
+                            onBack = {
+                                nav.goHome(role)
+                            },
+                            onOpenLotteries = {
+                                nav.navigate(Screen.LotteryMonitorActivity)
+                            }
                     if (destination == HomeDestination.MY_CAMPSITES) {
                         MyCampsitesTab(
                             onRegisterCampsite = { nav.navigate(Screen.CampsiteEditActivity) },
@@ -207,6 +325,7 @@ fun CampBnbApp(
                         PlaceholderTab(destination)
                     }
                 },
+
                 exploreContent = {
                     ExploreScreen(
                         recommended = campsiteCards,
@@ -224,6 +343,7 @@ fun CampBnbApp(
                 appViewSettings = appViewSettings.toAppViewSetting()
             )
         }
+
         // Campsite registration (owner)
         composable<Screen.CampsiteEditActivity> {
             val context = LocalContext.current
@@ -383,8 +503,6 @@ fun CampBnbApp(
             val activity = remember {
                 LotteryEditActivity(
                     { nav.navigateUp() },
-                    // using NavigateUp prevents the user from clicking on the back screen
-                    // quickly and navigating too far up
                     { nav.navigateUp() },
                     appViewSettings.toAppViewSetting()
                 )
@@ -400,11 +518,12 @@ fun CampBnbApp(
             }
             activity.LotteryEdit(model = model, controller = controller, initialLottery = selectedLottery)
         }
+
         // Lottery monitor (owner's list of lotteries)
         composable<Screen.LotteryMonitorActivity> {
             val activity = remember {
                 LotteryMonitorActivity(
-                    { nav.navigate(Screen.Start /* TODO: CHANGE TO HOME */) },
+                    { nav.navigate(Screen.Start) },
                     { nav.navigateUp() },
                     {
                         selectedLottery = null
@@ -455,6 +574,26 @@ fun CampBnbApp(
         }
 
 
+        composable<Screen.LotteryDetailsActivity> {
+            val activity = remember {
+                LotteryDetailsActivity(
+                    { nav.navigate(Screen.Start) },
+                    { nav.navigateUp() },
+                    { _ -> nav.navigate(Screen.LotteryEditActivity) },
+                    { _ -> nav.navigate(Screen.LotteryWaitlistActivity) },
+                    appViewSettings.toAppViewSetting()
+                )
+            }
+            val model = remember { LotteryModel() }
+            activity.LotteryDetails(model = model)
+        }
+
+        composable<Screen.LotteryWaitlistActivity> {
+            val activity = remember {
+                LotteryWaitlistActivity(
+                    { nav.navigateUp() },
+                    { nav.navigateUp() },
+                    appViewSettings.toAppViewSetting()
 // Reservations
 
         composable<Screen.Reservations> {
@@ -570,8 +709,6 @@ fun CampBnbApp(
         }
 
         composable<Screen.Settings> { entry ->
-            // need to know our role so we can show
-            // the relevant settings
             val role = entry.toRoute<Screen.Settings>().role
             SettingsScreen(
                 { nav.navigateUp() },
@@ -655,6 +792,8 @@ private fun NavController.goHome(role: UserRole, tab: Int = 0) {
  * @param openReservationId If set, the Messages tab opens straight into this reservation's chat.
  */
 @Composable
+private fun CorrespondenceDestination(nav: NavController, initialTab: Int) {
+    val context = LocalContext.current
 private fun CorrespondenceDestination(
     nav: NavController,
     initialTab: Int,

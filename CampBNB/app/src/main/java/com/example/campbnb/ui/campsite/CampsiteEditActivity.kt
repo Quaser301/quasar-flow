@@ -130,6 +130,17 @@ fun CampsiteRegistrationForm(
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
+        Button(
+            onClick = {
+                if (Owner_PutInput) {
+                    BackConfirmation = true
+                } else {
+                    onBack()
+                }
+            }
+        ) {
+            Text("Back")
+        }
         Text(
             text = if (existingCampsite == null) {
                 "Register a Campsite"
@@ -264,8 +275,17 @@ fun CampsiteRegistrationForm(
                     geoLocation = geoLocation.trim(),
                     tags = tags,
                     cancelPolicy = cancelPolicy.trim(),
-                    campPrice = CampPrice.toDoubleOrNull() ?: 0.0
+                    campPrice = CampPrice.toDoubleOrNull() ?: 0.0,
+                    ownerId = existingCampsite?.ownerId ?: "",
+                    campImg = existingCampsite?.campImg ?: "",
+                    availableStartDate = existingCampsite?.availableStartDate ?: "",
+                    availableEndDate = existingCampsite?.availableEndDate ?: "",
+                    blockedDates = existingCampsite?.blockedDates ?: emptyList()
                 )
+
+                if (existingCampsite != null) {
+                    campsite.id = existingCampsite.id
+                }
                 onUpload(campsite, CampImg)
             },
             enabled = Validation,
