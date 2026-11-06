@@ -18,6 +18,17 @@ open class CampsiteRepository {
     open fun SaveCampsite(campsite: Campsite, onComplete: (Result<Exception?>) -> Unit) {
         Database.Campsites.writeEngine().save(campsite, onComplete)
     }
+
+    /**
+     * Deletes a campsite from Firestore using its document ID.
+     */
+    open fun deleteCampsite(
+        campsiteId: String,
+        onComplete: (Result<Exception?>) -> Unit
+    ) {
+        Database.Campsites.writeEngine().delete(campsiteId, onComplete)
+    }
+
     open fun getAll(onSuccess: (List<Campsite>) -> Unit, onFailure: (Exception) -> Unit) {
         Database.Campsites.readEngine().query().execute(onSuccess, onFailure)
     }

@@ -153,28 +153,88 @@ class CampsiteController (
         }
     }
 
-    // Updates an existing campsite for the current user
+
+    /**
+     * Updates a campsite only if it belongs to the current owner.
+     */
     fun updateCampsite(
         campsite: Campsite,
         ownerId: String,
         onComplete: (Boolean) -> Unit
     ) {
-        if (ownerId.isBlank()) {
-            model.setStatusMessage("Please log in to update a campsite")
+        if (ownerId.isBlank() || campsite.id.isBlank()) {
+            model.setStatusMessage("Invalid owner or campsite")
             onComplete(false)
             return
         }
-        repo.SaveCampsite(campsite) { result ->
-            if (result.isSuccess) {
-                model.setStatusMessage("Campsite updated successfully")
-                onComplete(true)
-            } else {
-                model.setStatusMessage("Failed to update campsite")
+
+        repo.getAll(
+            onSuccess = { allCampsites ->
+
+                val existing = allCampsites.find {
+                    it.id == campsite.id
+                }
+
+                // Verify that the campsite belongs to this owner.
+                if (existing == null || existing.ownerId != ownerId) {
+                    model.setStatusMessage(
+                        "You cannot update this campsite"
+                    )
+                    onComplete(false)
+                    return@getAll
+                }
+
+                // Prevent changing the original owner.
+                if (campsite.ownerId != existing.ownerId) {
+                    model.setStatusMessage(
+                        "Campsite owner cannot be changed"
+                    )
+                    onComplete(false)
+                    return@getAll
+                }
+
+                // Preserve the original owner and document ID.
+                val campsiteToSave = Campsite(
+                    ownerId = existing.ownerId,
+                    campName = campsite.campName,
+                    campLoc = campsite.campLoc,
+                    campDesc = campsite.campDesc,
+                    campAmenities = campsite.campAmenities,
+                    geoLocation = campsite.geoLocation,
+                    campImg = campsite.campImg,
+                    maxOccupancy = campsite.maxOccupancy,
+                    tags = campsite.tags,
+                    cancelPolicy = campsite.cancelPolicy,
+                    campPrice = campsite.campPrice,
+                    availableStartDate = campsite.availableStartDate,
+                    availableEndDate = campsite.availableEndDate,
+                    blockedDates = campsite.blockedDates
+                ).apply {
+                    id = existing.id
+                }
+
+                repo.SaveCampsite(campsiteToSave) { result ->
+                    if (result.isSuccess) {
+                        model.setStatusMessage(
+                            "Campsite updated successfully"
+                        )
+                        onComplete(true)
+                    } else {
+                        model.setStatusMessage(
+                            "Failed to update campsite"
+                        )
+                        onComplete(false)
+                    }
+                }
+            },
+            onFailure = {
+                model.setStatusMessage(
+                    "Could not verify campsite owner"
+                )
                 onComplete(false)
             }
-        }
+        )
     }
-
     /** Loads every campsite, then shows only the ones matching [query] (US 01.01.01, 01.01.03). */
     fun loadAndSearch(query: String) {
         repo.getAll(
