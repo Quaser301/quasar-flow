@@ -75,11 +75,11 @@ fun HomeScreen(
     appViewSettings: AppViewSetting
 ) {
     val viewState = appViewSettings.setting.collectAsStateWithLifecycle()
-    val tabs = remember(role) { tabsFor(role) }
+    var tabs by remember() { mutableStateOf(tabsFor(role)) }
 
     // note: NOT booting back to the home screen since we ARE the home screen.
     LaunchedEffect(viewState) {
-        val tabs = when (viewState.value) {
+        tabs = when (viewState.value) {
             AppView.AdminView -> tabsFor(UserRole.ADMIN)
             AppView.OwnerView -> tabsFor(UserRole.OWNER)
             AppView.EntrantView -> tabsFor(UserRole.CAMPER)

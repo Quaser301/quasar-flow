@@ -18,6 +18,7 @@ import com.example.campbnb.controller.LotteryController
 import com.example.campbnb.data.LotteryRepository
 import com.example.campbnb.database.Database
 import com.example.campbnb.models.LotteryModel
+import com.example.campbnb.ui.Screens.ExploreScreen
 import com.example.campbnb.ui.Screens.HomeDestination
 import com.example.campbnb.ui.Screens.HomeScreen
 import com.example.campbnb.ui.Screens.LoginScreen
@@ -25,9 +26,12 @@ import com.example.campbnb.ui.Screens.PlaceholderTab
 import com.example.campbnb.ui.Screens.RoleSelectScreen
 import com.example.campbnb.ui.Screens.SignUpScreen
 import com.example.campbnb.ui.Screens.StartScreen
+import com.example.campbnb.ui.components.UserRole
 import com.example.campbnb.ui.lottery.LotteryDetailsActivity
 import com.example.campbnb.ui.lottery.LotteryEditActivity
 import com.example.campbnb.ui.lottery.LotteryMonitorActivity
+import com.example.campbnb.ui.settings.SettingsScreen
+import com.example.campbnb.viewModels.AppView
 import com.example.campbnb.viewModels.AppViewSettingController
 
 @Composable
@@ -99,7 +103,13 @@ fun CampBnbApp(appViewSettings: AppViewSettingController) {
         composable<Screen.Login> {
             LoginScreen(
                 onLogin = { _, role, _ ->   // TODO: authenticate first
-                    nav.navigate(Screen.Home(roleName = role)) {
+                    val targetView = when (role) {
+                        UserRole.ADMIN -> AppView.AdminView
+                        UserRole.OWNER -> AppView.OwnerView
+                        UserRole.CAMPER -> AppView.EntrantView
+                    }
+                    appViewSettings.changeViewTo(targetView)
+                    nav.navigate(Screen.Home(role = role)) {
                         popUpTo(Screen.Start) {
                             inclusive = true
                         }
@@ -116,7 +126,13 @@ fun CampBnbApp(appViewSettings: AppViewSettingController) {
         }
         composable<Screen.Role> {
             RoleSelectScreen(onRoleSelected = { role ->
-                nav.navigate(Screen.Home(roleName = role)) {
+                val targetView = when (role) {
+                    UserRole.ADMIN -> AppView.AdminView
+                    UserRole.OWNER -> AppView.OwnerView
+                    UserRole.CAMPER -> AppView.EntrantView
+                }
+                appViewSettings.changeViewTo(targetView)
+                nav.navigate(Screen.Home(role = role)) {
                     popUpTo(Screen.Start) {
                         inclusive = true
                     }
@@ -124,7 +140,7 @@ fun CampBnbApp(appViewSettings: AppViewSettingController) {
             })
         }
         composable<Screen.Home> { entry ->
-            val role = entry.toRoute<Screen.Home>().roleName
+            val role = entry.toRoute<Screen.Home>().role
             HomeScreen(role = role,
                 destinationContent = { destination ->
                     when (destination) {
@@ -139,6 +155,11 @@ fun CampBnbApp(appViewSettings: AppViewSettingController) {
                         }
                         else -> PlaceholderTab(destination)
                     }
+                },
+                exploreContent = {
+                    ExploreScreen(
+                        onSettingsClick = { nav.navigate(Screen.Settings(role)) }
+                    )
                 },
                 appViewSettings = appViewSettings.toAppViewSetting()
             )
@@ -184,6 +205,16 @@ fun CampBnbApp(appViewSettings: AppViewSettingController) {
                 }
             }
             activity.LotteryMonitor(model = model, controller = controller)
+        }
+        composable<Screen.Settings> { entry ->
+            // need to know our role so we can show
+            // the relevant settings
+            val role = entry.toRoute<Screen.Settings>().role
+            SettingsScreen(
+                { nav.navigateUp() },
+                role,
+                appViewSettings
+            )
         }
         composable<Screen.LotteryDetailsActivity> {
             val activity = remember {
