@@ -2,12 +2,14 @@ package com.example.campbnb
 
 import android.widget.Toast
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -59,6 +61,7 @@ import com.example.campbnb.ui.campsite.CampsiteRatingSection
 import com.example.campbnb.ui.campsite.CampsiteRegistrationForm
 import com.example.campbnb.ui.components.GradientButton
 import com.example.campbnb.ui.components.UserRole
+import com.example.campbnb.ui.details.CampsiteDetails
 import com.example.campbnb.ui.details.CampsiteDetailsScreen
 import com.example.campbnb.ui.details.placeholderDetails
 import com.example.campbnb.ui.inbox.CorrespondenceScreen
@@ -371,15 +374,127 @@ fun CampBnbApp(
         // Campsite details
         composable<Screen.CampsiteDetailsScreen> { entry ->
             val route = entry.toRoute<Screen.CampsiteDetailsScreen>()
-            CampsiteDetailsScreen(
-                role = route.role,
-                campsite = placeholderDetails(route.campsiteId),
-                // navigateUp so a fast double tap can't go too far back
-                onBack = { nav.navigateUp() },
-                onTabSelected = { index -> nav.goHome(route.role, index) },
-                onEnterLottery = { /* TODO: enter the lottery */ },
-                onDeleteSite = { /* TODO: delete through the campsite controller */ }
-            )
+
+            val campsiteRepository = remember {
+                CampsiteRepository()
+            }
+
+            var campsiteDetails by remember(route.campsiteId) {
+                mutableStateOf<CampsiteDetails?>(null)
+            }
+
+            var isLoading by remember(route.campsiteId) {
+                mutableStateOf(true)
+            }
+
+            var errorMessage by remember(route.campsiteId) {
+                mutableStateOf<String?>(null)
+            }
+
+            LaunchedEffect(route.campsiteId) {
+                isLoading = true
+                errorMessage = null
+                campsiteDetails = null
+
+                // First, retrieve the campsite.
+                campsiteRepository.getAll(
+                    onSuccess = { allCampsites ->
+
+                        val campsite = allCampsites.firstOrNull {
+                            it.id == route.campsiteId
+                        }
+
+                        if (campsite == null) {
+                            errorMessage = "Campsite could not be found."
+                            isLoading = false
+                        } else {
+
+                            // Then retrieve ratings for this campsite.
+                            campsiteRepository.getAllRatings(
+                                onSuccess = { allRatings ->
+
+                                    val campsiteRatings = allRatings.filter {
+                                        it.campsiteId == campsite.id
+                                    }
+
+                                    val averageRating =
+                                        if (campsiteRatings.isNotEmpty()) {
+                                            campsiteRatings
+                                                .map { it.stars }
+                                                .average()
+                                        } else {
+                                            0.0
+                                        }
+
+                                    campsiteDetails = CampsiteDetails(
+                                        id = campsite.id,
+                                        name = campsite.campName,
+                                        rating = averageRating,
+                                        reviewCount = campsiteRatings.size,
+                                        tags = (campsite.tags + campsite.campAmenities)
+                                            .distinct(),
+                                        capacityGuests = campsite.maxOccupancy,
+                                        location = campsite.campLoc,
+                                        description = campsite.campDesc,
+                                        imageUrl = campsite.campImg
+                                    )
+
+                                    isLoading = false
+                                },
+                                onFailure = { error ->
+                                    errorMessage =
+                                        "Could not load campsite ratings: ${error.message}"
+                                    isLoading = false
+                                }
+                            )
+                        }
+                    },
+                    onFailure = { error ->
+                        errorMessage =
+                            "Could not load campsite: ${error.message}"
+                        isLoading = false
+                    }
+                )
+            }
+
+            when {
+                isLoading -> {
+                    Box(
+                        Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        CircularProgressIndicator()
+                    }
+                }
+
+                errorMessage != null -> {
+                    Box(
+                        Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(errorMessage!!)
+                    }
+                }
+
+                campsiteDetails != null -> {
+                    CampsiteDetailsScreen(
+                        role = route.role,
+                        campsite = campsiteDetails!!,
+                        onBack = {
+                            nav.navigateUp()
+                        },
+                        onTabSelected = { index ->
+                            nav.goHome(route.role, index)
+                        },
+                        onEnterLottery = {
+                            // TODO: connect to the lottery-entry workflow
+                        },
+                        onDeleteSite = {
+                            // TODO: connect to the campsite deletion workflow
+                        }
+                    )
+                }
+            }
         }
         // Lottery edit
         composable<Screen.LotteryEditActivity> {

@@ -40,9 +40,9 @@ data class CampsiteDetails(
     val reviewCount: Int = 0,
     val tags: List<String> = emptyList(),
     val capacityGuests: Int = 0,
-    val sizeSqFt: Int = 0,
     val location: String = "",
-    val description: String = ""
+    val description: String = "",
+    val imageUrl: String = ""
 )
 
 /** Stand-in data until a controller supplies real campsite details. */
@@ -53,7 +53,6 @@ fun placeholderDetails(id: String) = CampsiteDetails(
     reviewCount = 0,
     tags = listOf("Fire pit", "Lakeside", "Parking", "Pet friendly", "Washrooms"),
     capacityGuests = 6,
-    sizeSqFt = 400,
     location = "123 Nowhereville",
     description = "Lorem ipsum dansum wopan gangnam style hello my name is its actually " +
             "couture doe at dat mean merchant. But if he said would yes would go. I would actually like to."
@@ -159,10 +158,19 @@ fun CampsiteDetailsScreen(
                 // About
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Text("About this site...", fontSize = 14.sp)
-                    Column(Modifier.padding(start = 8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Text("Capacity: ${campsite.capacityGuests} guests", fontSize = 13.sp)
-                        Text("Size: ${campsite.sizeSqFt} sq feet", fontSize = 13.sp)
-                        Text("Location: ${campsite.location}", fontSize = 13.sp)
+
+                    Column(
+                        Modifier.padding(start = 8.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Text(
+                            "Capacity: ${campsite.capacityGuests} guests",
+                            fontSize = 13.sp
+                        )
+                        Text(
+                            "Location: ${campsite.location}",
+                            fontSize = 13.sp
+                        )
                     }
                 }
 
