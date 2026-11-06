@@ -34,6 +34,7 @@ import com.example.campbnb.controller.ReservationFilter
 import com.example.campbnb.data.CampsiteRepository
 import com.example.campbnb.data.FirestoreNotificationRepository
 import com.example.campbnb.data.LotteryRepository
+import com.example.campbnb.data.ReservationRepository
 import com.example.campbnb.data.UserRepository
 import com.example.campbnb.database.Database
 import com.example.campbnb.models.Campsite
@@ -83,7 +84,17 @@ fun CampBnbApp(
     val userModel = remember { UserModel() }
     val userRepo = remember { UserRepository() }
     val userController = remember { UserController(userModel, userRepo) }
+    val reservationRepository = remember {
+        ReservationRepository(
+            engine = Database.Reservations.readEngine(),
+            reservationWriter = Database.Reservations.writeEngine(),
+            bookedDateWriter = Database.BookedDates.writeEngine()
+        )
+    }
 
+    val campsiteRepository = remember {
+        CampsiteRepository()
+    }
     NavHost(navController = nav, startDestination = Screen.Start) {
         // Start
         composable<Screen.Start> {
@@ -254,17 +265,120 @@ fun CampBnbApp(
             activity.LotteryMonitor(model = model, controller = controller)
         }
 
+// Reservations
+
         composable<Screen.Reservations> {
+            val ownerId = DeviceId.get(context)
+
+            var campsites by remember {
+                mutableStateOf<List<Campsite>>(emptyList())
+            }
+
+            var selectedCampsiteId by remember {
+                mutableStateOf<String?>(null)
+            }
+
+            var selectedFilter by remember {
+                mutableStateOf(ReservationFilter.ACTIVE)
+            }
+
+            var reservations by remember {
+                mutableStateOf<List<com.example.campbnb.models.ReservationModel>>(emptyList())
+            }
+
+            // Load only this owner's campsites.
+            LaunchedEffect(ownerId) {
+                campsiteRepository.getAll(
+                    onSuccess = { allCampsites ->
+                        val ownedCampsites = allCampsites.filter {
+                            it.ownerId == ownerId
+                        }
+
+                        campsites = ownedCampsites
+
+                        // Automatically select the first campsite.
+                        if (selectedCampsiteId == null ||
+                            ownedCampsites.none { it.id == selectedCampsiteId }
+                        ) {
+                            selectedCampsiteId = ownedCampsites.firstOrNull()?.id
+                        }
+                    },
+                    onFailure = { error ->
+                        Toast.makeText(
+                            context,
+                            "Could not load campsites: ${error.message}",
+                            Toast.LENGTH_LONG
+                        ).show()
+                    }
+                )
+            }
+
+            // Load reservations whenever the campsite or filter changes.
+            LaunchedEffect(selectedCampsiteId, selectedFilter) {
+                val campsiteId = selectedCampsiteId
+
+                if (campsiteId == null) {
+                    reservations = emptyList()
+                } else {
+                    reservationRepository.run {
+                        when (selectedFilter) {
+                            ReservationFilter.ACTIVE -> getActive(
+                                campsiteId,
+                                onSuccess = { reservations = it },
+                                onFailure = { error ->
+                                    Toast.makeText(
+                                        context,
+                                        "Could not load reservations: ${error.message}",
+                                        Toast.LENGTH_LONG
+                                    ).show()
+                                }
+                            )
+
+                            ReservationFilter.PAST -> getPast(
+                                campsiteId,
+                                onSuccess = { reservations = it },
+                                onFailure = { error ->
+                                    Toast.makeText(
+                                        context,
+                                        "Could not load reservations: ${error.message}",
+                                        Toast.LENGTH_LONG
+                                    ).show()
+                                }
+                            )
+
+                            ReservationFilter.CANCELLED -> getCancelled(
+                                campsiteId,
+                                onSuccess = { reservations = it },
+                                onFailure = { error ->
+                                    Toast.makeText(
+                                        context,
+                                        "Could not load reservations: ${error.message}",
+                                        Toast.LENGTH_LONG
+                                    ).show()
+                                }
+                            )
+                        }
+                    }
+                }
+            }
 
             ReservationScreen(
-                campsites = emptyList(),
-                selectedCampsiteId = null,
-                selectedFilter = ReservationFilter.ACTIVE,
-                reservations = emptyList(),
-                onCampsiteSelected = {},
-                onFilterSelected = {}
+                campsites = campsites,
+                selectedCampsiteId = selectedCampsiteId,
+                selectedFilter = selectedFilter,
+                reservations = reservations,
+                onCampsiteSelected = { campsiteId ->
+                    selectedCampsiteId = campsiteId
+                },
+                onFilterSelected = { filter ->
+                    selectedFilter = filter
+                },
+                onBack = {
+                    nav.navigateUp()
+                }
             )
         }
+
         composable<Screen.Settings> { entry ->
             // need to know our role so we can show
             // the relevant settings
