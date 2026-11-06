@@ -2,6 +2,7 @@ package com.example.campbnb.viewModels
 
 import androidx.lifecycle.ViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
 
@@ -111,5 +112,63 @@ class OwnerSettingsController: ViewModel() {
      */
     fun changeAvailabilityNoticeTo(newNotice: String) {
         _availabilityNoticeSetting.value = newNotice
+    }
+}
+
+/**
+ * Provides a concrete [ViewModel] holding the dropdown expansion state of the Settings
+ * screen and the wiring of its back navigation.
+ *
+ * Each dropdown group has its expansion kept as an immutable `StateFlow`, so the
+ * screen re-renders just that group when a tap opens or closes it.
+ *
+ * @param onBack Called whenever [pressBack] runs: the Settings screen hands this its
+ * own back lambda, so leaving Settings returns to the screen just on.
+ * @property expandedStateOf The readonly `StateFlow` for a named dropdown group.
+ */
+class SettingsDisplayController(val onBack: () -> Unit): ViewModel() {
+    // one state per known dropdown group from SettingsGroupId; groups start closed.
+    private val appViewSwitchState = MutableStateFlow(false)
+    private val adminSettingsState = MutableStateFlow(false)
+    private val entrantSettingsState = MutableStateFlow(false)
+    private val ownerSettingsState = MutableStateFlow(false)
+    private val unknownGroupState = MutableStateFlow(false)
+
+    /**
+     * Provides the current expansion of the named dropdown group.
+     *
+     * @param groupId The stable name of the dropdown group.
+     * @return A readonly [StateFlow] of whether that group is opened.
+     */
+    fun expandedStateOf(groupId: String): StateFlow<Boolean> =
+        when (groupId) {
+            "APP_VIEW_SWITCH" -> appViewSwitchState.asStateFlow()
+            "ADMIN_SETTINGS" -> adminSettingsState.asStateFlow()
+            "ENTRANT_SETTINGS" -> entrantSettingsState.asStateFlow()
+            "OWNER_SETTINGS" -> ownerSettingsState.asStateFlow()
+            else -> unknownGroupState.asStateFlow()
+        }
+
+    /**
+     * Opens the named dropdown group if it was closed, or closes it if it was open.
+     *
+     * @param groupId The stable name of the dropdown group.
+     */
+    fun toggleGroup(groupId: String) {
+        when (groupId) {
+            "APP_VIEW_SWITCH" -> appViewSwitchState.value = !appViewSwitchState.value
+            "ADMIN_SETTINGS" -> adminSettingsState.value = !adminSettingsState.value
+            "ENTRANT_SETTINGS" -> entrantSettingsState.value = !entrantSettingsState.value
+            "OWNER_SETTINGS" -> ownerSettingsState.value = !ownerSettingsState.value
+            else -> unknownGroupState.value = !unknownGroupState.value
+        }
+    }
+
+    /**
+     * Runs the back navigation: presses the Settings screen&apos;s back button by
+     * calling the back lambda it was handed.
+     */
+    fun pressBack() {
+        onBack()
     }
 }

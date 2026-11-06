@@ -98,8 +98,57 @@ Reading the diagram:
 - Each entry follows the established private-`MutableStateFlow` plus public-`asStateFlow`
   shape: the panels latch on to the readonly flows and re-render when a `change...` method
   moves one.
-- The panel composables in `ui/settings/SettingsPanels.kt` consume these plus an
-  `AppViewSetting`: while their view is current they render their entries, and otherwise one
-  muted inactive line. Neither panel fills its container, so both stay stackable below the
-  Admin settings section, which keeps being editable regardless.
+- The role-section rendering now lives in `ui/settings/SettingsScreen.kt`: the screen's
+  dropdown groups consume these plus the live view setting. The standalone list-style panels
+  first drafted here were superseded by that screen and removed.
+
+## The Settings screen itself
+
+UML documentation for the dropdown-display ViewModel and the pure ordering model in
+`ui/settings/SettingsScreen.kt`: a full-screen settings body with a back button (top left,
+which runs the back lambda it is handed so the user returns to the screen just on), a
+Settings header (top center), and a dropdown menu below. The screen registration itself is
+done separately.
+
+```mermaid
+classDiagram
+    class SettingsDisplayController {
+        -appViewSwitchState MutableStateFlow~Boolean~
+        -adminSettingsState MutableStateFlow~Boolean~
+        -entrantSettingsState MutableStateFlow~Boolean~
+        -ownerSettingsState MutableStateFlow~Boolean~
+        +expandedStateOf(groupId String) StateFlow~Boolean~
+        +toggleGroup(groupId String)
+        +pressBack()
+    }
+
+    class UserRole {
+        CAMPER
+        OWNER
+        ADMIN
+    }
+
+    SettingsDisplayController : onBack () -> Unit (constructor-injected back lambda)
+
+    ViewModel <|-- SettingsDisplayController
+    SettingsDisplayController ..> SettingsGroupId : expansion state keyed by group name
+    SettingsScreen ..> settingsGroupsFor : mounts the groups it returns, in order
+    settingsGroupsFor ..> UserRole : the user's role decides which sections exist
+    settingsGroupsFor ..> AppView : the current view decides which extra section appears below
+    SettingsDisplayController ..> AppViewSettingController : pressBack runs the handed back lambda; the app view switch group calls changeViewTo
+```
+
+Reading the diagram:
+
+- The `settingsGroupsFor` model is pure (role, view) -> ordered groups: an admin sees the
+  app view switch first, then admin settings, and the current non-admin view's settings
+  only below the admin settings; non-admin users see only their own section. The screen
+  renders exactly what the model returns, so the ordering is testable without rendering.
+- `SettingsDisplayController` holds one `MutableStateFlow` per known group name from
+  `SettingsGroupId`; tapping a dropdown calls `toggleGroup`, and the screen re-renders
+  only that group through the `expandedStateOf` readonly flow.
+- The back button calls `pressBack`, which runs the constructor-injected back lambda;
+  the unit tests drive all three behaviours (back goes back, a tap opens only that
+  dropdown, a view switch reveals the settings in their documented place).
+
 
