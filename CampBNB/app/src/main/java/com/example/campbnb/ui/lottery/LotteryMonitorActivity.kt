@@ -40,8 +40,14 @@ import com.google.firebase.auth.FirebaseAuth
  * button. Modifiers are tedious :).
  * 06-11-26: Prompted gemini 3.6 to help me fix bug where the incorrect owner ID is passed in
  * making the lotteries not display. Provided a simple few line edit.
+ * 06-11-26: Prompted gemini 3.6 to fill out kdocs
+ *
+ * @property goHome Callback function to navigate to the home screen.
+ * @property goBack Callback function to navigate backwards.
+ * @property goToCreateLottery Callback function to navigate to the create lottery screen.
+ * @property goToLotteryDetails Callback function to navigate to details for a selected [Lottery].
+ * @property appViewSettings Current view settings used for window verification and access checks.
  */
-
 class LotteryMonitorActivity(
     val goHome: () -> Unit,
     val goBack: () -> Unit,
@@ -50,11 +56,24 @@ class LotteryMonitorActivity(
     val appViewSettings: AppViewSetting
 ) : ViewObserver<LotteryModel> {
 
-    // Required by ViewObserver. The list recomposes through the Compose state in
-    // LotteryModel, so there is nothing to do here.
+    /**
+     * Required by ViewObserver. The list recomposes through the Compose state in
+     * [LotteryModel], so no manual update is necessary.
+     *
+     * @param model The updated [LotteryModel] instance.
+     */
     override fun update(model: LotteryModel) {}
 
-    // List of all lotteries
+    /**
+     * Renders the list of lotteries belonging to the specified owner.
+     *
+     * Fetches lotteries via [controller] on launch and displays them in cards showing
+     * campsite names, status, and navigation to lottery details or creation.
+     *
+     * @param model The lottery state model shown by views.
+     * @param controller The controller managing lottery database actions.
+     * @param ownerId Unique identifier of the campsite owner whose lotteries are displayed.
+     */
     @Composable
     fun LotteryMonitor(
         model: LotteryModel,
@@ -81,15 +100,12 @@ class LotteryMonitorActivity(
             }
         }
 
-
-
         Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(16.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-
 
             Spacer(modifier = Modifier.height(16.dp))
             Row(

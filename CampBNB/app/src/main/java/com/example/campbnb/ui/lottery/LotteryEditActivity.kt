@@ -62,6 +62,11 @@ import java.util.Locale
  * object based on the input fields and then saves it to firebase.
  * 06-11-26: Prompted gemini 3.6 to modify the campsite dropdown into a checkbox(toggle) dropdown
  * to allow for multiple campsite selection.
+ * 06-11-26: Prompted gemini 3.6 to fill out kdocs
+ *
+ * @property returnHome Callback function to navigate back to the home screen.
+ * @property navigateBackwards Callback function to navigate backwards in the navigation stack.
+ * @property appViewSettings Current view settings used for window verification and access checks.
  */
 // Note: injecting temporary comments cause I need to know what I'm doing.
 // remove once actual docs are available.
@@ -73,10 +78,25 @@ class LotteryEditActivity(
 
 ) : ViewObserver<LotteryModel> {
 
-
+    /**
+     * Updates the UI observer when [model] changes. Handled via Compose state recomposition.
+     *
+     * @param model The updated [LotteryModel] instance.
+     */
     override fun update(model: LotteryModel) {
     }
 
+    /**
+     * Renders the form for creating or updating a campsite lottery.
+     *
+     * Allows owners to select multiple campsites, specify winner numbers and waitlist capacity,
+     * and pick date ranges for registration and booking windows.
+     *
+     * @param model The lottery state model shown by views.
+     * @param controller The controller managing lottery database actions.
+     * @param initialLottery Optional existing [Lottery] instance to edit; null if creating a new lottery.
+     * @param ownerId Unique identifier of the campsite owner creating or editing the lottery.
+     */
     @OptIn(ExperimentalMaterial3Api::class)
     // Editing Lotteries
     @Composable
