@@ -12,7 +12,7 @@
 import admin from 'firebase-admin';
 import { onSchedule } from 'firebase-functions/scheduler';
 
-admin.initialize();
+admin.initializeApp();
 const db = admin.firestore();
 
 /**
@@ -41,8 +41,9 @@ async function campsiteNameOf(campsiteId: string): Promise<string> {
   if (!campsiteId) {
     return '';
   }
-  const res = await db.doc('campsites', campsiteId).get();
-  return res.found ? String(res.get('campName')) : '';
+  const res = await db.doc(`campsites/${campsiteId}`).get();
+
+  return res.exists ? String(res.get('campName')) : '';
 }
 
 /**
@@ -65,12 +66,13 @@ async function drawAndClaim(lotteryId: string, numberOfWinners: number): Promise
     .filter((userId) => userId !== '');
   const winners = pickWinners(entrantIds, numberOfWinners);
 
-  const claimed = await db.transaction((tx) => {
-    const current = tx.get(db.doc('lotteries', lotteryId));
+  const claimed = await db.runTransaction(async (tx: admin.firestore.Transaction) => {
+    const docRef = db.doc(`lotteries/${lotteryId}`)
+    const current = await tx.get(docRef);
     if (current.get('drawn') === true) {
       return false;
     }
-    tx.set(current, { drawn: true, winnerIds: winners });
+    tx.update(docRef, { drawn: true, winnerIds: winners });
     return true;
   });
 
@@ -107,7 +109,8 @@ export const drawDueLotteries = onSchedule('everyMinute', async () => {
       const named = place || 'the campsite'; // same fallback as NotificationController.
 
       for (const userId of winners) {
-        await db.doc('notifications', `${res.id}_${userId}_WIN`).set({
+
+        await db.doc(`notifications/${res.id}_${userId}_WIN`).set({
           recipientId: userId,
           senderId: '', // the draw is system-created, like the Kotlin model's docs say.
           type: 'WIN',
