@@ -9,6 +9,8 @@ import com.example.campbnb.models.Lottery
 import com.example.campbnb.models.Campsite
 import com.example.campbnb.models.Rating
 import com.example.campbnb.models.User
+import com.example.campbnb.models.ReservationModel
+import com.example.campbnb.models.BookedDate
 import com.example.campbnb.database.transactionEngine
 import com.example.campbnb.database.writeEngineFor
 import com.example.campbnb.models.WaitingListEntry
@@ -113,7 +115,26 @@ object Database {
             return db.writeEngineFor<Lottery>(COLLECTION_NAME)
         }
     }
+    
+    object Reservations {
+        const val COLLECTION_NAME = "reservations"
 
+        fun readEngine(): QueryEngine<ReservationModel> {
+            return db.readEngineFor<ReservationModel>(COLLECTION_NAME)
+        }
+
+        fun writeEngine(): WriteEngine<ReservationModel> {
+            return db.writeEngineFor<ReservationModel>(COLLECTION_NAME)
+        }
+    }
+
+    object BookedDates {
+        const val COLLECTION_NAME = "bookedDates"
+
+        fun writeEngine(): WriteEngine<BookedDate> {
+            return db.writeEngineFor<BookedDate>(COLLECTION_NAME)
+        }
+    }
 
     object Campsites {
         const val COLLECTION_NAME = "campsites"
