@@ -1,4 +1,22 @@
 package com.example.campbnb
+import androidx.navigation.toRoute
+import com.example.campbnb.controller.CampsiteController
+import com.example.campbnb.data.CampsiteRepository
+import com.example.campbnb.models.CampsiteModel
+import com.google.firebase.auth.FirebaseAuth
+import android.widget.Toast
+import androidx.compose.ui.platform.LocalContext
+import com.example.campbnb.ui.campsite.CampsiteRegistrationForm
+import com.example.campbnb.ui.campsite.CampsiteOwnerActivity
+import androidx.compose.material3.Button
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import com.example.campbnb.models.Campsite
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -76,6 +94,115 @@ fun CampBnbApp(appViewSettings: AppViewSettingController,
         // Start
         composable<Screen.Start> {
             StartScreen(onGetStarted = { nav.navigate(Screen.Login) })
+
+        }
+
+        composable<Screen.EditCampsite> { backStackEntry ->
+
+            val campsiteId =
+                backStackEntry.toRoute<Screen.EditCampsite>().campsiteId
+
+            var campsite by remember(campsiteId) {
+                mutableStateOf<Campsite?>(null)
+            }
+
+            var isLoading by remember(campsiteId) {
+                mutableStateOf(true)
+            }
+
+            val repository = remember { CampsiteRepository() }
+
+            val controller = remember {
+                CampsiteController(CampsiteModel(), repository)
+            }
+
+            LaunchedEffect(campsiteId) {
+                repository.getAll(
+                    onSuccess = { campsites ->
+                        campsite = campsites.find { it.id == campsiteId }
+                        isLoading = false
+                    },
+                    onFailure = {
+                        isLoading = false
+                    }
+                )
+            }
+
+            if (isLoading) {
+                Text("Loading campsite...")
+            } else if (campsite == null) {
+                Text("Campsite not found")
+            } else {
+                CampsiteRegistrationForm(
+                    existingCampsite = campsite,
+                    onBack = { nav.navigateUp() },
+                    onUpload = { updatedCampsite, _ ->
+
+                        val ownerId =
+                            FirebaseAuth.getInstance().currentUser?.uid ?: ""
+
+                        controller.updateCampsite(
+                            updatedCampsite,
+                            ownerId
+                        ) { success ->
+
+                            if (success) {
+                                nav.navigateUp()
+                            }
+                        }
+                    }
+                )
+            }
+        }
+
+        composable<Screen.CampsiteEditActivity> {
+            val context = LocalContext.current
+
+            val model = remember { CampsiteModel() }
+            val repo = remember { CampsiteRepository() }
+            val controller = remember {
+                CampsiteController(model, repo)
+            }
+
+            CampsiteRegistrationForm(
+                onBack = {
+                    nav.navigateUp()
+                },
+                onUpload = { campsite, imageUri ->
+
+                    val ownerId = FirebaseAuth.getInstance().currentUser?.uid
+
+                    if (ownerId == null) {
+                        Toast.makeText(
+                            context,
+                            "You must be logged in",
+                            Toast.LENGTH_SHORT
+                        ).show()
+                    } else {
+                        controller.registerCampsite(
+                            campsite = campsite,
+                            ownerId = ownerId,
+                            onComplete = { success ->
+                                if (success) {
+                                    Toast.makeText(
+                                        context,
+                                        "Campsite registered successfully!",
+                                        Toast.LENGTH_SHORT
+                                    ).show()
+
+                                    nav.navigateUp()
+                                } else {
+                                    Toast.makeText(
+                                        context,
+                                        "Could not register campsite",
+                                        Toast.LENGTH_SHORT
+                                    ).show()
+                                }
+                            }
+                        )
+                    }
+                }
+            )
         }
         // Login
         composable<Screen.Login> {
@@ -125,6 +252,21 @@ fun CampBnbApp(appViewSettings: AppViewSettingController,
         // Home (Explore plus the role's bottom bar)
         // Home (Explore plus the role's bottom bar)
         composable<Screen.Home> { entry ->
+            val role = entry.toRoute<Screen.Home>().roleName
+            HomeScreen(
+                role = role,
+                appViewSettings = appViewSettings.toAppViewSetting(),
+                destinationContent = { destination ->
+                    when (destination) {
+                        HomeDestination.MY_CAMPSITES -> CampsiteOwnerActivity(
+                            onEdit = { campsiteId ->
+                                nav.navigate(Screen.EditCampsite(campsiteId))
+                            },
+                            onRegister = {
+                                nav.navigate(Screen.CampsiteEditActivity)
+                            }
+                        )
+                        else -> PlaceholderTab(destination)
             val route = entry.toRoute<Screen.Home>()
             val role = route.role
 
