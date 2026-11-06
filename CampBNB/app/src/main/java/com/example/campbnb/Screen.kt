@@ -70,6 +70,11 @@ sealed interface Screen {
     data object Reservations : Screen
     @Serializable
     data class CampsiteDetail(val role: UserRole, val campsiteId: String) : Screen
+
+    // the screen where a Campsite Owner views their campsites.
+    @Serializable
+    data class CampsiteMonitorActivity(val role: UserRole) : Screen
+
     // one campsite's details page.
     @Serializable
     data class CampsiteDetailsScreen(val role: UserRole, val campsiteId: String): Screen
