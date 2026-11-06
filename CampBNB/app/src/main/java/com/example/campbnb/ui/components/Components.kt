@@ -69,8 +69,8 @@ fun GradientButton(
 @Composable
 fun GradientBarButton(
     text: String,
-    onClick: () -> Unit = {},
     modifier: Modifier = Modifier,
+    onClick: () -> Unit = {},
     textModifier: Modifier = Modifier,
     height: Dp = 44.dp,
     enabled: Boolean = true

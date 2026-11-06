@@ -163,15 +163,19 @@ private fun SettingsDropdown(
 ) {
     val expanded = display.expandedStateOf(groupId.name).collectAsStateWithLifecycle()
 
-    Column(
-        verticalArrangement = Arrangement.spacedBy(32.dp)
+    Box(
+        contentAlignment = Alignment.Center
     ) {
-        GradientBarButton(
-            groupLabel(groupId) + if (expanded.value) "" else " - tap to open",
-            onClick = { display.toggleGroup(groupId.name) },
-            modifier = Modifier.fillMaxWidth().padding(6.dp)
-        )
-        if (expanded.value) content()
+        Column(
+            verticalArrangement = Arrangement.spacedBy(32.dp)
+        ) {
+            GradientBarButton(
+                groupLabel(groupId) + if (expanded.value) "" else " - tap to open",
+                onClick = { display.toggleGroup(groupId.name) },
+                modifier = Modifier.fillMaxWidth().padding(6.dp)
+            )
+            if (expanded.value) content()
+        }
     }
 }
 
@@ -191,13 +195,15 @@ private fun ViewSwitchMenu(
 ) {
     val expanded = display.expandedStateOf(SettingsGroupId.APP_VIEW_SWITCH.name).collectAsStateWithLifecycle()
     val currentView = viewSettings.viewSetting.collectAsStateWithLifecycle()
+
     DropdownMenu(
         expanded = expanded.value,
         onDismissRequest = { display.toggleGroup(SettingsGroupId.APP_VIEW_SWITCH.name) }
     ) {
         listOf(AppView.AdminView, AppView.OwnerView, AppView.EntrantView).forEach { view ->
             DropdownMenuItem(
-                text = { Text(view.name + if (view == currentView.value) " <- current" else "") },
+                text = { Text(view.name + if (view == currentView.value) " ←" else "") },
+
                 onClick = { viewSettings.changeViewTo(view) }
             )
         }
@@ -235,7 +241,10 @@ private fun OwnerSettingsItems(settings: OwnerSettingsController) {
 /** Placeholder admin settings groups: the admin's section is worked separately. */
 @Composable
 private fun AdminSettingsPlaceholder() {
-    Column {
+    Column (
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    )
+    {
         SettingsEntry("policy review", "placeholder")
         SettingsEntry("flagged content", "placeholder")
     }
@@ -244,5 +253,22 @@ private fun AdminSettingsPlaceholder() {
 /** One label-and-current-value row of an opened group. */
 @Composable
 private fun SettingsEntry(label: String, value: String) {
-    Text("$label: $value", fontSize = 16.sp)
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(2))
+            .background(FieldGrey)
+            .fillMaxWidth(),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            horizontalAlignment = Alignment.Start,
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+            modifier = Modifier
+                .fillMaxWidth(0.75f)
+                .padding(vertical = 12.dp)
+        ) {
+            Text(label, fontSize = 24.sp)
+            Text(value, fontSize = 12.sp)
+        }
+    }
 }
