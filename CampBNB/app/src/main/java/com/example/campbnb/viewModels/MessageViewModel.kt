@@ -17,11 +17,16 @@ import kotlinx.coroutines.flow.asStateFlow
  */
 sealed interface MessagesState {
     data object Loading : MessagesState
+    /** Data loaded. openConversation and thread are set only while a chat is open.
+     * @property conversations the chats the user is in
+     * @property openConversation the chat currently open
+     * @property thread the messages of the open chat */
     data class Ready(
         val conversations: List<Conversation>,
         val openConversation: Conversation? = null,
         val thread: List<Message> = emptyList()
     ) : MessagesState
+    /** The load failed; message is shown in place of the chats. */
     data class Error(val message: String) : MessagesState
 }
 
@@ -46,6 +51,8 @@ class MessageViewModel(
         start()
     }
 
+    /** Restarts live following for this user: stops any previous listener, clears
+     *     state, and re-opens the Loading state; a blank userId is a hard error state. */
     fun start() {
         stopListening?.invoke()
         stopListening = null
@@ -102,6 +109,9 @@ class MessageViewModel(
         }
     }
 
+    /** Rebuilds the shown state from the latest snapshot: groups messages into chats and,
+     *     when a chat is open, builds its thread, inventing an empty chat if it has none yet.
+     *     Does nothing until the first snapshot arrives. */
     private fun publish() {
         if (!loaded) return
 
@@ -136,6 +146,7 @@ class MessageViewModel(
         }
     }
 
+    /** Teardown: stops the live listener. */
     override fun onCleared() {
         stopListening?.invoke()
         stopListening = null

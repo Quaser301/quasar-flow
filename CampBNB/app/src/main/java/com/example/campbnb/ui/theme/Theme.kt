@@ -10,6 +10,8 @@ private val CampColors = lightColorScheme(
     tertiary = LinkBlue
 )
 
+/** Applies the camp palette as the app's Material theme.
+ * @param content the screens wrapped in it */
 @Composable
 fun CampBnbTheme(content: @Composable () -> Unit) {
     MaterialTheme(colorScheme = CampColors, content = content)

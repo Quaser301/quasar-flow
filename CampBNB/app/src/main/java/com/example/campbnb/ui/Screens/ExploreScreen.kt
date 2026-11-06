@@ -164,6 +164,8 @@ fun CampSearchBar(
     )
 }
 
+/** Round settings button.
+ * @param onClick called when the button is tapped */
 @Composable
 private fun SettingsButton(onClick: () -> Unit) {
     Box(

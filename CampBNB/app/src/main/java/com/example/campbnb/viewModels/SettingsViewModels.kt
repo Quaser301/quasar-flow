@@ -74,7 +74,7 @@ class EntrantSettingsController: ViewModel() {
  * observe changes and re-render.
  *
  * @property listingVisibilitySetting The current listing visibility placeholder.
- * @property lotteryOpenSetting Whether the owner&apos;s lotteries are open to new entrants.
+ * @property lotteryOpenSetting Whether the owner's lotteries are open to new entrants.
  * @property availabilityNoticeSetting The current availability notice placeholder.
  */
 class OwnerSettingsController: ViewModel() {
@@ -97,7 +97,7 @@ class OwnerSettingsController: ViewModel() {
     }
 
     /**
-     * Switches whether the owner&apos;s lotteries accept new entrants.
+     * Switches whether the owner's lotteries accept new entrants.
      *
      * @param open Whether the lotteries should accept new entrants.
      */
@@ -165,7 +165,7 @@ class SettingsDisplayController(val onBack: () -> Unit): ViewModel() {
     }
 
     /**
-     * Runs the back navigation: presses the Settings screen&apos;s back button by
+     * Runs the back navigation: presses the Settings screen's back button by
      * calling the back lambda it was handed.
      */
     fun pressBack() {

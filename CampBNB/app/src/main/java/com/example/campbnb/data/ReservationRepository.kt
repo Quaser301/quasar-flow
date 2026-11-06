@@ -306,6 +306,9 @@ class ReservationRepository(
         }
     }
 
+    /** Closes an ACTIVE reservation to a new status: the status change (and refund
+     *     marker) lands first, then the dates are freed; a reservation that is not ACTIVE
+     *     fails with why. */
     private fun close(
         reservationId: String,
         newStatus: ReservationStatus,
@@ -331,7 +334,9 @@ class ReservationRepository(
         }, onFailure = onFailure)
     }
 
+    /** The booked-date document id: one per campsite and day, so claims cannot collide. */
     private fun bookedKey(campsiteId: String, date: String) = "${campsiteId}_$date"
 
+    /** Turns a raw Throwable into an Exception so failure callbacks keep their contract. */
     private fun Throwable.asException(): Exception = this as? Exception ?: Exception(this)
 }

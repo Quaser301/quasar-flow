@@ -83,6 +83,13 @@ import com.example.campbnb.viewModels.MessageViewModel
 import com.example.campbnb.viewModels.simpleViewModelFactory
 import com.google.firebase.auth.FirebaseAuth
 
+/** The app root: one NavHost over every screen in [Screen], with the controllers,
+ * repositories, and view models built once here and shared by all screens.
+ *
+ * @param appViewSettings the settings surface shared window components read from
+ * @param pendingRoute a route a tapped notification banner queued; when set, the app
+ *     navigates there
+ * @param onPendingRouteHandled called once the app has acted on pendingRoute, to clear it */
 @Composable
 fun CampBnbApp(
     appViewSettings: AppViewSettingController,
@@ -794,6 +801,9 @@ private fun NavController.goHome(role: UserRole, tab: Int = 0) {
 @Composable
 private fun CorrespondenceDestination(nav: NavController, initialTab: Int) {
     val context = LocalContext.current
+/** Same Notifications / Messages screen, but opening the Messages tab straight
+ *     into one chat.
+ * @param openReservationId the chat to open straight away */
 private fun CorrespondenceDestination(
     nav: NavController,
     initialTab: Int,

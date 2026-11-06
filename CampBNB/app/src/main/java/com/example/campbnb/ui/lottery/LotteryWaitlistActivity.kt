@@ -96,6 +96,7 @@ class LotteryWaitlistActivity(
             }
         }
 
+        /** Join time for a waitlist row; unset reads as unavailable. */
         fun formatDate(timestamp: Long): String {
             if (timestamp == 0L) return "N/A"
             val formatter = SimpleDateFormat("MMM dd, yyyy HH:mm", Locale.getDefault())
