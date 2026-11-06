@@ -55,6 +55,7 @@ import com.example.campbnb.ui.inbox.NotificationViewModel
 import com.example.campbnb.ui.lottery.LotteryDetailsActivity
 import com.example.campbnb.ui.lottery.LotteryEditActivity
 import com.example.campbnb.ui.lottery.LotteryMonitorActivity
+import com.example.campbnb.ui.lottery.LotteryWaitlistActivity
 import com.example.campbnb.ui.search.SearchScreen
 import com.example.campbnb.ui.settings.SettingsScreen
 import com.example.campbnb.ui.shared.DeviceId
@@ -287,6 +288,39 @@ fun CampBnbApp(appViewSettings: AppViewSettingController,
             }
             activity.LotteryMonitor(model = model, controller = controller)
         }
+        composable<Screen.LotteryDetailsActivity> {
+            val activity = remember {
+                LotteryDetailsActivity(
+                    { nav.navigate(Screen.Start) },
+                    { nav.navigateUp() },
+                    { _ -> nav.navigate(Screen.LotteryEditActivity) },
+                    { _ -> nav.navigate(Screen.LotteryWaitlistActivity) },
+                    appViewSettings.toAppViewSetting()
+                )
+            }
+            val model = remember { LotteryModel() }
+            activity.LotteryDetails(model = model)
+        }
+        composable<Screen.LotteryWaitlistActivity> {
+            val activity = remember {
+                LotteryWaitlistActivity(
+                    { nav.navigateUp() },
+                    { nav.navigateUp() },
+                    appViewSettings.toAppViewSetting()
+                )
+            }
+            val model = remember { LotteryModel() }
+            val repo = remember { LotteryRepository() }
+            val controller = remember {
+                LotteryController(
+                    model,
+                    repo,
+                    Database.Lotteries.readEngine()
+                ) { System.currentTimeMillis() }
+            }
+            activity.LotteryWaitlist(model = model, controller = controller)
+        }
+
         composable<Screen.Settings> { entry ->
             // need to know our role so we can show
             // the relevant settings
@@ -296,19 +330,6 @@ fun CampBnbApp(appViewSettings: AppViewSettingController,
                 role,
                 appViewSettings
             )
-        }
-        composable<Screen.LotteryDetailsActivity> {
-            val activity = remember {
-                LotteryDetailsActivity(
-                    returnHome = { nav.navigate(Screen.Start) },
-                    navigateBackwards = { nav.navigateUp() },
-                    onEditLottery = { _ -> nav.navigate(Screen.LotteryEditActivity) },
-                    onViewWaitlist = { _ -> /* TODO */ },
-                    appViewSettings = appViewSettings.toAppViewSetting()
-                )
-            }
-            val model = remember { LotteryModel() }
-            activity.LotteryDetails(model = model)
         }
 
         // Notification and message destinations are additive: existing typed

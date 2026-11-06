@@ -215,8 +215,10 @@ class LotteryController(
     fun saveLottery(lottery: Lottery, onSuccess: () -> Unit, onFailure: (Exception) -> Unit) {
         repo.save(lottery, onSuccess, onFailure)
     }
-    fun loadOwnerLotteries(ownerId : String){
-        repo.getLotteriesForOwner(ownerId,
+
+    fun loadOwnerLotteries(ownerId: String) {
+        repo.getLotteriesForOwner(
+            ownerId,
             onSuccess = { lotteries -> model.setLotteries(lotteries) },
             onFailure = { error -> model.setStatusMessage("Could not load lotteries: " + error.message) }
         )
@@ -238,5 +240,12 @@ class LotteryController(
         }
     }
 
-
+    fun loadWaitlistEntries(lotteryId: String, onResult: (List<WaitingListEntry>) -> Unit) {
+        repo.getEntries(
+            lotteryId = lotteryId,
+            onSuccess = { entries -> onResult(entries) },
+            onFailure = { onResult(emptyList()) }
+        )
+    }
 }
+
