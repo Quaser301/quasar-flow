@@ -25,7 +25,7 @@ sealed interface Screen {
     // the app's entry point.
 
     @Serializable
-    data class Home(val roleName: UserRole): Screen
+    data class Home(val role: UserRole, val tab: Int = 0): Screen
 
     // the screen where a Campsite Owner registers a new campsite.
     @Serializable
@@ -53,4 +53,15 @@ sealed interface Screen {
 
     @Serializable
     data object Role: Screen
+
+    @Serializable
+    data class Settings(val role: UserRole): Screen
+
+    // search results, opened with the text typed on Explore.
+    @Serializable
+    data class Search(val role: UserRole, val query: String = ""): Screen
+
+    // one campsite's details page.
+    @Serializable
+    data class CampsiteDetailsScreen(val role: UserRole, val campsiteId: String): Screen
 }

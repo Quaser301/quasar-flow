@@ -18,7 +18,6 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.example.campbnb.models.User
 import com.example.campbnb.ui.components.UserRole
 import com.example.campbnb.ui.theme.ButtonGradient
 import com.example.campbnb.ui.theme.FieldGrey
@@ -64,22 +63,25 @@ fun tabsFor(role: UserRole): List<HomeTab> = when (role) {
  * every role. Pressing Back on any other tab returns to Explore.
  *
  * @param role Decides which tabs appear in the bottom bar.
+ * @param initialTab Index of the tab to open first. Clamped to the role's tabs.
  * @param exploreContent The Explore page. Pass your own to supply real campsite data.
  * @param destinationContent Screen to show for every tab except Explore.
+ * @param appViewSettings The app's view setting. Not used for choosing tabs yet.
  */
 @Composable
 fun HomeScreen(
     role: UserRole,
+    initialTab: Int = 0,
     exploreContent: @Composable () -> Unit = { ExploreScreen() },
     destinationContent: @Composable (HomeDestination) -> Unit = { PlaceholderTab(it) },
     appViewSettings: AppViewSetting
 ) {
     val viewState = appViewSettings.setting.collectAsStateWithLifecycle()
-    val tabs = remember(role) { tabsFor(role) }
+    var tabs by remember() { mutableStateOf(tabsFor(role)) }
 
     // note: NOT booting back to the home screen since we ARE the home screen.
     LaunchedEffect(viewState) {
-        val tabs = when (viewState.value) {
+        tabs = when (viewState.value) {
             AppView.AdminView -> tabsFor(UserRole.ADMIN)
             AppView.OwnerView -> tabsFor(UserRole.OWNER)
             AppView.EntrantView -> tabsFor(UserRole.CAMPER)
@@ -104,7 +106,7 @@ fun HomeScreen(
 
 /** Green gradient bar with rounded top corners and one circle per tab. */
 @Composable
-private fun RoleBottomBar(tabs: List<HomeTab>, selectedIndex: Int, onSelect: (Int) -> Unit) {
+fun RoleBottomBar(tabs: List<HomeTab>, selectedIndex: Int, onSelect: (Int) -> Unit) {
     Row(
         Modifier
             .fillMaxWidth()
