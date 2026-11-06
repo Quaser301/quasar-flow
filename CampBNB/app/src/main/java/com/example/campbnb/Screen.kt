@@ -75,7 +75,7 @@ sealed interface Screen {
      * @property role the role browsing; an admin sees everything.
      * @property query the current search text; empty means plain browse. */
     @Serializable
-    data class Search(val role: UserRole, val query: String = "") : Screen
+    data class Search(val role: UserRole, val query: String = "", val openFilter: Boolean = false) : Screen
     // the screen where a Campsite Owner views reservations.
     @Serializable
     data object Reservations : Screen
@@ -83,11 +83,21 @@ sealed interface Screen {
      *     screen today; the reachable detail screen is [CampsiteDetailsScreen]. */
     @Serializable
     data class CampsiteDetail(val role: UserRole, val campsiteId: String) : Screen
+
+    // the screen where a Campsite Owner views their campsites.
+    @Serializable
+    data class CampsiteMonitorActivity(val role: UserRole) : Screen
+
+
+
     // one campsite's details page.
     /** One campsite's detail page, reached from Browse or from Home.
      * @property role who is viewing it.
      * @property campsiteId which campsite. */
     @Serializable
     data class CampsiteDetailsScreen(val role: UserRole, val campsiteId: String): Screen
+
+    @Serializable
+    data object AdminProfileView: Screen
 
 }

@@ -42,7 +42,6 @@ fun CampsiteOwnerActivity(
     val repository = remember { CampsiteRepository() }
     val context = LocalContext.current
     val ownerId = remember(context) { DeviceId.get(context) }
-    val ownerId = FirebaseAuth.getInstance().currentUser?.uid ?: "dev_owner_id"
 
     LaunchedEffect(ownerId) {
         repository.getAll(

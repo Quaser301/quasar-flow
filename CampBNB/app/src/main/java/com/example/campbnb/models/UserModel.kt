@@ -32,10 +32,7 @@ class UserModel : ObservableModel<UserModel>() {
 
     /** The signed-in user's id, or an empty string if nobody is signed in yet. */
     fun currentUserId(): String {
-        val user = currentUser
-        if (user == null) {
-            return ""
-        }
+        val user = currentUser ?: return ""
         return user.id
     }
 }

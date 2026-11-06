@@ -19,6 +19,9 @@ class CampsiteModel : ObservableModel<CampsiteModel>() {
     var ownerId: String = ""
         private set
 
+    var ownedCampsites: List<Campsite> = emptyList()
+        private set
+
     /** Stores every campsite and shows all of them. */
     fun setCampsites(list: List<Campsite>) {
         allCampsites = list
@@ -86,5 +89,11 @@ class CampsiteModel : ObservableModel<CampsiteModel>() {
             }
         }
         return 0
+    }
+
+    /** Stores the campsites that belong to the signed-in owner (US 02.03.01). */
+    fun setOwnedCampsites(list: List<Campsite>) {
+        ownedCampsites = list
+        notifyViews()
     }
 }
