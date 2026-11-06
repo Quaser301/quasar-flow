@@ -69,8 +69,25 @@ fun ExploreScreen(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                CampSearchBar(query, { query = it }, onSearch, Modifier.weight(1f), onMenuClick = onMenuClick)
-                CircleLabelButton("Settings", onSettingsClick)
+                CampSearchBar(
+                    query = query,
+                    onQueryChange = { query = it },
+
+                    onSubmitSearch = { text ->
+                        if (text.isNotBlank()) {
+                            onSearch(text)
+                        }
+                    },
+
+                    onMagnifyClick = { text ->
+                        onSearch(text)
+                    },
+
+                    modifier = Modifier.weight(1f),
+                    onMenuClick = onMenuClick
+                )
+
+                SettingsButton(onSettingsClick)
             }
         }
         item { MapPlaceholder() }
@@ -92,7 +109,8 @@ fun ExploreScreen(
 fun CampSearchBar(
     query: String,
     onQueryChange: (String) -> Unit,
-    onSearch: (String) -> Unit,
+    onSubmitSearch: (String) -> Unit,
+    onMagnifyClick: (String) -> Unit,
     modifier: Modifier = Modifier,
     onMenuClick: () -> Unit = {},
     menuContent: @Composable () -> Unit = {}
@@ -108,12 +126,24 @@ fun CampSearchBar(
             }
         },
         trailingIcon = {
-            Box(Modifier.clickable { onSearch(query) }.padding(8.dp)) { SearchGlyph() }
+            Box(
+                Modifier
+                    .clickable {
+                        onMagnifyClick(query)
+                    }
+                    .padding(8.dp)
+            ) {
+                SearchGlyph()
+            }
         },
         singleLine = true,
         shape = RoundedCornerShape(50),
         keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-        keyboardActions = KeyboardActions(onSearch = { onSearch(query) }),
+        keyboardActions = KeyboardActions(
+            onSearch = {
+                onSubmitSearch(query)
+            }
+        ),
         colors = TextFieldDefaults.colors(
             focusedContainerColor = SearchBarBg,
             unfocusedContainerColor = SearchBarBg,
