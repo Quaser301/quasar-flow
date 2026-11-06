@@ -2,6 +2,7 @@ package com.example.campbnb.notificationTests
 
 import com.example.campbnb.controller.NotificationController
 import com.example.campbnb.controller.OptOutChecker
+import com.example.campbnb.models.NotificationType
 import org.junit.Assert
 import org.junit.Before
 import org.junit.Test
@@ -81,5 +82,17 @@ class NotificationControllerTest {
         repo.failNextSave = true
         val r = result<Int> { done -> controller.notifyWinners("lot1", "X", listOf("u1"), done)}
         Assert.assertTrue(r.isFailure)
+    }
+
+    @Test
+    fun losers_get_one_lose_notif() {
+        val r = result<Int> { done ->
+            controller.notifyLosers("lot-may-2027", "Banff", listOf("u4", "u5"), done)
+        }
+        Assert.assertEquals(2, r.getOrNull())
+        Assert.assertTrue(repo.saved.values.all { it.type == NotificationType.LOSE })
+        Assert.assertEquals(setOf("u4", "u5"), repo.saved.values.map {
+            it.recipientId
+        }.toSet())
     }
 }
