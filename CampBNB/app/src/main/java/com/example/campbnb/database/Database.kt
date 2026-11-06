@@ -2,6 +2,7 @@ package com.example.campbnb.database
 
 
 import com.example.campbnb.models.Notification
+import com.example.campbnb.models.Message
 import android.annotation.SuppressLint
 import com.example.campbnb.database.readEngineFor
 import com.example.campbnb.models.Lottery
@@ -138,6 +139,22 @@ object Database {
 
         fun writeEngine(): WriteEngine<WaitingListEntry> {
             return db.writeEngineFor<WaitingListEntry>(COLLECTION_NAME)
+        }
+    }
+
+    /**
+     * The Messages collection. One document per chat message; all messages of one reservation
+     * share the same reservationId (that is the conversation).
+     */
+    object Messages {
+        const val COLLECTION_NAME = "messages"
+
+        fun readEngine(): QueryEngine<Message> {
+            return db.readEngineFor<Message>(COLLECTION_NAME)
+        }
+
+        fun writeEngine(): WriteEngine<Message> {
+            return db.writeEngineFor<Message>(COLLECTION_NAME)
         }
     }
 }

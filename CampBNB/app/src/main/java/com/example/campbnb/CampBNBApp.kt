@@ -1,5 +1,6 @@
 package com.example.campbnb
 
+import android.widget.Toast
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -9,7 +10,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -24,19 +28,25 @@ import androidx.navigation.toRoute
 import com.example.campbnb.ui.Screens.ReservationScreen
 import com.example.campbnb.controller.CampsiteController
 import com.example.campbnb.controller.LotteryController
+import com.example.campbnb.controller.UserController
 import com.example.campbnb.controller.NotificationController
 import com.example.campbnb.controller.ReservationFilter
 import com.example.campbnb.data.CampsiteRepository
 import com.example.campbnb.data.FirestoreNotificationRepository
 import com.example.campbnb.data.LotteryRepository
+import com.example.campbnb.data.UserRepository
 import com.example.campbnb.database.Database
+import com.example.campbnb.models.Campsite
 import com.example.campbnb.models.CampsiteModel
 import com.example.campbnb.models.LotteryModel
+import com.example.campbnb.models.Role
+import com.example.campbnb.models.User
+import com.example.campbnb.models.UserModel
+import com.example.campbnb.ui.Screens.DeviceSignInScreen
 import com.example.campbnb.notifications.NotificationRoutes
 import com.example.campbnb.ui.Screens.ExploreScreen
 import com.example.campbnb.ui.Screens.HomeDestination
 import com.example.campbnb.ui.Screens.HomeScreen
-import com.example.campbnb.ui.Screens.LoginScreen
 import com.example.campbnb.ui.Screens.PlaceholderTab
 import com.example.campbnb.ui.Screens.RoleSelectScreen
 import com.example.campbnb.ui.Screens.SignUpScreen
@@ -45,7 +55,6 @@ import com.example.campbnb.ui.campsite.CampsiteRegistrationForm
 import com.example.campbnb.ui.components.GradientButton
 import com.example.campbnb.ui.components.UserRole
 import com.example.campbnb.ui.details.CampsiteDetailsScreen
-import com.example.campbnb.ui.details.placeholderDetails
 import com.example.campbnb.ui.inbox.CorrespondenceScreen
 import com.example.campbnb.ui.inbox.NotificationInboxScreen
 import com.example.campbnb.ui.inbox.NotificationViewModel
@@ -58,49 +67,60 @@ import com.example.campbnb.ui.shared.DeviceId
 import com.example.campbnb.viewModels.AppView
 import com.example.campbnb.viewModels.AppViewSettingController
 import com.example.campbnb.viewModels.simpleViewModelFactory
+import com.google.firebase.auth.FirebaseAuth
 
 @Composable
-fun CampBnbApp(appViewSettings: AppViewSettingController,
-               pendingRoute: String? = null,
-               onPendingRouteHandled: () -> Unit = {}
+fun CampBnbApp(
+    appViewSettings: AppViewSettingController,
+    pendingRoute: String? = null,
+    onPendingRouteHandled: () -> Unit = {}
 ) {
 
     val nav = rememberNavController()
+    val context = LocalContext.current
+    val userModel = remember { UserModel() }
+    val userRepo = remember { UserRepository() }
+    val userController = remember { UserController(userModel, userRepo) }
 
     NavHost(navController = nav, startDestination = Screen.Start) {
         // Start
         composable<Screen.Start> {
             StartScreen(onGetStarted = { nav.navigate(Screen.Login) })
         }
+
         // Login
         composable<Screen.Login> {
-            LoginScreen(
-                onLogin = { _, role, _ ->   // TODO: authenticate first
-                    val targetView = when (role) {
-                        UserRole.ADMIN -> AppView.AdminView
-                        UserRole.OWNER -> AppView.OwnerView
-                        UserRole.CAMPER -> AppView.EntrantView
-                    }
-                    appViewSettings.changeViewTo(targetView)
-                    nav.navigate(Screen.Home(role = role)) {
-                        popUpTo(Screen.Start) {
-                            inclusive = true
-                        }
+            DeviceSignInScreen(
+                readDevice = { DeviceId.get(context, {""}) },
+                userController = userController,
+                onEntered = {
+                    val role = userModel.currentUser?.roles?.firstOrNull() ?: Role.ENTRANT
+                    nav.navigate(Screen.Home(role = toUserRole(role))) {
+                        popUpTo(Screen.Start) { inclusive = true }
                     }
                 },
-                onSignUpClick = { nav.navigate(Screen.SignUp) }
+                onNotFound = {
+                    nav.navigate(Screen.SignUp)
+                }
             )
         }
+
         // SignUp
         composable<Screen.SignUp> {
             SignUpScreen(
-                onSignUp = { _, _ ->
-                    // TODO: create the account
-                    nav.navigate(Screen.Role)
-                },
-                onLoginClick = { nav.navigateUp() }
+                onSignUp = { email, username, phoneNumber ->
+                    val newUser = User(
+                        deviceId = DeviceId.get(context),
+                        name = username,
+                        email = email,
+                        phone = phoneNumber,
+                        roles = listOf(Role.ADMIN)
+                    )
+                    Database.Users.writeEngine().save(newUser, { /* TODO: handle the complete */})
+                    nav.navigate(Screen.Role) }
             )
         }
+
         // Role Selection
         composable<Screen.Role> {
             RoleSelectScreen(onRoleSelected = { role ->
@@ -131,8 +151,7 @@ fun CampBnbApp(appViewSettings: AppViewSettingController,
                             onOpenLotteries = { nav.navigate(Screen.LotteryMonitorActivity) },
                             onOpenReservations = { nav.navigate(Screen.Reservations) }
                         )
-                    } else {
-                        PlaceholderTab(destination)
+                        else -> PlaceholderTab(destination)
                     }
                 },
                 exploreContent = {
@@ -267,8 +286,7 @@ fun CampBnbApp(appViewSettings: AppViewSettingController,
             activity.LotteryDetails(model = model)
         }
 
-        // Notification and message destinations are additive: existing typed
-        // destinations above remain unchanged.
+        // Notification and message destinations
         composable(NotificationRoutes.NOTIFICATIONS) {
             CorrespondenceDestination(nav = nav, initialTab = 0)
         }
@@ -323,7 +341,6 @@ private fun CorrespondenceDestination(nav: NavController, initialTab: Int) {
             NotificationInboxScreen(viewModel = inboxViewModel, navController = nav)
         },
         messagesContent = {
-            // TODO: replace with the messages screen once it exists
             PlaceholderTab(HomeDestination.MESSAGES)
         }
     )
