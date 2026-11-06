@@ -25,6 +25,7 @@ import com.example.campbnb.ui.Screens.PlaceholderTab
 import com.example.campbnb.ui.Screens.RoleSelectScreen
 import com.example.campbnb.ui.Screens.SignUpScreen
 import com.example.campbnb.ui.Screens.StartScreen
+import com.example.campbnb.ui.lottery.LotteryDetailsActivity
 import com.example.campbnb.ui.lottery.LotteryEditActivity
 import com.example.campbnb.ui.lottery.LotteryMonitorActivity
 import com.example.campbnb.viewModels.AppViewSettingController
@@ -166,6 +167,8 @@ fun CampBnbApp(appViewSettings: AppViewSettingController) {
                 LotteryMonitorActivity(
                     { nav.navigate(Screen.Start /* TODO: CHANGE TO HOME */) },
                     { nav.navigateUp() },
+                    { nav.navigate(Screen.LotteryEditActivity) },
+                    { nav.navigate(Screen.LotteryDetailsActivity) },
                     appViewSettings.toAppViewSetting()
                 )
             }
@@ -181,6 +184,15 @@ fun CampBnbApp(appViewSettings: AppViewSettingController) {
                 }
             }
             activity.LotteryMonitor(model = model, controller = controller)
+        }
+        composable<Screen.LotteryDetailsActivity> {
+            val activity = remember {
+                LotteryDetailsActivity(
+                    { nav.navigate(Screen.LotteryMonitorActivity) },
+                    { nav.navigateUp() },
+                    appViewSettings.toAppViewSetting()
+                )
+            }
         }
     }
 }

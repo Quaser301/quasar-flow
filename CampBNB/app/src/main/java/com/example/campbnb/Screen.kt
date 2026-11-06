@@ -31,13 +31,16 @@ sealed interface Screen {
     @Serializable
     data object CampsiteEditActivity : Screen
 
-    // the screen where a Campsite Owner edits their lottery settings.
+    // the screen where a Campsite Owner edits/creates their lotteries.
     @Serializable
     data object LotteryEditActivity: Screen
 
-    // the screen where a Campsite Owner watches their lottery run.
+    // the screen where a Campsite Owner views their lotteries.
     @Serializable
     data object LotteryMonitorActivity: Screen
+
+    @Serializable
+    data object LotteryDetailsActivity: Screen
 
     @Serializable
     data object Start: Screen
