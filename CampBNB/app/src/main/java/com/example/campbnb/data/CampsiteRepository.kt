@@ -13,6 +13,11 @@ import com.example.campbnb.models.Rating
 open class CampsiteRepository {
 
     /** Reads every campsite. */
+
+    // Saves  campsite to Firestore.
+    open fun SaveCampsite(campsite: Campsite, onComplete: (Result<Exception?>) -> Unit) {
+        Database.Campsites.writeEngine().save(campsite, onComplete)
+    }
     open fun getAll(onSuccess: (List<Campsite>) -> Unit, onFailure: (Exception) -> Unit) {
         Database.Campsites.readEngine().query().execute(onSuccess, onFailure)
     }

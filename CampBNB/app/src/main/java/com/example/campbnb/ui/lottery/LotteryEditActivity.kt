@@ -79,7 +79,6 @@ class LotteryEditActivity(
     fun LotteryEdit(
         model: LotteryModel,
         controller: LotteryController,
-        ownerCampsites: List<Campsite> = emptyList(),
         ownerId: String = ""
     ) {
         AppViewModificationIsValidForCurrentWindowChecker(
@@ -121,7 +120,7 @@ class LotteryEditActivity(
             bookingEnd = bookingEndMillis ?: 0L
         )//Moved from button functionality to allow validation of the object
 
-        LaunchedEffect(ownerId) { //pulls owner Id whenever screen launched
+        LaunchedEffect(ownerId) { //pulls owner's campsites from firebase
             controller.loadOwnerCampsites(ownerId) { fetchedCampsites ->
                 ownerCampsitesList = fetchedCampsites
             }
@@ -166,7 +165,7 @@ class LotteryEditActivity(
                 modifier = Modifier.fillMaxWidth()
             ) {
                 OutlinedTextField(
-                    value = selectedCampsite?.CampName ?: "",
+                    value = selectedCampsite?.campName ?: "",
                     onValueChange = {},
                     readOnly = true,
                     label = { Text("Pick Campsite") },
@@ -194,13 +193,13 @@ class LotteryEditActivity(
                                 text = {
                                     Column {
                                         Text(
-                                            text = campsite.CampName,
+                                            text = campsite.campName,
                                             style = MaterialTheme.typography.bodyLarge,
                                             fontWeight = FontWeight.Medium
                                         )
-                                        if (campsite.CampLoc.isNotBlank()) {
+                                        if (campsite.campLoc.isNotBlank()) {
                                             Text(
-                                                text = campsite.CampLoc,
+                                                text = campsite.campLoc,
                                                 style = MaterialTheme.typography.bodySmall
                                             )
                                         }

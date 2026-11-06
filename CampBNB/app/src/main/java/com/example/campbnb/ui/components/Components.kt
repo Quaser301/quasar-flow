@@ -29,8 +29,10 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import com.example.campbnb.ui.theme.*
+import kotlinx.serialization.Serializable
 
 /** The role a user signs in or registers as. */
+@Serializable // make Serializable so that Navigation works
 enum class UserRole(val label: String) { CAMPER("Camper"), OWNER("Owner"), ADMIN("Admin") }
 
 /** Pill-shaped button with a gradient background (green by default). */
