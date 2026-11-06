@@ -35,7 +35,7 @@ fun CampBnbApp(appViewSettings: AppViewSettingController) {
         }
         composable<Screen.SignUp> {
             SignUpScreen(
-                onSignUp = { email, username -> /* TODO: create the account */ nav.navigate("role") },
+                onSignUp = { email, username -> /* TODO: create the account */ nav.navigate(Screen.Role) },
                 onLoginClick = { nav.navigateUp() }
             )
         }
