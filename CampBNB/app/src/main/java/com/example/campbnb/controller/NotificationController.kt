@@ -6,38 +6,17 @@ import com.example.campbnb.database.Database
 import com.example.campbnb.models.Notification
 import com.example.campbnb.models.NotificationType
 
-/**
- * Policy hook deciding which users still receive push notifications. Injectable so
- * tests, and later a real opt-out setting, can replace the default that allows everyone.
- */
 fun interface OptOutChecker {
-    /** Receives the candidate user ids; must call onResult with the subset still allowed. */
     fun filterAllowed(userIds: List<String>, onResult: (List<String>) -> Unit)
     companion object {
         val AllowAll = OptOutChecker { ids, done -> done(ids) }
     }
 }
 
-/**
- * Sends notifications to users about reservation events.
- *
- * [ReservationController] calls this class when a reservation is confirmed, cancelled or
- * rejected, so the other party finds out without the controller knowing how the message is
- * delivered. Callers don't wait for a result: a notification that fails to send never
- * fails the reservation itself.
- *
- * Commands:
- *  - [send]: Delivers one notification to one user.
- *
- * @author Zino
- * @see ReservationController
- */
 class NotificationController (
     private val repo: NotificationRepository,
     private val optOutChecker: OptOutChecker = OptOutChecker.AllowAll
 ) {
-    /** Tells each winner they won; shares the opt-out filtering and save path with
-     * notifyLosers. */
     fun notifyWinners(
         lotteryId: String,
         campsiteName: String,
@@ -61,11 +40,13 @@ class NotificationController (
     ) = sendLotteryResult(NotificationType.LOSE, lotteryId, campsiteName,
         loserIds, onDone)
     /**
-     * One call for LotteryController after a draw: winners first, then losers.
-     * A user who appears in both lists is treated as a winner only (overlap
-     * guard), so nobody is ever told they both won and lost. The first failure
-     * stops the chain.
+    losers.
+    guard), so nobody
+    chain.
      *
+     * One call for LotteryController after a draw: winners first, then
+     * A user who appears in both lists is treated as a winner only (overlap
+     * is ever told they both won and lost. The first failure stops the
      * @param onDone on success holds the total number of notifications saved
      */
     fun notifyLotteryResults(
@@ -88,20 +69,15 @@ class NotificationController (
         }
     }
 
-    /** Follows one user's notifications; returns the action that stops listening.
-     * Call it when the screen that was reading goes away, or the listener keeps running. */
     fun listen(
         userId: String,
         onUpdate: (NotificationUpdate) -> Unit,
         onError: (Exception) -> Unit
     ): () -> Unit = repo.listenForUser(userId, onUpdate, onError)
 
-    /** Marks one notification read; the outcome is reported to onDone only. */
     fun markRead(notificationId: String, onDone: (Result<Unit>) -> Unit = {}) =
         repo.markRead(notificationId, onDone)
 
-    /** Shared path for both draw results: skips blank ids, drops duplicate and blank
-     * recipients, honors opt-outs, then saves every notification in one call. */
     private fun sendLotteryResult(
         type: NotificationType,
         lotteryId: String,
@@ -137,8 +113,6 @@ class NotificationController (
         }
     }
 
-    /** Builds the WIN or LOSE message for one recipient. The document id joins lottery,
-     * recipient, and result, so the same draw never produces two messages for a person. */
     private fun buildLotteryNotification(
         type: NotificationType,
         lotteryId: String,
@@ -171,10 +145,25 @@ class NotificationController (
     }
 
     companion object {
-        /** Newest first; a notification with no timestamp sorts as if newest. */
         fun sortNewestFirst(list: List<Notification>): List<Notification> =
             list.sortedByDescending { it.sentAt?.seconds ?: Long.MAX_VALUE }
     }
+
+    /**
+     * Sends notifications to users about reservation events.
+     *
+     * [ReservationController] calls this class when a reservation is confirmed, cancelled or
+     * rejected, so the other party finds out without the controller knowing how the message is
+     * delivered. Callers don't wait for a result: a notification that fails to send never
+     * fails the reservation itself.
+     *
+     * Commands:
+     *  - [send]: Delivers one notification to one user.
+     *
+     * @author Zino
+     * @see ReservationController
+     */
+
 
     /**
      * Sends a notification for reservation or messaging events.

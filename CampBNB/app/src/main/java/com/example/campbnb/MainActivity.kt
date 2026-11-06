@@ -17,9 +17,6 @@ import com.example.campbnb.notifications.NotificationWatcher
 import com.example.campbnb.notifications.SystemNotifier
 import com.example.campbnb.ui.shared.DeviceId
 
-/** The Android entry activity: it starts the notification watcher against the signed-in
- * device identity, hosts the Compose app, and routes taps on a notification banner
- * back into the app. */
 class MainActivity : ComponentActivity() {
     private val watcher by lazy {
         NotificationWatcher(
@@ -31,8 +28,6 @@ class MainActivity : ComponentActivity() {
     // Route to open after the user taps a notification banner. Null when there is none.
     private var pendingRoute by mutableStateOf<String?>(null)
 
-    /** Starts the live side once: platform notification channels, then the app itself,
-     *     signed in as the device identity, with the watcher following its notifications. */
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
@@ -60,16 +55,12 @@ class MainActivity : ComponentActivity() {
             }
         }
     }
-    /** Handles an external intent, such as a tap on a notification banner. */
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
         handleNotificationIntent(intent)
     }
 
-    /** A banner tap: marks the notification read and queues its route for the app
-     *     to open when the next frame asks for it.
-     * @param intent the incoming platform intent; non-intent calls are ignored */
     private fun handleNotificationIntent(intent: Intent?) {
         if (intent == null) return
 
@@ -88,7 +79,6 @@ class MainActivity : ComponentActivity() {
         pendingRoute = route
     }
 
-    /** Teardown: stops the notification watcher. */
     override fun onDestroy() {
         watcher.stop()
         super.onDestroy()

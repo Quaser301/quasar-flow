@@ -8,7 +8,6 @@ import java.util.Locale
 /** Date helpers that work on every Android version. All dates are ISO strings (yyyy-MM-dd). */
 object DateUtils {
 
-    /** The strict yyyy-MM-dd formatter every DateUtils function parses and prints with. */
     private fun formatter() = SimpleDateFormat("yyyy-MM-dd", Locale.US).apply { isLenient = false }
 
     /** @return today's date as yyyy-MM-dd, in the device's timezone. */

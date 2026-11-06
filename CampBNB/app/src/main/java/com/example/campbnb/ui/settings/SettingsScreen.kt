@@ -149,7 +149,7 @@ private fun SettingsTopBar(display: SettingsDisplayController) {
 
 /**
  * One dropdown of the menu: a labeled bar that opens or closes its group of
- * settings on a tap, showing that group's content while it is open.
+ * settings on a tap, showing that group&apos;s content while it is open.
  *
  * @param display The holder of the dropdown expansion state.
  * @param groupId The stable name of this dropdown.
@@ -180,10 +180,10 @@ private fun SettingsDropdown(
 }
 
 /**
- * The app view switch's group of settings: choosing one of the three views is
+ * The app view switch&apos;s group of settings: choosing one of the three views is
  * exactly what a dropdown menu is for, so this group uses the material3 menu. Its
- * expansion is still the display controller's state, and a dismissal through the
- * menu's own closing runs the same controller toggle so the two never disagree.
+ * expansion is still the display controller&apos;s state, and a dismissal through the
+ * menu&apos;s own closing runs the same controller toggle so the two never disagree.
  *
  * @param display The holder of the dropdown expansion state.
  * @param viewSettings The app view setting controller to move.

@@ -154,8 +154,6 @@ class MessageController(
     fun sortNewestFirst(messages: List<Message>): List<Message> =
         messages.sortedByDescending { it.sentAt?.seconds ?: 0L }
 
-    /** The reason a message cannot be sent, or null if it can: blanks, empty text,
-     *     and length over MAX_LENGTH are all refused. */
     private fun validate(reservationId: String, senderId: String, text: String): String? = when {
         reservationId.isBlank() -> "Reservation ID is required"
         senderId.isBlank() -> "Sender ID is required"

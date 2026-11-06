@@ -37,13 +37,6 @@ import com.example.campbnb.models.NotificationStatus
 import com.example.campbnb.notifications.NotificationPermissionCard
 import com.example.campbnb.notifications.NotificationRoutes
 
-/** The notification inbox: renders whatever state the viewModel holds, and opens
- * with the permission card so the person can grant notifications.
- *
- * @param viewModel owns the inbox list and the live listener; built through
- *     viewModel() so the same one is kept across recompositions
- * @param navController the app's NavController, used to route a tapped notification
- *     to its screen */
 @Composable
 fun NotificationInboxScreen(
     viewModel: NotificationViewModel,
@@ -118,11 +111,6 @@ fun NotificationInboxScreen(
     }
 }
 
-/** One inbox row: unread items carry a filled dot, read ones do not.
- * Tapping a row calls onClick, which opens the notification and routes it.
- *
- * @param notification the item to draw
- * @param onClick called when the row is tapped */
 @Composable
 private fun NotificationRow(
     notification: Notification,

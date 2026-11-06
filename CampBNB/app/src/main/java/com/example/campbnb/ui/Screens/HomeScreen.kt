@@ -123,10 +123,6 @@ fun RoleBottomBar(tabs: List<HomeTab>, selectedIndex: Int, onSelect: (Int) -> Un
     }
 }
 
-/** A bottom-bar tab drawn as a circle; the open tab is the filled one.
- * @param label the tab text
- * @param selected whether this tab is the open one
- * @param onClick called when the circle is tapped */
 @Composable
 private fun NavCircle(label: String, selected: Boolean, onClick: () -> Unit) {
     Box(
