@@ -17,9 +17,9 @@ import com.example.campbnb.ui.shared.observeModel
 // Todo: nothing stops a user rating a campsite they have never visited.
 
 /**
- * View: the rating block for the Details screen (US 01.13.01, US 01.01.04). Shows the
- * campsite's average and the user's own rating; tapping a star saves a new rating.
- * It loads the ratings and redraws itself, so the Details screen only has to place it.
+ * View: the "Your rating" block for the Details screen (US 01.13.01). Shows the user's own
+ * rating; tapping a star saves a new one. The campsite's average is shown in the Details
+ * header, which reads the same CampsiteModel, so it updates when the user rates.
  */
 @Composable
 fun CampsiteRatingSection(
@@ -35,11 +35,6 @@ fun CampsiteRatingSection(
     }
 
     Column(modifier = modifier) {
-        RatingDisplay(
-            average = model.averageRating(campsiteId),
-            count = model.ratingCount(campsiteId)
-        )
-        Text("Your rating", fontSize = 14.sp, modifier = Modifier.padding(top = 8.dp))
         RatingStars(
             currentStars = model.myRating(campsiteId, userId),
             onRate = { stars -> controller.saveRating(campsiteId, userId, stars) }

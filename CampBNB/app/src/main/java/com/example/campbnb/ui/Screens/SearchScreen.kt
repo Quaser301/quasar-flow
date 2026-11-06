@@ -22,6 +22,7 @@ import com.example.campbnb.ui.components.ArrowDownGlyph
 import com.example.campbnb.ui.components.CircleLabelButton
 import com.example.campbnb.ui.Screens.CampSearchBar
 import com.example.campbnb.ui.Screens.CampsiteCardData
+import com.example.campbnb.ui.campsite.RatingDisplay
 import com.example.campbnb.ui.theme.FieldGrey
 import com.example.campbnb.ui.theme.SearchBarBg
 
@@ -149,7 +150,14 @@ fun SearchScreen(
                         .background(FieldGrey)
                         .clickable { onCampsiteClick(campsite) },
                     contentAlignment = Alignment.Center
-                ) { Text(campsite.name, fontSize = 18.sp, color = Color.Black) }
+                ) {     // show campsite summary
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(campsite.name, fontSize = 18.sp, color = Color.Black)
+                        Text(campsite.location, fontSize = 13.sp, color = Color.Black)
+                        Text("Up to " + campsite.maxOccupancy + " guests", fontSize = 13.sp, color = Color.Black)
+                        RatingDisplay(campsite.rating, campsite.ratingCount)
+                    }
+                }
             }
         }
     }
