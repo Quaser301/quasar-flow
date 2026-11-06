@@ -21,9 +21,11 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.toRoute
+import com.example.campbnb.ui.Screens.ReservationScreen
 import com.example.campbnb.controller.CampsiteController
 import com.example.campbnb.controller.LotteryController
 import com.example.campbnb.controller.NotificationController
+import com.example.campbnb.controller.ReservationFilter
 import com.example.campbnb.data.CampsiteRepository
 import com.example.campbnb.data.FirestoreNotificationRepository
 import com.example.campbnb.data.LotteryRepository
@@ -126,7 +128,8 @@ fun CampBnbApp(appViewSettings: AppViewSettingController,
                     if (destination == HomeDestination.MY_CAMPSITES) {
                         MyCampsitesTab(
                             onRegisterCampsite = { nav.navigate(Screen.CampsiteEditActivity) },
-                            onOpenLotteries = { nav.navigate(Screen.LotteryMonitorActivity) }
+                            onOpenLotteries = { nav.navigate(Screen.LotteryMonitorActivity) },
+                            onOpenReservations = { nav.navigate(Screen.Reservations) }
                         )
                     } else {
                         PlaceholderTab(destination)
@@ -161,10 +164,12 @@ fun CampBnbApp(appViewSettings: AppViewSettingController,
             val route = entry.toRoute<Screen.Search>()
             SearchScreen(
                 initialQuery = route.query,
+                onClose = {
+                    nav.navigateUp()
+                },
                 onCampsiteClick = {
                     nav.navigate(Screen.CampsiteDetailsScreen(route.role, it.id))
                 },
-                onQrClick = { /* TODO: open QR scanner */ }
             )
         }
         // Campsite details
@@ -225,6 +230,18 @@ fun CampBnbApp(appViewSettings: AppViewSettingController,
                 }
             }
             activity.LotteryMonitor(model = model, controller = controller)
+        }
+
+        composable<Screen.Reservations> {
+
+            ReservationScreen(
+                campsites = emptyList(),
+                selectedCampsiteId = null,
+                selectedFilter = ReservationFilter.ACTIVE,
+                reservations = emptyList(),
+                onCampsiteSelected = {},
+                onFilterSelected = {}
+            )
         }
         composable<Screen.Settings> { entry ->
             // need to know our role so we can show
@@ -314,7 +331,7 @@ private fun CorrespondenceDestination(nav: NavController, initialTab: Int) {
 
 /** Owner's My Campsites tab. For now it links to campsite registration and the lottery list. */
 @Composable
-private fun MyCampsitesTab(onRegisterCampsite: () -> Unit, onOpenLotteries: () -> Unit) {
+private fun MyCampsitesTab(onRegisterCampsite: () -> Unit, onOpenLotteries: () -> Unit, onOpenReservations: () -> Unit) {
     Column(
         Modifier.fillMaxSize().padding(24.dp),
         verticalArrangement = Arrangement.Center,
@@ -325,5 +342,7 @@ private fun MyCampsitesTab(onRegisterCampsite: () -> Unit, onOpenLotteries: () -
         GradientButton("Register Campsite", onRegisterCampsite)
         Spacer(Modifier.height(12.dp))
         GradientButton("My Lotteries", onOpenLotteries)
+        Spacer(Modifier.height(12.dp))
+        GradientButton("Reservations", onOpenReservations)
     }
 }
