@@ -26,7 +26,7 @@ fun CampsiteOwnerActivity(
     }
 
     val repository = remember { CampsiteRepository() }
-    val ownerId = FirebaseAuth.getInstance().currentUser?.uid
+    val ownerId = FirebaseAuth.getInstance().currentUser?.uid ?: "dev_owner_id"
 
     LaunchedEffect(ownerId) {
         if (ownerId == null) {
