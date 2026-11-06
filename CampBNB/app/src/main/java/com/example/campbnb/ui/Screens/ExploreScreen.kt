@@ -38,8 +38,9 @@ data class CampsiteCardData(
     val ratingCount: Int = 0
 )
 
-private val placeholderCards = List(6) { CampsiteCardData("placeholder$it", "(image)") }
-
+private val placeholderCards = List(6) {
+    CampsiteCardData("placeholder$it", "(image)")
+}
 /**
  * The Explore page, which is also the home page. It is identical for campers, owners and
  * admins: a search bar and Settings button, a map, and "Recommended" and "New Sites" rows.
@@ -219,7 +220,28 @@ private fun CampsiteRow(
                         .clickable { onClick(campsite) },
                     contentAlignment = Alignment.Center
                 ) {
-                    Text(campsite.name, fontSize = 16.sp, color = Color.Black)
+                    Column(
+                        modifier = Modifier.padding(10.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Text(
+                            text = campsite.name,
+                            fontSize = 16.sp,
+                            color = Color.Black
+                        )
+
+                        Text(
+                            text = campsite.location,
+                            fontSize = 12.sp,
+                            color = Color.DarkGray
+                        )
+
+                        Text(
+                            text = "Up to ${campsite.maxOccupancy} guests",
+                            fontSize = 11.sp,
+                            color = Color.DarkGray
+                        )
+                    }
                 }
             }
         }
