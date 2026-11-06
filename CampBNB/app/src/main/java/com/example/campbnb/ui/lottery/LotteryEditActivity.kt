@@ -33,6 +33,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -42,8 +43,10 @@ import com.example.campbnb.models.Lottery
 import com.example.campbnb.models.LotteryModel
 import com.example.campbnb.models.ViewObserver
 import com.example.campbnb.ui.shared.AppViewModificationIsValidForCurrentWindowChecker
+import com.example.campbnb.ui.shared.DeviceId
 import com.example.campbnb.viewModels.AppView
 import com.example.campbnb.viewModels.AppViewSetting
+import com.google.firebase.auth.FirebaseAuth
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -122,8 +125,11 @@ class LotteryEditActivity(
             }
         }
 
+        val context = LocalContext.current
+        val resolvedOwnerId = ownerId.ifBlank { FirebaseAuth.getInstance().currentUser?.uid ?: DeviceId.get(context) }
+
         val lotteryToSave = Lottery(
-            ownerId = ownerId,
+            ownerId = resolvedOwnerId,
             campsiteIds = selectedCampsites.map { it.id },
             numberOfWinners = numberOfWinners.toIntOrNull() ?: 0,
             waitlistCapacity = waitlistCapacity.toIntOrNull(), // null if blank
@@ -131,18 +137,19 @@ class LotteryEditActivity(
             registrationEnd = regEndMillis ?: 0L,
             bookingStart = bookingStartMillis ?: 0L,
             bookingEnd = bookingEndMillis ?: 0L
-        //Moved from button functionality to allow validation of the object
         ).apply {
             if (initialLottery != null && initialLottery.id.isNotBlank()) {
                 id = initialLottery.id
             }
         }
 
-        LaunchedEffect(ownerId) { //pulls owner's campsites from firebase
-            controller.loadOwnerCampsites(ownerId) { fetchedCampsites ->
-                ownerCampsitesList = fetchedCampsites
-                if (initialLottery != null && selectedCampsites.isEmpty()) {
-                    selectedCampsites = fetchedCampsites.filter { it.id in initialLottery.campsiteIds }.toSet()
+        LaunchedEffect(resolvedOwnerId) {
+            if (resolvedOwnerId.isNotBlank()) {
+                controller.loadOwnerCampsites(resolvedOwnerId) { fetchedCampsites ->
+                    ownerCampsitesList = fetchedCampsites
+                    if (initialLottery != null && selectedCampsites.isEmpty()) {
+                        selectedCampsites = fetchedCampsites.filter { it.id in initialLottery.campsiteIds }.toSet()
+                    }
                 }
             }
         }
