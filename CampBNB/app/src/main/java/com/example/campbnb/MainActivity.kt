@@ -28,6 +28,8 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        // declare your static lifetime controllers here.
+        val appViewSettingsControl = AppViewSettingController()
         NotificationChannels.createAll(applicationContext) // channels must exist before any notifications are posted
         if (savedInstanceState == null) {
             handleNotificationIntent(intent)
