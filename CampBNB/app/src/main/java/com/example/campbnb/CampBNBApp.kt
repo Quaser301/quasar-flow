@@ -12,16 +12,23 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.toRoute
+import com.example.campbnb.controller.CampsiteController
 import com.example.campbnb.controller.LotteryController
+import com.example.campbnb.controller.NotificationController
+import com.example.campbnb.data.CampsiteRepository
+import com.example.campbnb.data.FirestoreNotificationRepository
 import com.example.campbnb.data.LotteryRepository
 import com.example.campbnb.database.Database
+import com.example.campbnb.models.CampsiteModel
 import com.example.campbnb.models.LotteryModel
 import com.example.campbnb.notifications.NotificationRoutes
 import com.example.campbnb.ui.Screens.ExploreScreen
@@ -32,14 +39,20 @@ import com.example.campbnb.ui.Screens.PlaceholderTab
 import com.example.campbnb.ui.Screens.RoleSelectScreen
 import com.example.campbnb.ui.Screens.SignUpScreen
 import com.example.campbnb.ui.Screens.StartScreen
+import com.example.campbnb.ui.campsite.CampsiteRegistrationForm
+import com.example.campbnb.ui.components.GradientButton
+import com.example.campbnb.ui.components.UserRole
+import com.example.campbnb.ui.details.CampsiteDetailsScreen
+import com.example.campbnb.ui.details.placeholderDetails
 import com.example.campbnb.ui.inbox.CorrespondenceScreen
 import com.example.campbnb.ui.inbox.NotificationInboxScreen
 import com.example.campbnb.ui.inbox.NotificationViewModel
-import com.example.campbnb.ui.components.UserRole
 import com.example.campbnb.ui.lottery.LotteryDetailsActivity
 import com.example.campbnb.ui.lottery.LotteryEditActivity
 import com.example.campbnb.ui.lottery.LotteryMonitorActivity
+import com.example.campbnb.ui.search.SearchScreen
 import com.example.campbnb.ui.settings.SettingsScreen
+import com.example.campbnb.ui.shared.DeviceId
 import com.example.campbnb.viewModels.AppView
 import com.example.campbnb.viewModels.AppViewSettingController
 import com.example.campbnb.viewModels.simpleViewModelFactory
@@ -104,24 +117,15 @@ fun CampBnbApp(appViewSettings: AppViewSettingController,
         }
         // Home (Explore plus the role's bottom bar)
         composable<Screen.Home> { entry ->
-            val role = entry.toRoute<Screen.Home>().role
-            HomeScreen(role = role,
-                destinationContent = { destination ->
-                    when (destination) {
-                        HomeDestination.MY_CAMPSITES -> {
-                            Button(
-                                onClick = {
-                                    nav.navigate(Screen.CampsiteEditActivity)
-                                }
-                            ) {
-                                Text("Register Campsite")
-                            }
-                        }
-                    )
-                },
+            val route = entry.toRoute<Screen.Home>()
+            val role = route.role
+            HomeScreen(
+                role = role,
+                initialTab = route.tab,
                 destinationContent = { destination ->
                     if (destination == HomeDestination.MY_CAMPSITES) {
                         MyCampsitesTab(
+                            onRegisterCampsite = { nav.navigate(Screen.CampsiteEditActivity) },
                             onOpenLotteries = { nav.navigate(Screen.LotteryMonitorActivity) }
                         )
                     } else {
@@ -136,26 +140,42 @@ fun CampBnbApp(appViewSettings: AppViewSettingController,
                 appViewSettings = appViewSettings.toAppViewSetting()
             )
         }
+        // Campsite registration (owner)
+        composable<Screen.CampsiteEditActivity> {
+            val context = LocalContext.current
+            val controller = remember { CampsiteController(CampsiteModel(), CampsiteRepository()) }
+            CampsiteRegistrationForm(
+                onBack = { nav.navigateUp() },
+                onUpload = { campsite, _ ->
+                    // TODO: upload the chosen image too
+                    controller.registerCampsite(campsite, DeviceId.get(context)) { success ->
+                        if (success) {
+                            nav.navigateUp()
+                        }
+                    }
+                }
+            )
+        }
         // Search
         composable<Screen.Search> { entry ->
             val route = entry.toRoute<Screen.Search>()
             SearchScreen(
                 initialQuery = route.query,
                 onCampsiteClick = {
-                    nav.navigate(Screen.CampsiteDetail(route.roleName, it.id))
+                    nav.navigate(Screen.CampsiteDetailsScreen(route.role, it.id))
                 },
                 onQrClick = { /* TODO: open QR scanner */ }
             )
         }
         // Campsite details
-        composable<Screen.CampsiteDetail> { entry ->
-            val route = entry.toRoute<Screen.CampsiteDetail>()
+        composable<Screen.CampsiteDetailsScreen> { entry ->
+            val route = entry.toRoute<Screen.CampsiteDetailsScreen>()
             CampsiteDetailsScreen(
-                role = route.roleName,
+                role = route.role,
                 campsite = placeholderDetails(route.campsiteId),
                 // navigateUp so a fast double tap can't go too far back
                 onBack = { nav.navigateUp() },
-                onTabSelected = { index -> nav.goHome(route.roleName, index) },
+                onTabSelected = { index -> nav.goHome(route.role, index) },
                 onEnterLottery = { /* TODO: enter the lottery */ },
                 onDeleteSite = { /* TODO: delete through the campsite controller */ }
             )
@@ -189,7 +209,7 @@ fun CampBnbApp(appViewSettings: AppViewSettingController,
                     { nav.navigate(Screen.Start /* TODO: CHANGE TO HOME */) },
                     { nav.navigateUp() },
                     { nav.navigate(Screen.LotteryEditActivity) },
-                    { lottery -> nav.navigate(Screen.LotteryDetailsActivity) },
+                    { _ -> nav.navigate(Screen.LotteryDetailsActivity) },
                     appViewSettings.toAppViewSetting()
                 )
             }
@@ -221,8 +241,8 @@ fun CampBnbApp(appViewSettings: AppViewSettingController,
                 LotteryDetailsActivity(
                     returnHome = { nav.navigate(Screen.Start) },
                     navigateBackwards = { nav.navigateUp() },
-                    onEditLottery = { lottery -> nav.navigate(Screen.LotteryEditActivity) },
-                    onViewWaitlist = { lottery -> /* TODO */ },
+                    onEditLottery = { _ -> nav.navigate(Screen.LotteryEditActivity) },
+                    onViewWaitlist = { _ -> /* TODO */ },
                     appViewSettings = appViewSettings.toAppViewSetting()
                 )
             }
@@ -255,15 +275,46 @@ fun CampBnbApp(appViewSettings: AppViewSettingController,
  * @param tab Index of the bottom bar tab to open.
  */
 private fun NavController.goHome(role: UserRole, tab: Int = 0) {
-    navigate(Screen.Home(roleName = role, tab = tab)) {
+    navigate(Screen.Home(role = role, tab = tab)) {
         popUpTo<Screen.Home> { inclusive = true }
         launchSingleTop = true
     }
 }
 
-/** Owner's My Campsites tab. For now it links to the lottery list. */
+/**
+ * The Notifications / Messages screen, with its tabs.
+ *
+ * @param nav The app's NavController, used when a notification is tapped.
+ * @param initialTab 0 opens Notifications, 1 opens Messages.
+ */
 @Composable
-private fun MyCampsitesTab(onOpenLotteries: () -> Unit) {
+private fun CorrespondenceDestination(nav: NavController, initialTab: Int) {
+    val context = LocalContext.current
+    // viewModel() keeps the same inbox (and its Firestore listener) across recompositions
+    val inboxViewModel: NotificationViewModel = viewModel(
+        factory = simpleViewModelFactory {
+            NotificationViewModel(
+                NotificationController(FirestoreNotificationRepository()),
+                DeviceId.get(context)
+            )
+        }
+    )
+    CorrespondenceScreen(
+        navController = nav,
+        initialTab = initialTab,
+        notificationsContent = {
+            NotificationInboxScreen(viewModel = inboxViewModel, navController = nav)
+        },
+        messagesContent = {
+            // TODO: replace with the messages screen once it exists
+            PlaceholderTab(HomeDestination.MESSAGES)
+        }
+    )
+}
+
+/** Owner's My Campsites tab. For now it links to campsite registration and the lottery list. */
+@Composable
+private fun MyCampsitesTab(onRegisterCampsite: () -> Unit, onOpenLotteries: () -> Unit) {
     Column(
         Modifier.fillMaxSize().padding(24.dp),
         verticalArrangement = Arrangement.Center,
@@ -271,6 +322,8 @@ private fun MyCampsitesTab(onOpenLotteries: () -> Unit) {
     ) {
         Text("My Campsites", fontSize = 22.sp)
         Spacer(Modifier.height(16.dp))
+        GradientButton("Register Campsite", onRegisterCampsite)
+        Spacer(Modifier.height(12.dp))
         GradientButton("My Lotteries", onOpenLotteries)
     }
 }

@@ -17,7 +17,6 @@ import com.example.campbnb.models.Lottery
 import com.example.campbnb.models.LotteryModel
 import com.example.campbnb.ui.shared.observeModel
 
-
 // Todo: no countdown to the end of registration yet.
 
 /**
@@ -38,15 +37,17 @@ fun LotteryJoinSection(
         controller.loadEntrantStatus(campsiteId, userId)
     }
 
-    val lottery = model.activeLottery
+    val lottery = model.entrantLottery
+    val isOnWaitlist = model.entrantIsOnWaitlist
+    val position = model.entrantPosition
 
     Column(modifier = modifier) {
         Text(
-            text = lotteryStatusText(lottery, model.joinedActive, model.waitlistSize),
+            text = lotteryStatusText(lottery, isOnWaitlist, position),
             modifier = Modifier.testTag("lottery_status")
         )
         if (lottery != null) {
-            if (model.joinedActive) {
+            if (isOnWaitlist) {
                 Button(
                     onClick = { controller.leave(lottery, userId) },
                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFD32F2F)),
@@ -73,12 +74,12 @@ fun LotteryJoinSection(
 }
 
 /** The line shown above the Join/Leave button. */
-fun lotteryStatusText(lottery: Lottery?, joined: Boolean, waitlistSize: Int): String {
+fun lotteryStatusText(lottery: Lottery?, joined: Boolean, position: Int): String {
     if (lottery == null) {
         return "No active lottery"
     }
     if (joined) {
-        return "You are on the waiting list (" + waitlistSize + " waiting)"
+        return "You are on the waiting list (Position: $position)"
     }
-    return "Lottery open for entries (" + waitlistSize + " waiting)"
+    return "Lottery open for entries"
 }
