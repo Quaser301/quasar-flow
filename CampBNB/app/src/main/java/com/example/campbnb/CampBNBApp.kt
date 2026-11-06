@@ -64,7 +64,6 @@ import com.example.campbnb.ui.components.GradientButton
 import com.example.campbnb.ui.components.UserRole
 import com.example.campbnb.ui.details.CampsiteDetails
 import com.example.campbnb.ui.details.CampsiteDetailsScreen
-import com.example.campbnb.ui.details.placeholderDetails
 import com.example.campbnb.ui.inbox.CorrespondenceScreen
 import com.example.campbnb.ui.inbox.MessagesScreen
 import com.example.campbnb.ui.inbox.NotificationInboxScreen
@@ -307,6 +306,12 @@ fun CampBnbApp(
                             nav.navigate(
                                 Screen.CampsiteDetailsScreen(role, campsite.id)
                             )
+                        },
+                        onSearch = { text ->
+                            nav.navigate(Screen.Search(role, text))
+                        },
+                        onFilterClick = {
+                            nav.navigate(Screen.Search(role, "", true))
                         }
                     )
                 },
@@ -332,16 +337,30 @@ fun CampBnbApp(
         // Search
         composable<Screen.Search> { entry ->
             val route = entry.toRoute<Screen.Search>()
+            val searchModel = remember { CampsiteModel() }
+            val searchController = remember { CampsiteController(searchModel, campsiteRepository) }
+            observeModel(searchModel)
+
+            LaunchedEffect(route.query) {
+                searchController.loadAndSearch(route.query)
+            }
+
             SearchScreen(
                 initialQuery = route.query,
+                initialShowFilter = route.openFilter,
+                results = toCardList(searchModel.visibleCampsites, searchModel),
+                onSearch = { query, filters ->
+                    searchController.search(query, filters)
+                },
                 onClose = {
                     nav.navigateUp()
                 },
                 onCampsiteClick = {
                     nav.navigate(Screen.CampsiteDetailsScreen(route.role, it.id))
-                },
+                }
             )
         }
+
         // Campsite details
         composable<Screen.CampsiteDetailsScreen> { entry ->
             val route = entry.toRoute<Screen.CampsiteDetailsScreen>()
@@ -683,6 +702,8 @@ fun CampBnbApp(
                 openReservationId = entry.arguments?.getString("reservationId")
             )
         }
+
+
     }
 
     LaunchedEffect(pendingRoute) {

@@ -23,7 +23,6 @@ import com.example.campbnb.viewModels.AppView
 @Serializable
 sealed interface Screen {
     // the app's entry point.
-
     @Serializable
     data class Home(val role: UserRole, val tab: Int = 0): Screen
 
@@ -64,7 +63,7 @@ sealed interface Screen {
 
 
     @Serializable
-    data class Search(val role: UserRole, val query: String = "") : Screen
+    data class Search(val role: UserRole, val query: String = "", val openFilter: Boolean = false) : Screen
     // the screen where a Campsite Owner views reservations.
     @Serializable
     data object Reservations : Screen
@@ -75,8 +74,13 @@ sealed interface Screen {
     @Serializable
     data class CampsiteMonitorActivity(val role: UserRole) : Screen
 
+
+
     // one campsite's details page.
     @Serializable
     data class CampsiteDetailsScreen(val role: UserRole, val campsiteId: String): Screen
+
+    @Serializable
+    data object AdminProfileView: Screen
 
 }
