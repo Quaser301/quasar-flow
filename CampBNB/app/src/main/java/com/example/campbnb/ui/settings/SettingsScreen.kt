@@ -1,15 +1,29 @@
 package com.example.campbnb.ui.settings
 
+import android.graphics.fonts.Font
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontStyle
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.example.campbnb.ui.components.BackArrow
+import com.example.campbnb.ui.components.GradientBarButton
 import com.example.campbnb.ui.components.UserRole
+import com.example.campbnb.ui.theme.ButtonStart
 import com.example.campbnb.ui.theme.FieldGrey
 import com.example.campbnb.viewModels.AppView
 import com.example.campbnb.viewModels.AppViewSettingController
@@ -34,9 +48,9 @@ fun groupLabel(groupId: SettingsGroupId): String = when (groupId) {
 /**
  * Which dropdown groups the Settings screen shows, and in what order.
  *
- * An admin&apos;s own settings come first with the app view switch first there, and
- * while the admin is currently viewing as another role, that role&apos;s settings
- * exist below the admin settings. Any other user only sees their own role&apos;s
+ * An admin's own settings come first with the app view switch first there, and
+ * while the admin is currently viewing as another role, that role's settings
+ * exist below the admin settings. Any other user only sees their own role's
  * settings.
  *
  * @param role The role the user is.
@@ -84,12 +98,14 @@ fun SettingsScreen(
     val display = remember { SettingsDisplayController(back) }
     val currentView = viewSettings.viewSetting.collectAsStateWithLifecycle()
 
-    Column {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
         SettingsTopBar(display)
         settingsGroupsFor(role, currentView.value).forEach { groupId ->
             SettingsDropdown(display, groupId) {
                 when (groupId) {
-                    SettingsGroupId.APP_VIEW_SWITCH -> ViewSwitchItems(viewSettings)
+                    SettingsGroupId.APP_VIEW_SWITCH -> ViewSwitchMenu(display, viewSettings)
                     SettingsGroupId.ADMIN_SETTINGS -> adminSettingsContent()
                     SettingsGroupId.ENTRANT_SETTINGS -> EntrantSettingsItems(entrantSettings)
                     SettingsGroupId.OWNER_SETTINGS -> OwnerSettingsItems(ownerSettings)
@@ -102,30 +118,42 @@ fun SettingsScreen(
 /** The back button in the top left and the Settings header in the top center. */
 @Composable
 private fun SettingsTopBar(display: SettingsDisplayController) {
-    Row(Modifier.fillMaxWidth()) {
+    Row(
+        Modifier.fillMaxWidth()
+            .height(56.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
         Box(
             Modifier
                 .clickable(onClick = { display.pressBack() })
-                .padding(6.dp)
+                .padding(12.dp)
         ) {
-            Text("< back", fontSize = 16.sp, color = FieldGrey)
+            BackArrow()
         }
         Box(
-            Modifier.weight(1.0f),
+            modifier = Modifier.weight(1f),
             contentAlignment = Alignment.Center
         ) {
             Text("Settings", fontSize = 26.sp)
+        }
+
+        // secret spacer to move it back
+        Box(
+            modifier = Modifier
+                .padding(12.dp)
+        ) {
+            Text("<", fontSize = 26.sp, color = Color.Transparent)
         }
     }
 }
 
 /**
- * One dropdown of the menu: a labelled bar that opens or closes its group of
+ * One dropdown of the menu: a labeled bar that opens or closes its group of
  * settings on a tap, showing that group&apos;s content while it is open.
  *
  * @param display The holder of the dropdown expansion state.
  * @param groupId The stable name of this dropdown.
- * @param content The group&apos;s settings, rendered only while the dropdown is open.
+ * @param content The group's settings, rendered only while the dropdown is open.
  */
 @Composable
 private fun SettingsDropdown(
@@ -135,49 +163,54 @@ private fun SettingsDropdown(
 ) {
     val expanded = display.expandedStateOf(groupId.name).collectAsStateWithLifecycle()
 
-    Column {
-        Box(
-            Modifier
-                .clickable(onClick = { display.toggleGroup(groupId.name) })
-                .padding(6.dp)
+    Box(
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            verticalArrangement = Arrangement.spacedBy(32.dp)
         ) {
-            Text(
-                groupLabel(groupId) + if (expanded.value) " - open" else " - tap to open",
-                fontSize = 18.sp
+            GradientBarButton(
+                groupLabel(groupId) + if (expanded.value) "" else " - tap to open",
+                onClick = { display.toggleGroup(groupId.name) },
+                modifier = Modifier.fillMaxWidth().padding(6.dp)
             )
+            if (expanded.value) content()
         }
-        if (expanded.value) content()
     }
 }
 
 /**
- * The app view switch&apos;s group of settings: the three views, each one moving
- * the current setting when chosen.
+ * The app view switch&apos;s group of settings: choosing one of the three views is
+ * exactly what a dropdown menu is for, so this group uses the material3 menu. Its
+ * expansion is still the display controller&apos;s state, and a dismissal through the
+ * menu&apos;s own closing runs the same controller toggle so the two never disagree.
  *
+ * @param display The holder of the dropdown expansion state.
  * @param viewSettings The app view setting controller to move.
  */
 @Composable
-private fun ViewSwitchItems(viewSettings: AppViewSettingController) {
-    Column {
+private fun ViewSwitchMenu(
+    display: SettingsDisplayController,
+    viewSettings: AppViewSettingController,
+) {
+    val expanded = display.expandedStateOf(SettingsGroupId.APP_VIEW_SWITCH.name).collectAsStateWithLifecycle()
+    val currentView = viewSettings.viewSetting.collectAsStateWithLifecycle()
+
+    DropdownMenu(
+        expanded = expanded.value,
+        onDismissRequest = { display.toggleGroup(SettingsGroupId.APP_VIEW_SWITCH.name) }
+    ) {
         listOf(AppView.AdminView, AppView.OwnerView, AppView.EntrantView).forEach { view ->
-            Box(
-                Modifier
-                    .clickable(onClick = { viewSettings.changeViewTo(view) })
-                    .padding(4.dp)
-            ) {
-                Text(
-                    view.name + (
-                        if (view == viewSettings.viewSetting.value) " <- current"
-                        else ""
-                        ),
-                    fontSize = 16.sp
-                )
-            }
+            DropdownMenuItem(
+                text = { Text(view.name + if (view == currentView.value) " ←" else "") },
+
+                onClick = { viewSettings.changeViewTo(view) }
+            )
         }
     }
 }
 
-/** The entrant settings group: the entrant&apos;s placeholder settings entries. */
+/** The entrant settings group: the entrant's placeholder settings entries. */
 @Composable
 private fun EntrantSettingsItems(settings: EntrantSettingsController) {
     val bookingsOrder = settings.bookingSortSetting.collectAsStateWithLifecycle()
@@ -191,7 +224,7 @@ private fun EntrantSettingsItems(settings: EntrantSettingsController) {
     }
 }
 
-/** The owner settings group: the owner&apos;s placeholder settings entries. */
+/** The owner settings group: the owner's placeholder settings entries. */
 @Composable
 private fun OwnerSettingsItems(settings: OwnerSettingsController) {
     val listingVisibility = settings.listingVisibilitySetting.collectAsStateWithLifecycle()
@@ -205,10 +238,13 @@ private fun OwnerSettingsItems(settings: OwnerSettingsController) {
     }
 }
 
-/** Placeholder admin settings groups: the admin&apos;s section is worked separately. */
+/** Placeholder admin settings groups: the admin's section is worked separately. */
 @Composable
 private fun AdminSettingsPlaceholder() {
-    Column {
+    Column (
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    )
+    {
         SettingsEntry("policy review", "placeholder")
         SettingsEntry("flagged content", "placeholder")
     }
@@ -217,5 +253,22 @@ private fun AdminSettingsPlaceholder() {
 /** One label-and-current-value row of an opened group. */
 @Composable
 private fun SettingsEntry(label: String, value: String) {
-    Text("$label: $value", fontSize = 16.sp)
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(2))
+            .background(FieldGrey)
+            .fillMaxWidth(),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            horizontalAlignment = Alignment.Start,
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+            modifier = Modifier
+                .fillMaxWidth(0.75f)
+                .padding(vertical = 12.dp)
+        ) {
+            Text(label, fontSize = 24.sp)
+            Text(value, fontSize = 12.sp)
+        }
+    }
 }

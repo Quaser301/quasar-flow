@@ -1,14 +1,11 @@
-package com.example.campbnb
+package com.example.campbnb.notificationTests
 
 import com.example.campbnb.controller.NotificationController
 import com.example.campbnb.controller.OptOutChecker
 import com.example.campbnb.models.NotificationType
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
-import org.junit.Assert.assertTrue
+import org.junit.Assert
 import org.junit.Before
 import org.junit.Test
-
 
 class NotificationControllerTest {
     private lateinit var repo: FakeNotificationRepository
@@ -30,9 +27,9 @@ class NotificationControllerTest {
     fun text_campsite_and_say_action_needed() {
         result<Int> { done -> controller.notifyWinners("lot1", "Banff", listOf("u1"), done) }
         val n = repo.saved.values.single()
-        assertTrue(n.title.contains("Banff"))
-        assertTrue(n.message.contains("Banff"))
-        assertTrue(n.message.contains("Action needed"))
+        Assert.assertTrue(n.title.contains("Banff"))
+        Assert.assertTrue(n.message.contains("Banff"))
+        Assert.assertTrue(n.message.contains("Action needed"))
     }
 
     @Test
@@ -40,8 +37,8 @@ class NotificationControllerTest {
         val r = result<Int> { done ->
             controller.notifyWinners("lot1", "Hinton", listOf("u1", "u1", " ", " "), done)
         }
-        assertEquals(1, r.getOrNull())
-        assertEquals(1, repo.saved.size)
+        Assert.assertEquals(1, r.getOrNull())
+        Assert.assertEquals(1, repo.saved.size)
     }
 
     @Test
@@ -49,8 +46,8 @@ class NotificationControllerTest {
         val ids = listOf("u1", "u2")
         result<Int> { done -> controller.notifyWinners("lot1", "Jasper", ids, done) }
         result<Int> { done -> controller.notifyWinners("lot1", "Jasper", ids, done) }
-        assertEquals(2, repo.saved.size)
-        assertEquals(2, repo.saveCalls)
+        Assert.assertEquals(2, repo.saved.size)
+        Assert.assertEquals(2, repo.saveCalls)
     }
 
     @Test
@@ -58,29 +55,44 @@ class NotificationControllerTest {
         val checker = OptOutChecker { ids, done -> done(ids.filter { it != "u2" }) }
         controller = NotificationController(repo, checker)
         result<Int> { done -> controller.notifyWinners("lot1", "Banff", listOf("u1", "u2"), done) }
-        assertTrue(repo.saved.values.first { it.recipientId == "u1" }.pushAllowed)
-        assertFalse(repo.saved.values.first { it.recipientId == "u2" }.pushAllowed)
-        assertEquals(2, repo.saved.size) // the record exists for both since admin log needs it
+        Assert.assertTrue(repo.saved.values.first { it.recipientId == "u1" }.pushAllowed)
+        Assert.assertFalse(repo.saved.values.first { it.recipientId == "u2" }.pushAllowed)
+        Assert.assertEquals(
+            2,
+            repo.saved.size
+        ) // the record exists for both since admin log needs it
     }
 
     @Test
     fun blank_lottery_id_refused_nothing_saved() {
         val r = result<Int> {done -> controller.notifyWinners(" ", "X", listOf("u1"), done)}
-        assertTrue(r.isFailure)
-        assertEquals(0, repo.saveCalls)
+        Assert.assertTrue(r.isFailure)
+        Assert.assertEquals(0, repo.saveCalls)
     }
 
     @Test
     fun no_winners_is_succes_with_zero_saved() {
         val r = result<Int> { done -> controller.notifyWinners("lot1", "X", emptyList(), done)}
-        assertEquals(0, r.getOrNull())
-        assertEquals(0, repo.saveCalls)
+        Assert.assertEquals(0, r.getOrNull())
+        Assert.assertEquals(0, repo.saveCalls)
     }
 
     @Test
     fun storage_failure_is_reported_not_hidden() {
         repo.failNextSave = true
         val r = result<Int> { done -> controller.notifyWinners("lot1", "X", listOf("u1"), done)}
-        assertTrue(r.isFailure)
+        Assert.assertTrue(r.isFailure)
+    }
+
+    @Test
+    fun losers_get_one_lose_notif() {
+        val r = result<Int> { done ->
+            controller.notifyLosers("lot-may-2027", "Banff", listOf("u4", "u5"), done)
+        }
+        Assert.assertEquals(2, r.getOrNull())
+        Assert.assertTrue(repo.saved.values.all { it.type == NotificationType.LOSE })
+        Assert.assertEquals(setOf("u4", "u5"), repo.saved.values.map {
+            it.recipientId
+        }.toSet())
     }
 }

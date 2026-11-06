@@ -152,3 +152,10 @@ Reading the diagram:
   dropdown, a view switch reveals the settings in their documented place).
 
 
+
+## Component choices for the Settings screen controls
+- The house GradientButton forces full width and a 44.dp pill; for the Settings screen that fights long group labels and a compact back affordance. A clone, GradientBarButton, was added in the shared components file instead of touching the original: the caller sizes it, a second modifier styles the label, and the height is a parameter. The screen's dropdown headers and back affordance use the clone; auth screens keep using the original untouched.
+- Whether material3's DropdownMenu fits a group was checked per group, not assumed:
+  - App view switch: it fits. Its content is exactly selectable options with presses, and the expansion state stays owned by the SettingsDisplayController (the flow feeds the menu's expanded flag; a dismissal through the menu's own closing calls the same controller toggle, so the two can never disagree).
+  - Entrant, owner, admin sections: it does not fit. Their content is live current-value rows with no selection semantics, and the admin section is an arbitrary caller composable; none of that maps onto menu items, so those groups keep the inline expanded-rows form.
+- The back affordance is now the BackArrow glyph: a filled chevron band drawn house-style like the dropdown arrow with a canvas path, sitting in the clickable text area from Wyatt's settings-view fixes commit; his transparent spacer was left untouched. (This Compose's draw path form has no stroke-width knob, which is why the chevron is a filled band rather than a stroked one.) The intermediate gradient-pill treatment of back was rejected and reverted before the glyph replaced it.

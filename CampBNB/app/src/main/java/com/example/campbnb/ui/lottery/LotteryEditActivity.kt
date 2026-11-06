@@ -14,6 +14,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuAnchorType
@@ -32,19 +33,20 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.navigation.NavController
 import com.example.campbnb.controller.LotteryController
 import com.example.campbnb.models.Campsite
 import com.example.campbnb.models.Lottery
 import com.example.campbnb.models.LotteryModel
 import com.example.campbnb.models.ViewObserver
 import com.example.campbnb.ui.shared.AppViewModificationIsValidForCurrentWindowChecker
+import com.example.campbnb.ui.shared.DeviceId
 import com.example.campbnb.viewModels.AppView
 import com.example.campbnb.viewModels.AppViewSetting
+import com.google.firebase.auth.FirebaseAuth
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -57,7 +59,9 @@ import java.util.Locale
  * into this activity for the booking and registration fields.
  * 04-11-26: Used built in gemini flash 3.6 to add a few personal comments and kdoc comments
  * 05-11-26: Prompted gemini 3.6 flash to structure my save button functionality which creates a lottery
- * object based on the input fields and then saves it to firebase
+ * object based on the input fields and then saves it to firebase.
+ * 06-11-26: Prompted gemini 3.6 to modify the campsite dropdown into a checkbox(toggle) dropdown
+ * to allow for multiple campsite selection.
  */
 // Note: injecting temporary comments cause I need to know what I'm doing.
 // remove once actual docs are available.
@@ -79,7 +83,7 @@ class LotteryEditActivity(
     fun LotteryEdit(
         model: LotteryModel,
         controller: LotteryController,
-        ownerCampsites: List<Campsite> = emptyList(),
+        initialLottery: Lottery? = null,
         ownerId: String = ""
     ) {
         AppViewModificationIsValidForCurrentWindowChecker(
@@ -93,7 +97,7 @@ class LotteryEditActivity(
             )
         )
 
-        var selectedCampsite by remember { mutableStateOf<Campsite?>(null) }
+        var selectedCampsites by remember { mutableStateOf<Set<Campsite>>(emptySet()) }
         var dropdownExpanded by remember { mutableStateOf(false) }
 
         var numberOfWinners by remember { mutableStateOf("") }
@@ -110,20 +114,43 @@ class LotteryEditActivity(
 
         var ownerCampsitesList by remember { mutableStateOf<List<Campsite>>(emptyList()) }
 
+        LaunchedEffect(initialLottery) {
+            if (initialLottery != null) {
+                numberOfWinners = initialLottery.numberOfWinners.toString()
+                waitlistCapacity = initialLottery.waitlistCapacity?.toString() ?: ""
+                regStartMillis = initialLottery.registrationStart
+                regEndMillis = initialLottery.registrationEnd
+                bookingStartMillis = initialLottery.bookingStart
+                bookingEndMillis = initialLottery.bookingEnd
+            }
+        }
+
+        val context = LocalContext.current
+        val resolvedOwnerId = ownerId.ifBlank { FirebaseAuth.getInstance().currentUser?.uid ?: DeviceId.get(context) }
+
         val lotteryToSave = Lottery(
-            ownerId = ownerId,
-            campsiteIds = if (selectedCampsite != null) listOf(selectedCampsite!!.id) else emptyList(),
+            ownerId = resolvedOwnerId,
+            campsiteIds = selectedCampsites.map { it.id },
             numberOfWinners = numberOfWinners.toIntOrNull() ?: 0,
             waitlistCapacity = waitlistCapacity.toIntOrNull(), // null if blank
             registrationStart = regStartMillis ?: 0L,
             registrationEnd = regEndMillis ?: 0L,
             bookingStart = bookingStartMillis ?: 0L,
             bookingEnd = bookingEndMillis ?: 0L
-        )//Moved from button functionality to allow validation of the object
+        ).apply {
+            if (initialLottery != null && initialLottery.id.isNotBlank()) {
+                id = initialLottery.id
+            }
+        }
 
-        LaunchedEffect(ownerId) { //pulls owner Id whenever screen launched
-            controller.loadOwnerCampsites(ownerId) { fetchedCampsites ->
-                ownerCampsitesList = fetchedCampsites
+        LaunchedEffect(resolvedOwnerId) {
+            if (resolvedOwnerId.isNotBlank()) {
+                controller.loadOwnerCampsites(resolvedOwnerId) { fetchedCampsites ->
+                    ownerCampsitesList = fetchedCampsites
+                    if (initialLottery != null && selectedCampsites.isEmpty()) {
+                        selectedCampsites = fetchedCampsites.filter { it.id in initialLottery.campsiteIds }.toSet()
+                    }
+                }
             }
         }
 
@@ -132,6 +159,8 @@ class LotteryEditActivity(
             val formatter = SimpleDateFormat("MMM dd, yyyy", Locale.getDefault())
             return "${formatter.format(Date(start))} - ${formatter.format(Date(end))}"
         }
+
+        val isEditMode = initialLottery != null
 
         Column(
             modifier = Modifier
@@ -151,7 +180,7 @@ class LotteryEditActivity(
                     Text(text = "Back")
                 }
                 Text(
-                    text = "Lottery Form",
+                    text = if (isEditMode) "Edit Lottery" else "Create Lottery",
                     style = MaterialTheme.typography.headlineMedium,
                     fontWeight = FontWeight.Bold
                 )
@@ -159,17 +188,17 @@ class LotteryEditActivity(
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            // Campsite Dropdown Selection
+            // Multiple Campsites Dropdown Selection (Checkbox Dropdown)
             ExposedDropdownMenuBox(
                 expanded = dropdownExpanded,
                 onExpandedChange = { dropdownExpanded = !dropdownExpanded },
                 modifier = Modifier.fillMaxWidth()
             ) {
                 OutlinedTextField(
-                    value = selectedCampsite?.campName ?: "",
+                    value = if (selectedCampsites.isEmpty()) "" else selectedCampsites.joinToString(", ") { it.campName },
                     onValueChange = {},
                     readOnly = true,
-                    label = { Text("Pick Campsite") },
+                    label = { Text("Pick Campsites") },
                     trailingIcon = {
                         ExposedDropdownMenuDefaults.TrailingIcon(expanded = dropdownExpanded)
                     },
@@ -190,25 +219,39 @@ class LotteryEditActivity(
                         )
                     } else {
                         ownerCampsitesList.forEach { campsite ->
+                            val isSelected = campsite in selectedCampsites
                             DropdownMenuItem(
                                 text = {
-                                    Column {
-                                        Text(
-                                            text = campsite.campName,
-                                            style = MaterialTheme.typography.bodyLarge,
-                                            fontWeight = FontWeight.Medium
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Checkbox(
+                                            checked = isSelected,
+                                            onCheckedChange = null
                                         )
-                                        if (campsite.campLoc.isNotBlank()) {
+                                        Column {
                                             Text(
-                                                text = campsite.campLoc,
-                                                style = MaterialTheme.typography.bodySmall
+                                                text = campsite.campName,
+                                                style = MaterialTheme.typography.bodyLarge,
+                                                fontWeight = FontWeight.Medium
                                             )
+                                            if (campsite.campLoc.isNotBlank()) {
+                                                Text(
+                                                    text = campsite.campLoc,
+                                                    style = MaterialTheme.typography.bodySmall
+                                                )
+                                            }
                                         }
                                     }
                                 },
                                 onClick = {
-                                    selectedCampsite = campsite
-                                    dropdownExpanded = false
+                                    selectedCampsites = if (isSelected) {
+                                        selectedCampsites - campsite
+                                    } else {
+                                        selectedCampsites + campsite
+                                    }
                                 }
                             )
                         }
@@ -286,7 +329,7 @@ class LotteryEditActivity(
                     enabled = lotteryToSave.isValid(System.currentTimeMillis()),
                     onClick = {
 
-                        // 1. Call controller to save to Firestore
+                        //Call controller to save to Firestore
                         controller.saveLottery(
                             lottery = lotteryToSave,
                             onSuccess = {
@@ -298,7 +341,7 @@ class LotteryEditActivity(
                     },
                     modifier = Modifier.weight(1f)
                 ) {
-                    Text(if (selectedCampsite == null) "Save" else "Update")
+                    Text(if (isEditMode) "Update" else "Save")
                 }
             }
         }
