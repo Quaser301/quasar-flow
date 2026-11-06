@@ -191,6 +191,8 @@ class UserController(
         return null
     }
 
+    /** Saves a signed-in user and shows the outcome through the model; the caller
+     *     supplies both status messages. */
     private fun saveUser(
         user: User,
         successMessage: String,

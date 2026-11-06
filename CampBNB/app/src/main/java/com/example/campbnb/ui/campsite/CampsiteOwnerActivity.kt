@@ -16,6 +16,12 @@ import com.example.campbnb.database.Database
 import com.example.campbnb.models.Campsite
 import com.example.campbnb.ui.shared.DeviceId
 
+/** The surface where a campsite owner manages their own campsites: it lists them by the
+ * signed-in identity and routes each affordance out of the screen.
+ * @param onEdit called with the id of a tapped campsite, to edit it
+ * @param onRegister called when the owner opens the register surface
+ * @param onBack called when the owner backs out
+ * @param onOpenLotteries called when the owner opens their lotteries */
 @Composable
 fun CampsiteOwnerActivity(
     onEdit: (String) -> Unit,

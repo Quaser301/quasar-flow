@@ -11,6 +11,7 @@ fun <T : ViewModel> simpleViewModelFactory(
     create: () -> T
 ): ViewModelProvider.Factory =
     object : ViewModelProvider.Factory {
+        /** Ignores the requested class: builds exactly the ViewModel the factory was given. */
         override fun <VM : ViewModel> create(modelClass: Class<VM>): VM {
             return create() as VM
         }

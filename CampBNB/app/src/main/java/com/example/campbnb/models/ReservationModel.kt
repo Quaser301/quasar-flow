@@ -2,6 +2,11 @@ package com.example.campbnb.models
 
 import com.example.campbnb.database.Identifiable
 
+/**
+ * Lifecycle of a reservation: ACTIVE is held by the entrant, CANCELLED was ended by the
+ * entrant, REJECTED was refused by the owner. Cancellations and rejections both route
+ * through refund handling, tracked separately on the model itself.
+ */
 enum class ReservationStatus { ACTIVE, CANCELLED, REJECTED }
 
 /**

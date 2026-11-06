@@ -33,6 +33,7 @@ data class Conversation(
 /** Helpers that turn a flat list of messages into chats and threads. */
 object Conversations {
 
+    /** A single ordering key for a message, newest first; undated sorts as if newest. */
     private fun sortKey(m: Message): Long =
         m.sentAt?.let { it.seconds * 1000L + it.nanoseconds / 1_000_000 } ?: Long.MAX_VALUE
 

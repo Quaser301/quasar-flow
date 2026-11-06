@@ -39,6 +39,15 @@ private val CampDarkGreen = Color(0xFF397C28)
 private val CampLightGray = Color(0xFFE0E0E0)
 private val CampCardGray = Color(0xFFD9D9D9)
 
+/** The reservations area for the selected campsite and time bucket.
+ *
+ * @param campsites the owner campsites, for the selector
+ * @param selectedCampsiteId the campsite whose reservations are listed
+ * @param selectedFilter the bucket currently shown (Active, Past, Cancelled)
+ * @param reservations all loaded reservations; the list filters by bucket
+ * @param onCampsiteSelected called with the id of a tapped campsite chip
+ * @param onFilterSelected called with the bucket of a tapped tab
+ * @param onBack called when the back button is tapped */
 @Composable
 fun ReservationScreen(
     campsites: List<Campsite>,
@@ -105,6 +114,8 @@ fun ReservationScreen(
     }
 }
 
+/** Horizontal chips for the owner campsites; the current one is highlighted,
+ *     empty shows a placeholder. */
 @Composable
 private fun CampsiteSelector(
     campsites: List<Campsite>,
@@ -164,6 +175,7 @@ private fun CampsiteSelector(
     }
 }
 
+/** The three buckets (Active, Past, Cancelled) as pills; the selected one is filled. */
 @Composable
 private fun ReservationFilterTabs(
     selectedFilter: ReservationFilter,
@@ -207,6 +219,7 @@ private fun ReservationFilterTabs(
     }
 }
 
+/** A single pill of the filter tabs; only the selected tab is filled. */
 @Composable
 private fun ReservationTab(
     label: String,
@@ -237,6 +250,7 @@ private fun ReservationTab(
     }
 }
 
+/** Cards for one bucket reservations; an empty bucket states that in words. */
 @Composable
 private fun ReservationList(
     reservations: List<ReservationModel>,
@@ -287,6 +301,7 @@ private fun ReservationList(
     }
 }
 
+/** One reservation card: entrant, guests, dates, and status. */
 @Composable
 private fun ReservationCard(
     reservation: ReservationModel
