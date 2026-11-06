@@ -59,6 +59,7 @@ import com.example.campbnb.ui.components.UserRole
 import com.example.campbnb.ui.details.CampsiteDetailsScreen
 import com.example.campbnb.ui.details.placeholderDetails
 import com.example.campbnb.ui.inbox.CorrespondenceScreen
+import com.example.campbnb.ui.inbox.MessagesScreen
 import com.example.campbnb.ui.inbox.NotificationInboxScreen
 import com.example.campbnb.ui.inbox.NotificationViewModel
 import com.example.campbnb.ui.lottery.LotteryDetailsActivity
@@ -70,6 +71,7 @@ import com.example.campbnb.ui.shared.DeviceId
 import com.example.campbnb.ui.shared.toUserRole
 import com.example.campbnb.viewModels.AppView
 import com.example.campbnb.viewModels.AppViewSettingController
+import com.example.campbnb.viewModels.MessageViewModel
 import com.example.campbnb.viewModels.simpleViewModelFactory
 import com.google.firebase.auth.FirebaseAuth
 
@@ -451,6 +453,30 @@ fun CampBnbApp(
         composable(NotificationRoutes.MESSAGES) {
             CorrespondenceDestination(nav = nav, initialTab = 1)
         }
+        // Notification taps for reservations and lottery wins go to the reservations screen
+        // (there is no separate booking screen yet).
+        composable(NotificationRoutes.RESERVATIONS) {
+            LaunchedEffect(Unit) {
+                nav.navigate(Screen.Reservations) {
+                    popUpTo(NotificationRoutes.RESERVATIONS) { inclusive = true }
+                }
+            }
+        }
+        composable("${NotificationRoutes.BOOKING}/{lotteryId}") {
+            LaunchedEffect(Unit) {
+                nav.navigate(Screen.Reservations) {
+                    popUpTo("${NotificationRoutes.BOOKING}/{lotteryId}") { inclusive = true }
+                }
+            }
+        }
+        // Tapping a MESSAGE notification opens that reservation's chat.
+        composable("${NotificationRoutes.CHAT}/{reservationId}") { entry ->
+            CorrespondenceDestination(
+                nav = nav,
+                initialTab = 1,
+                openReservationId = entry.arguments?.getString("reservationId")
+            )
+        }
     }
 
     LaunchedEffect(pendingRoute) {
@@ -479,29 +505,51 @@ private fun NavController.goHome(role: UserRole, tab: Int = 0) {
  *
  * @param nav The app's NavController, used when a notification is tapped.
  * @param initialTab 0 opens Notifications, 1 opens Messages.
+ * @param openReservationId If set, the Messages tab opens straight into this reservation's chat.
  */
 @Composable
-private fun CorrespondenceDestination(nav: NavController, initialTab: Int) {
-    val context = LocalContext.current
-    // viewModel() keeps the same inbox (and its Firestore listener) across recompositions
-    val inboxViewModel: NotificationViewModel = viewModel(
-        factory = simpleViewModelFactory {
-            NotificationViewModel(
-                NotificationController(FirestoreNotificationRepository()),
-                DeviceId.get(context)
-            )
-        }
-    )
+private fun CorrespondenceDestination(
+    nav: NavController,
+    initialTab: Int,
+    openReservationId: String? = null
+) {
     CorrespondenceScreen(
         navController = nav,
         initialTab = initialTab,
-        notificationsContent = {
-            NotificationInboxScreen(viewModel = inboxViewModel, navController = nav)
-        },
-        messagesContent = {
-            PlaceholderTab(HomeDestination.MESSAGES)
+        notificationsContent = { NotificationsTab(nav) },
+        messagesContent = { MessagesTab(openReservationId) }
+    )
+}
+
+/** The notification inbox. viewModel() keeps the same inbox (and its Firestore listener) across recompositions. */
+@Composable
+private fun NotificationsTab(nav: NavController) {
+    val userId = DeviceId.get(LocalContext.current)
+    val inboxViewModel: NotificationViewModel = viewModel(
+        key = "notification-inbox-$userId",
+        factory = simpleViewModelFactory {
+            NotificationViewModel(AppContainer.notificationController, userId)
         }
     )
+    NotificationInboxScreen(viewModel = inboxViewModel, navController = nav)
+}
+
+/** The chat list and chat threads. [openReservationId] jumps straight into one chat. */
+@Composable
+private fun MessagesTab(openReservationId: String? = null) {
+    val userId = DeviceId.get(LocalContext.current)
+    val messageViewModel: MessageViewModel = viewModel(
+        key = "message-inbox-$userId",
+        factory = simpleViewModelFactory {
+            MessageViewModel(AppContainer.messageController, userId)
+        }
+    )
+    LaunchedEffect(openReservationId) {
+        if (!openReservationId.isNullOrBlank()) {
+            messageViewModel.open(openReservationId)
+        }
+    }
+    MessagesScreen(viewModel = messageViewModel, currentUserId = userId)
 }
 
 /** Owner's My Campsites tab. For now it links to campsite registration and the lottery list. */
