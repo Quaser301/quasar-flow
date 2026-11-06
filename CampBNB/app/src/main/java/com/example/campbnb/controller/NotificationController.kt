@@ -164,8 +164,93 @@ class NotificationController (
      * @see ReservationController
      */
 
-    fun send(recipientId: String, type: String, details: kotlin.collections.Map<String, String>) {
 
+    /**
+     * Sends a notification for reservation or messaging events.
+     *
+     * Notification failures do not affect the original operation.
+     *
+     * @param recipientId user receiving the notification
+     * @param type notification category
+     * @param details additional information about the event
+     */
+    fun send(
+        recipientId: String,
+        type: String,
+        details: Map<String, String>
+    ) {
+        if (recipientId.isBlank()) return
+
+        // Convert the string into the notification enum.
+        val notificationType = try {
+            NotificationType.valueOf(type.uppercase())
+        } catch (e: IllegalArgumentException) {
+            return
+        }
+
+        val campsiteName = details["campsiteName"]
+            ?.ifBlank { "the campsite" }
+            ?: "the campsite"
+
+        val reservationId = details["reservationId"] ?: ""
+        val senderId = details["senderId"] ?: ""
+
+        // Build the notification content.
+        val (title, message) = when (notificationType) {
+
+            NotificationType.MESSAGE -> {
+                val preview = details["preview"]
+                    ?.takeIf { it.isNotBlank() }
+
+                "New message about $campsiteName" to
+                        if (preview != null) {
+                            "You received a new message: $preview"
+                        } else {
+                            "You received a new message. Open CampBNB to read it."
+                        }
+            }
+
+            NotificationType.CONFIRMATION ->
+                "Reservation confirmed for $campsiteName" to
+                        "Your reservation has been confirmed."
+
+            NotificationType.CANCELLATION ->
+                "Reservation cancelled for $campsiteName" to
+                        "The reservation has been cancelled."
+
+            NotificationType.REJECTION ->
+                "Reservation rejected for $campsiteName" to
+                        "The reservation request has been rejected."
+
+            NotificationType.OWNER_NOTICE ->
+                "Reservation update for $campsiteName" to
+                        "There is an update regarding your reservation."
+
+            else -> return
+        }
+
+        // Check whether the recipient allows notifications.
+        optOutChecker.filterAllowed(listOf(recipientId)) { allowed ->
+
+            val notification = Notification(
+                recipientId = recipientId,
+                senderId = senderId,
+                type = notificationType,
+                title = title,
+                message = message,
+                reservationId = reservationId,
+                campsiteName = campsiteName,
+                pushAllowed = recipientId in allowed
+            )
+
+            // Save the notification.
+            repo.saveAll(listOf(notification)) { result ->
+                result.onFailure { error ->
+                    println(
+                        "Failed to save notification: ${error.message}"
+                    )
+                }
+            }
+        }
     }
 }
-
