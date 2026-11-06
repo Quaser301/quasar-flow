@@ -10,6 +10,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
@@ -51,7 +53,9 @@ private val placeholderCards = List(6) {
  * @param newSites Cards for the "New Sites" row.
  * @param onCampsiteClick Called when a campsite card is tapped.
  * @param onSettingsClick Called when the Settings circle is tapped.
- * @param onMenuClick Called when the hamburger icon is tapped (open a drawer here later).
+ * @param onMenuClick Called when the hamburger icon is tapped.
+ * @param onFilterClick Called when "Filter" is chosen from the hamburger menu. Opens the
+ * Search page with its filter panel showing (US 01.01.02).
  * @param onSearch Called with the query when the user submits a search.
  */
 @Composable
@@ -62,9 +66,11 @@ fun ExploreScreen(
     onCampsiteClick: (CampsiteCardData) -> Unit = {},
     onSettingsClick: () -> Unit = {},
     onMenuClick: () -> Unit = {},
+    onFilterClick: () -> Unit = {},
     onSearch: (String) -> Unit = {}
 ) {
     var query by rememberSaveable { mutableStateOf("") }   // import androidx.compose.runtime.saveable.rememberSaveable
+    var menuOpen by remember { mutableStateOf(false) }
 
     LazyColumn(
         Modifier.fillMaxSize(),
@@ -88,11 +94,32 @@ fun ExploreScreen(
                     },
 
                     onMagnifyClick = { text ->
-                        onSearch(text)
+                        if (text.isNotBlank()) {
+                            onSearch(text)
+                        }
                     },
 
                     modifier = Modifier.weight(1f),
-                    onMenuClick = onMenuClick
+
+                    onMenuClick = {
+                        menuOpen = true
+                        onMenuClick()
+                    },
+
+                    menuContent = {
+                        DropdownMenu(
+                            expanded = menuOpen,
+                            onDismissRequest = { menuOpen = false }
+                        ) {
+                            DropdownMenuItem(
+                                text = { Text("Filter") },
+                                onClick = {
+                                    menuOpen = false
+                                    onFilterClick()
+                                }
+                            )
+                        }
+                    }
                 )
 
                 SettingsButton(onSettingsClick)
