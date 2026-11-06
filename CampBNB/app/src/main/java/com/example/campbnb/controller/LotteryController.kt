@@ -2,6 +2,7 @@ package com.example.campbnb.controller
 
 import com.example.campbnb.data.LotteryRepository
 import com.example.campbnb.database.QueryEngine
+import com.example.campbnb.models.Campsite
 import com.example.campbnb.models.Lottery
 import com.example.campbnb.models.LotteryModel
 import com.example.campbnb.models.LotteryStatus
@@ -22,9 +23,6 @@ class LotteryController(
     private val clock: () -> Long = System::currentTimeMillis
 ) {
     // E, D, A, F
-    fun onBackMonitorClicked() {
-        TODO()
-    }
 
     /**
      * Checks whether an entrant won a lottery and that the lottery covers a given campsite.
@@ -199,4 +197,16 @@ class LotteryController(
         }
         return size >= capacity
     }
+    fun loadOwnerCampsites(ownerId: String, onResult: (List<Campsite>) -> Unit) {
+        repo.loadCampsitesByOwner(
+            ownerId = ownerId,
+            onSuccess = { campsites -> onResult(campsites) },
+            onFailure = { onResult(emptyList()) }
+        )
+    }
+    fun saveLottery(lottery: Lottery, onSuccess: () -> Unit, onFailure: (Exception) -> Unit) {
+        repo.save(lottery, onSuccess, onFailure)
+    }
+
+
 }

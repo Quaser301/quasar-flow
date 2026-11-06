@@ -45,10 +45,10 @@ class CampsiteController (
         if (text.isEmpty()) {
             return true
         }
-        if (campsite.campName.contains(text, ignoreCase = true)) {
+        if (campsite.CampName.contains(text, ignoreCase = true)) {
             return true
         }
-        if (campsite.campLoc.contains(text, ignoreCase = true)) {
+        if (campsite.CampLoc.contains(text, ignoreCase = true)) {
             return true
         }
         for (tag in campsite.tags) {

@@ -17,9 +17,13 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.example.campbnb.models.User
 import com.example.campbnb.ui.components.UserRole
 import com.example.campbnb.ui.theme.ButtonGradient
 import com.example.campbnb.ui.theme.FieldGrey
+import com.example.campbnb.viewModels.AppView
+import com.example.campbnb.viewModels.AppViewSetting
 
 /** Every screen reachable from a bottom bar. */
 enum class HomeDestination {
@@ -67,10 +71,22 @@ fun tabsFor(role: UserRole): List<HomeTab> = when (role) {
 fun HomeScreen(
     role: UserRole,
     exploreContent: @Composable () -> Unit = { ExploreScreen() },
-    destinationContent: @Composable (HomeDestination) -> Unit = { PlaceholderTab(it) }
+    destinationContent: @Composable (HomeDestination) -> Unit = { PlaceholderTab(it) },
+    appViewSettings: AppViewSetting
 ) {
+    val viewState = appViewSettings.setting.collectAsStateWithLifecycle()
     val tabs = remember(role) { tabsFor(role) }
-    var selected by rememberSaveable { mutableStateOf(0) }
+
+    // note: NOT booting back to the home screen since we ARE the home screen.
+    LaunchedEffect(viewState) {
+        val tabs = when (viewState.value) {
+            AppView.AdminView -> tabsFor(UserRole.ADMIN)
+            AppView.OwnerView -> tabsFor(UserRole.OWNER)
+            AppView.EntrantView -> tabsFor(UserRole.CAMPER)
+        }
+    }
+
+    var selected by rememberSaveable { mutableIntStateOf(0) }
 
     BackHandler(enabled = selected != 0) { selected = 0 }
 
