@@ -9,6 +9,7 @@ import com.example.campbnb.ui.campsite.CampsiteRegistrationForm
 import androidx.compose.material3.Button
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -31,9 +32,18 @@ import com.example.campbnb.ui.lottery.LotteryMonitorActivity
 import com.example.campbnb.viewModels.AppViewSettingController
 
 @Composable
-fun CampBnbApp(appViewSettings: AppViewSettingController) {
+fun CampBnbApp(appViewSettings: AppViewSettingController,
+               pendingRoute: String? = null,
+               onPendingRouteHandled: () -> Unit = {}
+) {
 
     val nav = rememberNavController()
+    LaunchedEffect(pendingRoute) {
+        if (!pendingRoute.isNullOrBlank()) {
+            nav.navigate(pendingRoute)
+            onPendingRouteHandled()
+        }
+    }
     NavHost(navController = nav, startDestination = Screen.Start) {
         composable<Screen.Start> {
             StartScreen(onGetStarted = { nav.navigate(Screen.Login) })
