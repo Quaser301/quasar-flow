@@ -4,6 +4,13 @@ package com.example.campbnb.controller
 import com.example.campbnb.models.Message
 
 /**
+ * Notifies interested parties when a new message is sent.
+ */
+fun interface NewMessageNotifier {
+    fun messageSent(message: Message, campsiteName: String)
+}
+
+/**
  * Connects the messaging system to the notification system.
  *
  * Called after a message has been successfully saved.
