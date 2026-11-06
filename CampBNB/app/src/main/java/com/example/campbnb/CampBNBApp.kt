@@ -168,7 +168,7 @@ fun CampBnbApp(appViewSettings: AppViewSettingController) {
                     { nav.navigate(Screen.Start /* TODO: CHANGE TO HOME */) },
                     { nav.navigateUp() },
                     { nav.navigate(Screen.LotteryEditActivity) },
-                    { nav.navigate(Screen.LotteryDetailsActivity) },
+                    { lottery -> nav.navigate(Screen.LotteryDetailsActivity) },
                     appViewSettings.toAppViewSetting()
                 )
             }
@@ -188,11 +188,15 @@ fun CampBnbApp(appViewSettings: AppViewSettingController) {
         composable<Screen.LotteryDetailsActivity> {
             val activity = remember {
                 LotteryDetailsActivity(
-                    { nav.navigate(Screen.LotteryMonitorActivity) },
-                    { nav.navigateUp() },
-                    appViewSettings.toAppViewSetting()
+                    returnHome = { nav.navigate(Screen.Start) },
+                    navigateBackwards = { nav.navigateUp() },
+                    onEditLottery = { lottery -> nav.navigate(Screen.LotteryEditActivity) },
+                    onViewWaitlist = { lottery -> /* TODO */ },
+                    appViewSettings = appViewSettings.toAppViewSetting()
                 )
             }
+            val model = remember { LotteryModel() }
+            activity.LotteryDetails(model = model)
         }
     }
 }
