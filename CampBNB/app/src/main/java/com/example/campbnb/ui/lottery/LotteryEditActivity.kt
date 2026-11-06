@@ -79,6 +79,7 @@ class LotteryEditActivity(
     fun LotteryEdit(
         model: LotteryModel,
         controller: LotteryController,
+        initialLottery: Lottery? = null,
         ownerId: String = ""
     ) {
         AppViewModificationIsValidForCurrentWindowChecker(
@@ -108,6 +109,17 @@ class LotteryEditActivity(
         var showBookingDatePicker by remember { mutableStateOf(false) }
 
         var ownerCampsitesList by remember { mutableStateOf<List<Campsite>>(emptyList()) }
+
+        LaunchedEffect(initialLottery) {
+            if (initialLottery != null) {
+                numberOfWinners = initialLottery.numberOfWinners.toString()
+                waitlistCapacity = initialLottery.waitlistCapacity?.toString() ?: ""
+                regStartMillis = initialLottery.registrationStart
+                regEndMillis = initialLottery.registrationEnd
+                bookingStartMillis = initialLottery.bookingStart
+                bookingEndMillis = initialLottery.bookingEnd
+            }
+        }
 
         val lotteryToSave = Lottery(
             ownerId = ownerId,
@@ -285,7 +297,7 @@ class LotteryEditActivity(
                     enabled = lotteryToSave.isValid(System.currentTimeMillis()),
                     onClick = {
 
-                        // 1. Call controller to save to Firestore
+                        //Call controller to save to Firestore
                         controller.saveLottery(
                             lottery = lotteryToSave,
                             onSuccess = {
