@@ -31,6 +31,9 @@ sealed interface Screen {
     @Serializable
     data object CampsiteEditActivity : Screen
 
+    @Serializable
+    data class EditCampsite(val campsiteId: String): Screen
+
     // the screen where a Campsite Owner edits their lottery settings.
     @Serializable
     data object LotteryEditActivity: Screen

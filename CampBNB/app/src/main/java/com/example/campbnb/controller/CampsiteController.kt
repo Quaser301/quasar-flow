@@ -140,7 +140,29 @@ class CampsiteController (
             } else {
                 model.setStatusMessage("Failed to register campsite")
                 onComplete(false)
+            }
         }
+    }
+
+    // Updates an existing campsite for the current user
+    fun updateCampsite(
+        campsite: Campsite,
+        ownerId: String,
+        onComplete: (Boolean) -> Unit
+    ) {
+        if (ownerId.isBlank()) {
+            model.setStatusMessage("Please log in to update a campsite")
+            onComplete(false)
+            return
+        }
+        repo.SaveCampsite(campsite) { result ->
+            if (result.isSuccess) {
+                model.setStatusMessage("Campsite updated successfully")
+                onComplete(true)
+            } else {
+                model.setStatusMessage("Failed to update campsite")
+                onComplete(false)
+            }
         }
     }
 }

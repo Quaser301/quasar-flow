@@ -1,4 +1,5 @@
 package com.example.campbnb
+import androidx.navigation.toRoute
 import com.example.campbnb.controller.CampsiteController
 import com.example.campbnb.data.CampsiteRepository
 import com.example.campbnb.models.CampsiteModel
@@ -6,10 +7,16 @@ import com.google.firebase.auth.FirebaseAuth
 import android.widget.Toast
 import androidx.compose.ui.platform.LocalContext
 import com.example.campbnb.ui.campsite.CampsiteRegistrationForm
+import com.example.campbnb.ui.campsite.CampsiteOwnerActivity
 import androidx.compose.material3.Button
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import com.example.campbnb.models.Campsite
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
@@ -35,7 +42,67 @@ fun CampBnbApp(appViewSettings: AppViewSettingController) {
     NavHost(navController = nav, startDestination = Screen.Start) {
         composable<Screen.Start> {
             StartScreen(onGetStarted = { nav.navigate(Screen.Login) })
+
         }
+
+        composable<Screen.EditCampsite> { backStackEntry ->
+
+            val campsiteId =
+                backStackEntry.toRoute<Screen.EditCampsite>().campsiteId
+
+            var campsite by remember(campsiteId) {
+                mutableStateOf<Campsite?>(null)
+            }
+
+            var isLoading by remember(campsiteId) {
+                mutableStateOf(true)
+            }
+
+            val repository = remember { CampsiteRepository() }
+
+            val controller = remember {
+                CampsiteController(CampsiteModel(), repository)
+            }
+
+            LaunchedEffect(campsiteId) {
+                repository.getAll(
+                    onSuccess = { campsites ->
+                        campsite = campsites.find { it.id == campsiteId }
+                        isLoading = false
+                    },
+                    onFailure = {
+                        isLoading = false
+                    }
+                )
+            }
+
+            if (isLoading) {
+                Text("Loading campsite...")
+            } else if (campsite == null) {
+                Text("Campsite not found")
+            } else {
+                CampsiteRegistrationForm(
+                    existingCampsite = campsite,
+                    onBack = { nav.navigateUp() },
+                    onUpload = { updatedCampsite, _ ->
+
+                        val ownerId =
+                            FirebaseAuth.getInstance().currentUser?.uid ?: ""
+
+                        controller.updateCampsite(
+                            updatedCampsite,
+                            ownerId
+                        ) { success ->
+
+                            if (success) {
+                                nav.navigateUp()
+                            }
+                        }
+                    }
+                )
+            }
+        }
+
         composable<Screen.CampsiteEditActivity> {
             val context = LocalContext.current
 
@@ -114,19 +181,19 @@ fun CampBnbApp(appViewSettings: AppViewSettingController) {
         }
         composable<Screen.Home> { entry ->
             val role = entry.toRoute<Screen.Home>().roleName
-            HomeScreen(role = role,
+            HomeScreen(
+                role = role,
+                appViewSettings = appViewSettings.toAppViewSetting(),
                 destinationContent = { destination ->
                     when (destination) {
-                        HomeDestination.MY_CAMPSITES -> {
-                            Button(
-                                onClick = {
-                                    nav.navigate(Screen.CampsiteEditActivity)
-                                }
-                            ) {
-                                Text("Register Campsite")
+                        HomeDestination.MY_CAMPSITES -> CampsiteOwnerActivity(
+                            onEdit = { campsiteId ->
+                                nav.navigate(Screen.EditCampsite(campsiteId))
+                            },
+                            onRegister = {
+                                nav.navigate(Screen.CampsiteEditActivity)
                             }
-                        }
-
+                        )
                         else -> PlaceholderTab(destination)
                     }
                 }
