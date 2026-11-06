@@ -34,7 +34,6 @@ class MainActivity : ComponentActivity() {
         if (savedInstanceState == null) {
             handleNotificationIntent(intent)
         }
-        val appViewSettingsControl = AppViewSettingController()
         val deviceId = DeviceId.get(this)
 
         setContent {

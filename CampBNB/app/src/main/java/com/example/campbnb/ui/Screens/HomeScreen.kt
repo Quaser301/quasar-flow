@@ -17,9 +17,11 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.campbnb.ui.components.UserRole
 import com.example.campbnb.ui.theme.ButtonGradient
 import com.example.campbnb.ui.theme.FieldGrey
+import com.example.campbnb.viewModels.AppView
 import com.example.campbnb.viewModels.AppViewSetting
 
 /** Every screen reachable from a bottom bar. */
