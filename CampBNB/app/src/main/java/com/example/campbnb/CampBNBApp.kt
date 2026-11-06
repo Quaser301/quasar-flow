@@ -13,6 +13,7 @@ import androidx.compose.runtime.remember
 import androidx.navigation.toRoute
 import com.example.campbnb.controller.LotteryController
 import com.example.campbnb.data.LotteryRepository
+import com.example.campbnb.database.Database
 import com.example.campbnb.models.LotteryModel
 import com.example.campbnb.ui.lottery.LotteryEditActivity
 import com.example.campbnb.ui.lottery.LotteryMonitorActivity
@@ -64,7 +65,7 @@ fun CampBnbApp(appViewSettings: AppViewSettingController) {
         }
         composable<Screen.Home> { entry ->
             val role = entry.toRoute<Screen.Home>().roleName
-            HomeScreen(role)
+            HomeScreen(role, appViewSettings = appViewSettings.toAppViewSetting())
         }
         composable<Screen.LotteryEditActivity> {
             val activity = remember {
@@ -81,9 +82,9 @@ fun CampBnbApp(appViewSettings: AppViewSettingController) {
             val controller = remember { LotteryController(
                 model,
                 repo,
-                TODO(),
-                TODO()
-            ) }
+                Database.Lotteries.readEngine()
+            ) { System.currentTimeMillis() }
+            }
             activity.LotteryEdit(model = model, controller = controller)
         }
         composable<Screen.LotteryMonitorActivity> {
@@ -96,7 +97,7 @@ fun CampBnbApp(appViewSettings: AppViewSettingController) {
             }
             val model = remember { LotteryModel() }
             val repo = remember { LotteryRepository() }
-            val controller = remember { LotteryController(model, repo, TODO(), TODO()) }
+            val controller = remember { LotteryController(model, repo, Database.Lotteries.readEngine() ) { System.currentTimeMillis() } }
             activity.LotteryMonitor(model = model, controller = controller)
         }
     }
