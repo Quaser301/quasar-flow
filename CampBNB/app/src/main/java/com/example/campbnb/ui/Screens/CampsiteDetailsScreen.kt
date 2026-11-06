@@ -15,7 +15,9 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
@@ -26,6 +28,7 @@ import com.example.campbnb.ui.components.StarGlyph
 import com.example.campbnb.ui.components.UserRole
 import com.example.campbnb.ui.Screens.RoleBottomBar
 import com.example.campbnb.ui.Screens.tabsFor
+import com.example.campbnb.ui.campsite.lotteryButtonText
 import com.example.campbnb.ui.theme.*
 import kotlin.math.roundToInt
 
@@ -81,8 +84,12 @@ fun CampsiteDetailsScreen(
     onBack: () -> Unit,
     onTabSelected: (Int) -> Unit,
     onEnterLottery: () -> Unit = {},
+    lotteryButtonText: String = "Enter Lottery",
+    lotteryButtonEnabled: Boolean = true,
+    lotteryButtonIsLeave: Boolean = false,
     onDeleteSite: () -> Unit = {},
-    onSeeReviews: () -> Unit = {}
+    onSeeReviews: () -> Unit = {},
+    entrantContent: @Composable () -> Unit = {}
 ) {
     val tabs = remember(role) { tabsFor(role) }
     var showAllTags by remember { mutableStateOf(false) }
@@ -164,16 +171,33 @@ fun CampsiteDetailsScreen(
                     Text("Description", fontSize = 14.sp)
                     Text(campsite.description, fontSize = 12.sp, modifier = Modifier.padding(start = 8.dp))
                 }
+
+                if (role == UserRole.CAMPER) {
+                    entrantContent()
+                }
             }
 
             // Floating button, above the bottom bar
             when (role) {
-                UserRole.CAMPER -> GradientButton(
-                    text = "Enter Lottery",
+                UserRole.CAMPER -> {
+                var buttonBrush: Brush = ButtonGradient
+                var buttonTag = "join_lottery"
+                if (lotteryButtonIsLeave) {
+                    buttonBrush = DeleteGradient
+                    buttonTag = "leave_lottery"
+                }
+                GradientButton(
+                    text = lotteryButtonText,
                     onClick = onEnterLottery,
+                    enabled = lotteryButtonEnabled,
+                    brush = buttonBrush,
                     height = 52.dp,
-                    modifier = Modifier.align(Alignment.BottomCenter).padding(horizontal = 24.dp, vertical = 12.dp)
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .padding(horizontal = 24.dp, vertical = 12.dp)
+                        .testTag(buttonTag)
                 )
+            }
                 UserRole.ADMIN -> GradientButton(
                     text = "Delete Site",
                     onClick = { confirmDelete = true },

@@ -29,7 +29,14 @@ import com.example.campbnb.ui.theme.FieldGrey
 import com.example.campbnb.ui.theme.SearchBarBg
 
 /** What a campsite card in a horizontal row needs to show. Add an image URL later. */
-data class CampsiteCardData(val id: String, val name: String)
+data class CampsiteCardData(
+    val id: String,
+    val name: String,
+    val location: String = "",
+    val maxOccupancy: Int = 0,
+    val rating: Double = 0.0,
+    val ratingCount: Int = 0
+)
 
 private val placeholderCards = List(6) { CampsiteCardData("placeholder$it", "(image)") }
 

@@ -149,7 +149,53 @@ class CampsiteController (
             } else {
                 model.setStatusMessage("Failed to register campsite")
                 onComplete(false)
+            }
         }
+    }
+
+    // Updates an existing campsite for the current user
+    fun updateCampsite(
+        campsite: Campsite,
+        ownerId: String,
+        onComplete: (Boolean) -> Unit
+    ) {
+        if (ownerId.isBlank()) {
+            model.setStatusMessage("Please log in to update a campsite")
+            onComplete(false)
+            return
         }
+        repo.SaveCampsite(campsite) { result ->
+            if (result.isSuccess) {
+                model.setStatusMessage("Campsite updated successfully")
+                onComplete(true)
+            } else {
+                model.setStatusMessage("Failed to update campsite")
+                onComplete(false)
+            }
+        }
+    }
+
+    /** Loads every campsite, then shows only the ones matching [query] (US 01.01.01, 01.01.03). */
+    fun loadAndSearch(query: String) {
+        repo.getAll(
+            onSuccess = { campsites ->
+                model.setCampsites(campsites)
+                search(query, null)
+            },
+            onFailure = { error -> model.setStatusMessage("Could not load campsites: " + error.message) }
+        )
+        loadRatings()
+    }
+
+    /** Loads every campsite, then puts the one with [campsiteId] on the Details screen (US 01.01.05). */
+    fun loadAndSelect(campsiteId: String) {
+        repo.getAll(
+            onSuccess = { campsites ->
+                model.setCampsites(campsites)
+                selectCampsite(campsiteId)
+            },
+            onFailure = { error -> model.setStatusMessage("Could not load campsites: " + error.message) }
+        )
+        loadRatings()
     }
 }
