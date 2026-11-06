@@ -42,4 +42,11 @@ open class CampsiteRepository {
     open fun saveRating(rating: Rating, onComplete: (Result<Exception?>) -> Unit) {
         Database.Ratings.writeEngine().save(rating, onComplete)
     }
+
+    /** Reads the campsites registered by one owner. */
+    open fun getByOwner(ownerId: String, onSuccess: (List<Campsite>) -> Unit, onFailure: (Exception) -> Unit) {
+        Database.Campsites.readEngine().query()
+            .whereEquals(Campsite::ownerId, ownerId)
+            .execute(onSuccess, onFailure)
+    }
 }
