@@ -38,8 +38,9 @@ data class CampsiteCardData(
     val ratingCount: Int = 0
 )
 
-private val placeholderCards = List(6) { CampsiteCardData("placeholder$it", "(image)") }
-
+private val placeholderCards = List(6) {
+    CampsiteCardData("placeholder$it", "(image)")
+}
 /**
  * The Explore page, which is also the home page. It is identical for campers, owners and
  * admins: a search bar and Settings button, a map, and "Recommended" and "New Sites" rows.
@@ -76,8 +77,25 @@ fun ExploreScreen(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                CampSearchBar(query, { query = it }, onSearch, Modifier.weight(1f), onMenuClick = onMenuClick)
-                CircleLabelButton("Settings", onSettingsClick)
+                CampSearchBar(
+                    query = query,
+                    onQueryChange = { query = it },
+
+                    onSubmitSearch = { text ->
+                        if (text.isNotBlank()) {
+                            onSearch(text)
+                        }
+                    },
+
+                    onMagnifyClick = { text ->
+                        onSearch(text)
+                    },
+
+                    modifier = Modifier.weight(1f),
+                    onMenuClick = onMenuClick
+                )
+
+                SettingsButton(onSettingsClick)
             }
         }
         item { MapPlaceholder() }
@@ -99,7 +117,8 @@ fun ExploreScreen(
 fun CampSearchBar(
     query: String,
     onQueryChange: (String) -> Unit,
-    onSearch: (String) -> Unit,
+    onSubmitSearch: (String) -> Unit,
+    onMagnifyClick: (String) -> Unit,
     modifier: Modifier = Modifier,
     onMenuClick: () -> Unit = {},
     menuContent: @Composable () -> Unit = {}
@@ -115,12 +134,24 @@ fun CampSearchBar(
             }
         },
         trailingIcon = {
-            Box(Modifier.clickable { onSearch(query) }.padding(8.dp)) { SearchGlyph() }
+            Box(
+                Modifier
+                    .clickable {
+                        onMagnifyClick(query)
+                    }
+                    .padding(8.dp)
+            ) {
+                SearchGlyph()
+            }
         },
         singleLine = true,
         shape = RoundedCornerShape(50),
         keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-        keyboardActions = KeyboardActions(onSearch = { onSearch(query) }),
+        keyboardActions = KeyboardActions(
+            onSearch = {
+                onSubmitSearch(query)
+            }
+        ),
         colors = TextFieldDefaults.colors(
             focusedContainerColor = SearchBarBg,
             unfocusedContainerColor = SearchBarBg,
@@ -189,7 +220,28 @@ private fun CampsiteRow(
                         .clickable { onClick(campsite) },
                     contentAlignment = Alignment.Center
                 ) {
-                    Text(campsite.name, fontSize = 16.sp, color = Color.Black)
+                    Column(
+                        modifier = Modifier.padding(10.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Text(
+                            text = campsite.name,
+                            fontSize = 16.sp,
+                            color = Color.Black
+                        )
+
+                        Text(
+                            text = campsite.location,
+                            fontSize = 12.sp,
+                            color = Color.DarkGray
+                        )
+
+                        Text(
+                            text = "Up to ${campsite.maxOccupancy} guests",
+                            fontSize = 11.sp,
+                            color = Color.DarkGray
+                        )
+                    }
                 }
             }
         }

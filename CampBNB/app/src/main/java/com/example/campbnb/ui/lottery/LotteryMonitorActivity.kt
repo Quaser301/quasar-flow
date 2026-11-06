@@ -19,6 +19,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.campbnb.controller.LotteryController
@@ -26,17 +27,27 @@ import com.example.campbnb.models.Lottery
 import com.example.campbnb.models.LotteryModel
 import com.example.campbnb.models.ViewObserver
 import com.example.campbnb.ui.shared.AppViewModificationIsValidForCurrentWindowChecker
+import com.example.campbnb.ui.shared.DeviceId
 import com.example.campbnb.ui.shared.observeModel
 import com.example.campbnb.viewModels.AppView
 import com.example.campbnb.viewModels.AppViewSetting
+import com.google.firebase.auth.FirebaseAuth
 
 /**
  * 05-11-26: Prompted gemini 3.6 to integrate the card layout I created for assignment 1 to
  * display the owners active lotteries.
  * 05-11-26: Prompted gemini 3.6 to create a wide but short rectangular button for the create lottery
  * button. Modifiers are tedious :).
+ * 06-11-26: Prompted gemini 3.6 to help me fix bug where the incorrect owner ID is passed in
+ * making the lotteries not display. Provided a simple few line edit.
+ * 06-11-26: Prompted gemini 3.6 to fill out kdocs
+ *
+ * @property goHome Callback function to navigate to the home screen.
+ * @property goBack Callback function to navigate backwards.
+ * @property goToCreateLottery Callback function to navigate to the create lottery screen.
+ * @property goToLotteryDetails Callback function to navigate to details for a selected [Lottery].
+ * @property appViewSettings Current view settings used for window verification and access checks.
  */
-
 class LotteryMonitorActivity(
     val goHome: () -> Unit,
     val goBack: () -> Unit,
@@ -45,11 +56,24 @@ class LotteryMonitorActivity(
     val appViewSettings: AppViewSetting
 ) : ViewObserver<LotteryModel> {
 
-    // Required by ViewObserver. The list recomposes through the Compose state in
-    // LotteryModel, so there is nothing to do here.
+    /**
+     * Required by ViewObserver. The list recomposes through the Compose state in
+     * [LotteryModel], so no manual update is necessary.
+     *
+     * @param model The updated [LotteryModel] instance.
+     */
     override fun update(model: LotteryModel) {}
 
-    // List of all lotteries
+    /**
+     * Renders the list of lotteries belonging to the specified owner.
+     *
+     * Fetches lotteries via [controller] on launch and displays them in cards showing
+     * campsite names, status, and navigation to lottery details or creation.
+     *
+     * @param model The lottery state model shown by views.
+     * @param controller The controller managing lottery database actions.
+     * @param ownerId Unique identifier of the campsite owner whose lotteries are displayed.
+     */
     @Composable
     fun LotteryMonitor(
         model: LotteryModel,
@@ -65,9 +89,14 @@ class LotteryMonitorActivity(
                 AppView.AdminView
             )
         )
+
+        val context = LocalContext.current
+        val resolvedOwnerId = ownerId.ifBlank {
+            FirebaseAuth.getInstance().currentUser?.uid ?: DeviceId.get(context) }
+
         LaunchedEffect(ownerId) {
-            if (ownerId.isNotBlank()) {
-                controller.loadOwnerLotteries(ownerId)
+            if (resolvedOwnerId.isNotBlank()) {
+                controller.loadOwnerLotteries(resolvedOwnerId)
             }
         }
 
@@ -77,7 +106,6 @@ class LotteryMonitorActivity(
                 .padding(16.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-
 
             Spacer(modifier = Modifier.height(16.dp))
             Row(

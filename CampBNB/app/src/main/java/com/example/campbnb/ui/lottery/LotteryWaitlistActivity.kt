@@ -48,12 +48,29 @@ import java.util.Locale
  * Copied template from LotteryDetailsActivity.kt.
  * 06-11-26: Prompted gemini 3.6 to modify the template code to modify the ui to
  * display the waitlist entrants using the query and controller functions I set up.
+ * 06-11-26: Prompted gemini 3.6 to fill out kdocs
+ *
+ * @property returnHome Callback function to navigate back to the home screen.
+ * @property navigateBackwards Callback function to navigate backwards in the navigation stack.
+ * @property onViewDetails Optional callback function to view details of [Lottery].
+ * @property appViewSettings Current view settings used for window verification and access checks.
  */
 class LotteryWaitlistActivity(
     val returnHome: () -> Unit,
     val navigateBackwards: () -> Unit,
+    val onViewDetails: (Lottery?) -> Unit = {},
     val appViewSettings: AppViewSetting
 ) {
+    /**
+     * Renders the entrant waitlist for a selected lottery.
+     *
+     * Loads waitlist entries via [controller] on launch and displays them in a scrollable
+     * list showing each entrant's user ID and timestamp when they joined.
+     *
+     * @param model The lottery state model shown by views.
+     * @param controller The controller managing lottery database actions.
+     * @param selectedLottery The [Lottery] instance whose waitlist is displayed; null if none selected.
+     */
     @Composable
     fun LotteryWaitlist(
         model: LotteryModel,
