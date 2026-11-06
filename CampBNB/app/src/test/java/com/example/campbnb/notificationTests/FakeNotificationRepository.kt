@@ -1,4 +1,4 @@
-package com.example.campbnb
+package com.example.campbnb.notificationTests
 
 import com.example.campbnb.data.NotificationRepository
 import com.example.campbnb.data.NotificationUpdate
