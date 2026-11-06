@@ -112,10 +112,12 @@ fun CampBnbApp(appViewSettings: AppViewSettingController) {
             val route = entry.toRoute<Screen.Search>()
             SearchScreen(
                 initialQuery = route.query,
+                onClose = {
+                    nav.navigateUp()
+                },
                 onCampsiteClick = {
                     nav.navigate(Screen.CampsiteDetail(route.roleName, it.id))
                 },
-                onQrClick = { /* TODO: open QR scanner */ }
             )
         }
         // Campsite details
