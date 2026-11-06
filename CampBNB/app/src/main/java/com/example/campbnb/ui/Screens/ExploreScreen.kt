@@ -10,10 +10,13 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -21,16 +24,25 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.campbnb.ui.components.CircleLabelButton
 import com.example.campbnb.ui.components.MenuGlyph
 import com.example.campbnb.ui.components.SearchGlyph
 import com.example.campbnb.ui.theme.FieldGrey
 import com.example.campbnb.ui.theme.SearchBarBg
 
 /** What a campsite card in a horizontal row needs to show. Add an image URL later. */
-data class CampsiteCardData(val id: String, val name: String)
+data class CampsiteCardData(
+    val id: String,
+    val name: String,
+    val location: String = "",
+    val maxOccupancy: Int = 0,
+    val rating: Double = 0.0,
+    val ratingCount: Int = 0
+)
 
-private val placeholderCards = List(6) { CampsiteCardData("placeholder$it", "(image)") }
-
+private val placeholderCards = List(6) {
+    CampsiteCardData("placeholder$it", "(image)")
+}
 /**
  * The Explore page, which is also the home page. It is identical for campers, owners and
  * admins: a search bar and Settings button, a map, and "Recommended" and "New Sites" rows.
@@ -41,18 +53,25 @@ private val placeholderCards = List(6) { CampsiteCardData("placeholder$it", "(im
  * @param newSites Cards for the "New Sites" row.
  * @param onCampsiteClick Called when a campsite card is tapped.
  * @param onSettingsClick Called when the Settings circle is tapped.
- * @param onMenuClick Called when the hamburger icon is tapped (open a drawer here later).
+ * @param onMenuClick Called when the hamburger icon is tapped.
+ * @param onFilterClick Called when "Filter" is chosen from the hamburger menu. Opens the
+ * Search page with its filter panel showing (US 01.01.02).
  * @param onSearch Called with the query when the user submits a search.
  */
 @Composable
 fun ExploreScreen(
+
     recommended: List<CampsiteCardData> = placeholderCards,
     newSites: List<CampsiteCardData> = placeholderCards,
     onCampsiteClick: (CampsiteCardData) -> Unit = {},
     onSettingsClick: () -> Unit = {},
     onMenuClick: () -> Unit = {},
+    onFilterClick: () -> Unit = {},
     onSearch: (String) -> Unit = {}
 ) {
+    var query by rememberSaveable { mutableStateOf("") }   // import androidx.compose.runtime.saveable.rememberSaveable
+    var menuOpen by remember { mutableStateOf(false) }
+
     LazyColumn(
         Modifier.fillMaxSize(),
         contentPadding = PaddingValues(vertical = 12.dp),
@@ -64,7 +83,45 @@ fun ExploreScreen(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                CampSearchBar(onMenuClick, onSearch, Modifier.weight(1f))
+                CampSearchBar(
+                    query = query,
+                    onQueryChange = { query = it },
+
+                    onSubmitSearch = { text ->
+                        if (text.isNotBlank()) {
+                            onSearch(text)
+                        }
+                    },
+
+                    onMagnifyClick = { text ->
+                        if (text.isNotBlank()) {
+                            onSearch(text)
+                        }
+                    },
+
+                    modifier = Modifier.weight(1f),
+
+                    onMenuClick = {
+                        menuOpen = true
+                        onMenuClick()
+                    },
+
+                    menuContent = {
+                        DropdownMenu(
+                            expanded = menuOpen,
+                            onDismissRequest = { menuOpen = false }
+                        ) {
+                            DropdownMenuItem(
+                                text = { Text("Filter") },
+                                onClick = {
+                                    menuOpen = false
+                                    onFilterClick()
+                                }
+                            )
+                        }
+                    }
+                )
+
                 SettingsButton(onSettingsClick)
             }
         }
@@ -74,28 +131,54 @@ fun ExploreScreen(
     }
 }
 
-/** Pill-shaped search field with a menu icon on the left and a search icon on the right. */
+/**
+ * Pill-shaped search field with a menu icon on the left and a search icon on the right.
+ *
+ * @param query The current text.
+ * @param onQueryChange Called as the user types.
+ * @param onSearch Called with the query when the user submits it.
+ * @param onMenuClick Called when the hamburger icon is tapped.
+ * @param menuContent A dropdown menu anchored to the hamburger icon. Empty by default.
+ */
 @Composable
-private fun CampSearchBar(
-    onMenuClick: () -> Unit,
-    onSearch: (String) -> Unit,
-    modifier: Modifier = Modifier
+fun CampSearchBar(
+    query: String,
+    onQueryChange: (String) -> Unit,
+    onSubmitSearch: (String) -> Unit,
+    onMagnifyClick: (String) -> Unit,
+    modifier: Modifier = Modifier,
+    onMenuClick: () -> Unit = {},
+    menuContent: @Composable () -> Unit = {}
 ) {
-    var query by remember { mutableStateOf("") }
     TextField(
         value = query,
-        onValueChange = { query = it },
+        onValueChange = onQueryChange,
         placeholder = { Text("Search for campsites...", fontSize = 14.sp) },
         leadingIcon = {
-            Box(Modifier.clickable(onClick = onMenuClick).padding(8.dp)) { MenuGlyph() }
+            Box {
+                Box(Modifier.clickable(onClick = onMenuClick).padding(8.dp)) { MenuGlyph() }
+                menuContent()
+            }
         },
         trailingIcon = {
-            Box(Modifier.clickable { onSearch(query) }.padding(8.dp)) { SearchGlyph() }
+            Box(
+                Modifier
+                    .clickable {
+                        onMagnifyClick(query)
+                    }
+                    .padding(8.dp)
+            ) {
+                SearchGlyph()
+            }
         },
         singleLine = true,
         shape = RoundedCornerShape(50),
         keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-        keyboardActions = KeyboardActions(onSearch = { onSearch(query) }),
+        keyboardActions = KeyboardActions(
+            onSearch = {
+                onSubmitSearch(query)
+            }
+        ),
         colors = TextFieldDefaults.colors(
             focusedContainerColor = SearchBarBg,
             unfocusedContainerColor = SearchBarBg,
@@ -164,7 +247,28 @@ private fun CampsiteRow(
                         .clickable { onClick(campsite) },
                     contentAlignment = Alignment.Center
                 ) {
-                    Text(campsite.name, fontSize = 16.sp, color = Color.Black)
+                    Column(
+                        modifier = Modifier.padding(10.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Text(
+                            text = campsite.name,
+                            fontSize = 16.sp,
+                            color = Color.Black
+                        )
+
+                        Text(
+                            text = campsite.location,
+                            fontSize = 12.sp,
+                            color = Color.DarkGray
+                        )
+
+                        Text(
+                            text = "Up to ${campsite.maxOccupancy} guests",
+                            fontSize = 11.sp,
+                            color = Color.DarkGray
+                        )
+                    }
                 }
             }
         }

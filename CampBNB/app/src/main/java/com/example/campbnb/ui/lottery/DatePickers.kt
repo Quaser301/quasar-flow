@@ -11,6 +11,11 @@ import androidx.compose.material3.rememberDateRangePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.example.campbnb.models.DateUtils.today
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+import java.util.TimeZone
 
 /**
  * UI file andrioid's date range picker modal to be used for the lottery and booking
@@ -61,4 +66,18 @@ fun DateRangePickerModal(
                 .padding(16.dp)
         )
     }
+}
+
+/** Converts a date picker's UTC-midnight millis into yyyy-MM-dd. */
+fun fromPickerMillis(utcMillis: Long): String {
+    val format = SimpleDateFormat("yyyy-MM-dd", Locale.US)
+    format.timeZone = TimeZone.getTimeZone("UTC")
+    return format.format(Date(utcMillis))
+}
+
+/** Today's date (device timezone) as the UTC-midnight millis a date picker uses. */
+fun todayAsPickerMillis(): Long {
+    val format = SimpleDateFormat("yyyy-MM-dd", Locale.US)
+    format.timeZone = TimeZone.getTimeZone("UTC")
+    return format.parse(today())!!.time
 }

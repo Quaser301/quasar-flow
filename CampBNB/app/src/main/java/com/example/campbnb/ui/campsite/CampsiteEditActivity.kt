@@ -37,22 +37,50 @@ import com.example.campbnb.models.Campsite
  */
 @Composable
 fun CampsiteRegistrationForm(
+    existingCampsite: Campsite? = null,
     onBack: () -> Unit,
     onUpload: (Campsite, Uri?) -> Unit
 ) {
-    var CampName by remember { mutableStateOf("") }
-    var CampLoc by remember { mutableStateOf("") }
-    var CampDesc by remember { mutableStateOf("") }
-    var CampAmenities by remember { mutableStateOf("") }
-    var maxOccupancy by remember { mutableStateOf("") }
-    var geoLocation by remember { mutableStateOf("") }
+    var CampName by remember(existingCampsite) {
+        mutableStateOf(existingCampsite?.campName ?: "")
+    }
+
+    var CampLoc by remember(existingCampsite) {
+        mutableStateOf(existingCampsite?.campLoc ?: "")
+    }
+
+    var CampDesc by remember(existingCampsite) {
+        mutableStateOf(existingCampsite?.campDesc ?: "")
+    }
+
+    var CampAmenities by remember(existingCampsite) {
+        mutableStateOf(existingCampsite?.campAmenities?.joinToString(", ") ?: "")
+    }
+
+    var maxOccupancy by remember(existingCampsite) {
+        mutableStateOf(existingCampsite?.maxOccupancy?.toString() ?: "")
+    }
+
+    var geoLocation by remember(existingCampsite) {
+        mutableStateOf(existingCampsite?.geoLocation ?: "")
+    }
+
     var tagInput by remember { mutableStateOf("") }
-    var tags by remember { mutableStateOf(emptyList<String>()) }
+
+    var tags by remember(existingCampsite) {
+        mutableStateOf(existingCampsite?.tags ?: emptyList<String>())
+    }
+
     var CampImg by remember { mutableStateOf<Uri?>(null) }
     var BackConfirmation by remember { mutableStateOf(false) }
-    var cancelPolicy by remember { mutableStateOf("") }
-    var CampPrice by remember { mutableStateOf("") }
 
+    var cancelPolicy by remember(existingCampsite) {
+        mutableStateOf(existingCampsite?.cancelPolicy ?: "")
+    }
+
+    var CampPrice by remember(existingCampsite) {
+        mutableStateOf(existingCampsite?.campPrice?.toString() ?: "")
+    }
 
     val imagePicker = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent(),
@@ -102,8 +130,23 @@ fun CampsiteRegistrationForm(
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
+        Button(
+            onClick = {
+                if (Owner_PutInput) {
+                    BackConfirmation = true
+                } else {
+                    onBack()
+                }
+            }
+        ) {
+            Text("Back")
+        }
         Text(
-            text = "Register a Campsite",
+            text = if (existingCampsite == null) {
+                "Register a Campsite"
+            } else {
+                "Edit Campsite"
+            },
             style = MaterialTheme.typography.headlineMedium,
         )
         OutlinedTextField(
@@ -232,14 +275,26 @@ fun CampsiteRegistrationForm(
                     geoLocation = geoLocation.trim(),
                     tags = tags,
                     cancelPolicy = cancelPolicy.trim(),
-                    campPrice = CampPrice.toDoubleOrNull() ?: 0.0
+                    campPrice = CampPrice.toDoubleOrNull() ?: 0.0,
+                    ownerId = existingCampsite?.ownerId ?: "",
+                    campImg = existingCampsite?.campImg ?: "",
+                    availableStartDate = existingCampsite?.availableStartDate ?: "",
+                    availableEndDate = existingCampsite?.availableEndDate ?: "",
+                    blockedDates = existingCampsite?.blockedDates ?: emptyList()
                 )
+
+                if (existingCampsite != null) {
+                    campsite.id = existingCampsite.id
+                }
                 onUpload(campsite, CampImg)
             },
             enabled = Validation,
             modifier = Modifier.fillMaxWidth()
         ) {
-            Text("Upload my listing")
+            Text(
+                if (existingCampsite == null) {"Upload my listing"}
+                else {"Save Changes"}
+            )
         }
     }
 

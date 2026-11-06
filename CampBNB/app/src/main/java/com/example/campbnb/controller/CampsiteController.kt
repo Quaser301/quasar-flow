@@ -4,6 +4,7 @@ import com.example.campbnb.data.CampsiteRepository
 import com.example.campbnb.models.Campsite
 import com.example.campbnb.models.CampsiteModel
 import com.example.campbnb.models.Rating
+import com.example.campbnb.models.SearchFilters
 
 /**
  * Controller for CampsiteModel, campsite search, details, and ratings for entrants.
@@ -19,6 +20,11 @@ class CampsiteController (
             onSuccess = { campsites -> model.setCampsites(campsites) },
             onFailure = { error -> model.setStatusMessage("Could not load campsites: " + error.message) }
         )
+        loadRatings()
+    }
+
+    /** Loads every rating into the model, so averages and the user's own rating can be shown. */
+    fun loadRatings() {
         repo.getAllRatings(
             onSuccess = { ratings -> model.setRatings(ratings) },
             onFailure = { error -> model.setStatusMessage("Could not load ratings: " + error.message) }
@@ -30,14 +36,77 @@ class CampsiteController (
      * and that hold at least [guests] people. Blank text or null guests means no filter
      * (US 01.01.01, 01.01.03).
      */
-    fun search(query: String, guests: Int?) {
+    /**
+     * Shows only the campsites that match [query] (name, location or a tag) and every filter
+     * set in [filters] (US 01.01.01, 01.01.02, 01.01.03).
+     */
+    fun search(query: String, filters: SearchFilters) {
         val results = mutableListOf<Campsite>()
         for (campsite in model.allCampsites) {
-            if (matchesText(campsite, query) && matchesGuests(campsite, guests)) {
+            if (matchesText(campsite, query) &&
+                matchesLocation(campsite, filters.location) &&
+                matchesGuests(campsite, filters.guests) &&
+                matchesDates(campsite, filters.startDate, filters.endDate)
+            ) {
                 results.add(campsite)
             }
         }
         model.setVisibleCampsites(results)
+    }
+
+    /** Kept so existing callers and tests still compile. */
+    fun search(query: String, guests: Int?) {
+        search(query, SearchFilters(guests = guests))
+    }
+
+    private fun matchesLocation(campsite: Campsite, location: String): Boolean {
+        val text = location.trim()
+        if (text.isEmpty()) {
+            return true
+        }
+        return campsite.campLoc.contains(text, ignoreCase = true)
+    }
+
+    /**
+     * True if every date from [startDate] to [endDate] is inside the owner's available range
+     * and none is blocked. Dates are yyyy-MM-dd, so comparing them as text is correct.
+     * No date filter (empty [startDate]) matches everything.
+     */
+    private fun matchesDates(campsite: Campsite, startDate: String, endDate: String): Boolean {
+        if (startDate.isEmpty()) {
+            return true
+        }
+        var lastDate = endDate
+        if (lastDate.isEmpty()) {
+            lastDate = startDate
+        }
+        if (campsite.availableStartDate.isEmpty() || campsite.availableEndDate.isEmpty()) {
+            return false
+        }
+        if (startDate < campsite.availableStartDate) {
+            return false
+        }
+        if (lastDate > campsite.availableEndDate) {
+            return false
+        }
+        for (blocked in campsite.blockedDates) {
+            if (blocked >= startDate && blocked <= lastDate) {
+                return false
+            }
+        }
+        return true
+    }
+
+    /** Loads every campsite, then shows the ones matching [query] and [filters] (US 01.01.01, 01.01.03). */
+    fun loadAndSearch(query: String, filters: SearchFilters = SearchFilters()) {
+        repo.getAll(
+            onSuccess = { campsites ->
+                model.setCampsites(campsites)
+                search(query, filters)
+            },
+            onFailure = { error -> model.setStatusMessage("Could not load campsites: " + error.message) }
+        )
+        loadRatings()
     }
 
     private fun matchesText(campsite: Campsite, query: String): Boolean {
@@ -79,6 +148,10 @@ class CampsiteController (
 
     /** Saves a 1-5 star rating; rating again replaces the old one (US 01.13.01). */
     fun saveRating(campsiteId: String, userId: String, stars: Int) {
+        if (userId.isBlank()) {
+            model.setStatusMessage("Please sign in before rating")
+            return
+        }
         if (stars < 1 || stars > 5) {
             model.setStatusMessage("Rating must be between 1 and 5 stars")
             return
@@ -140,7 +213,111 @@ class CampsiteController (
             } else {
                 model.setStatusMessage("Failed to register campsite")
                 onComplete(false)
+            }
         }
+    }
+
+
+    /**
+     * Updates a campsite only if it belongs to the current owner.
+     */
+    fun updateCampsite(
+        campsite: Campsite,
+        ownerId: String,
+        onComplete: (Boolean) -> Unit
+    ) {
+        if (ownerId.isBlank() || campsite.id.isBlank()) {
+            model.setStatusMessage("Invalid owner or campsite")
+            onComplete(false)
+            return
         }
+
+        repo.getAll(
+            onSuccess = { allCampsites ->
+
+                val existing = allCampsites.find {
+                    it.id == campsite.id
+                }
+
+                // Verify that the campsite belongs to this owner.
+                if (existing == null || existing.ownerId != ownerId) {
+                    model.setStatusMessage(
+                        "You cannot update this campsite"
+                    )
+                    onComplete(false)
+                    return@getAll
+                }
+
+                // Prevent changing the original owner.
+                if (campsite.ownerId != existing.ownerId) {
+                    model.setStatusMessage(
+                        "Campsite owner cannot be changed"
+                    )
+                    onComplete(false)
+                    return@getAll
+                }
+
+                // Preserve the original owner and document ID.
+                val campsiteToSave = Campsite(
+                    ownerId = existing.ownerId,
+                    campName = campsite.campName,
+                    campLoc = campsite.campLoc,
+                    campDesc = campsite.campDesc,
+                    campAmenities = campsite.campAmenities,
+                    geoLocation = campsite.geoLocation,
+                    campImg = campsite.campImg,
+                    maxOccupancy = campsite.maxOccupancy,
+                    tags = campsite.tags,
+                    cancelPolicy = campsite.cancelPolicy,
+                    campPrice = campsite.campPrice,
+                    availableStartDate = campsite.availableStartDate,
+                    availableEndDate = campsite.availableEndDate,
+                    blockedDates = campsite.blockedDates
+                ).apply {
+                    id = existing.id
+                }
+
+                repo.SaveCampsite(campsiteToSave) { result ->
+                    if (result.isSuccess) {
+                        model.setStatusMessage(
+                            "Campsite updated successfully"
+                        )
+                        onComplete(true)
+                    } else {
+                        model.setStatusMessage(
+                            "Failed to update campsite"
+                        )
+                        onComplete(false)
+                    }
+                }
+            },
+            onFailure = {
+                model.setStatusMessage(
+                    "Could not verify campsite owner"
+                )
+                onComplete(false)
+            }
+        )
+    }
+
+    /** Loads every campsite, then puts the one with [campsiteId] on the Details screen (US 01.01.05). */
+    fun loadAndSelect(campsiteId: String) {
+        repo.getAll(
+            onSuccess = { campsites ->
+                model.setCampsites(campsites)
+                selectCampsite(campsiteId)
+            },
+            onFailure = { error -> model.setStatusMessage("Could not load campsites: " + error.message) }
+        )
+        loadRatings()
+    }
+
+    /** Loads the campsites registered by [ownerId] for the owner's My Campsites list (US 02.03.01). */
+    fun loadOwnerCampsites(ownerId: String) {
+        repo.getByOwner(
+            ownerId,
+            onSuccess = { campsites -> model.setOwnedCampsites(campsites) },
+            onFailure = { error -> model.setStatusMessage("Could not load your campsites: " + error.message) }
+        )
     }
 }

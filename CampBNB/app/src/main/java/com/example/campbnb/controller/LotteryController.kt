@@ -113,6 +113,10 @@ class LotteryController(
      * model's status message.
      */
     fun join(lottery: Lottery, userId: String) {
+        if (userId.isBlank()) {
+            model.setStatusMessage("Please sign in before joining a lottery")
+            return
+        }
         val now = clock()
         if (!isRegistrationOpen(lottery, now)) {
             model.setStatusMessage("Registration is closed")
@@ -135,6 +139,10 @@ class LotteryController(
 
     /** Takes the user off the waiting list (US 01.02.02). */
     fun leave(lottery: Lottery, userId: String) {
+        if (userId.isBlank()) {
+            model.setStatusMessage("Please sign in before leaving a lottery")
+            return
+        }
         repo.removeEntry(
             lottery.id,
             userId,
@@ -207,12 +215,37 @@ class LotteryController(
     fun saveLottery(lottery: Lottery, onSuccess: () -> Unit, onFailure: (Exception) -> Unit) {
         repo.save(lottery, onSuccess, onFailure)
     }
-    fun loadOwnerLotteries(ownerId : String){
-        repo.getLotteriesForOwner(ownerId,
+
+    fun loadOwnerLotteries(ownerId: String) {
+        repo.getLotteriesForOwner(
+            ownerId,
             onSuccess = { lotteries -> model.setLotteries(lotteries) },
             onFailure = { error -> model.setStatusMessage("Could not load lotteries: " + error.message) }
         )
     }
 
+    /**
+     * Joins the open lottery's waiting list, or leaves it if the user is already on it
+     * (US 01.01.06, 01.02.01, 01.02.02). Does nothing if the campsite has no open lottery.
+     */
+    fun toggleEntrantMembership(userId: String) {       // prompted Claude Sonnet 5.5 to move join/leave logic from screen to controller
+        val lottery = model.entrantLottery
+        if (lottery == null) {
+            return
+        }
+        if (model.entrantIsOnWaitlist) {
+            leave(lottery, userId)
+        } else {
+            join(lottery, userId)
+        }
+    }
 
+    fun loadWaitlistEntries(lotteryId: String, onResult: (List<WaitingListEntry>) -> Unit) {
+        repo.getEntries(
+            lotteryId = lotteryId,
+            onSuccess = { entries -> onResult(entries) },
+            onFailure = { onResult(emptyList()) }
+        )
+    }
 }
+

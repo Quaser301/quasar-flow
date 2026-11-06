@@ -1,38 +1,49 @@
 package com.example.campbnb.models
 
-class LotteryModel : ObservableModel<LotteryModel>(){
-    var lotteryList: List<Lottery> = emptyList()
-        private set
-    var statusMessage: String = ""
-        private set
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
+
+class LotteryModel : ObservableModel<LotteryModel>() {
+
+    private val lotteries = mutableStateOf<List<Lottery>>(emptyList())
+    private val message = mutableStateOf("")
+
+    private val currentLottery = mutableStateOf<Lottery?>(null)
+    private val isOnWaitlist = mutableStateOf(false)
+    private val waitlistPosition = mutableIntStateOf(0)
+
+    val lotteryList: List<Lottery>
+        get() = lotteries.value
+
+    val statusMessage: String
+        get() = message.value
+
+    val entrantLottery: Lottery?
+        get() = currentLottery.value
+
+    val entrantIsOnWaitlist: Boolean
+        get() = isOnWaitlist.value
+
+    val entrantPosition: Int
+        get() = waitlistPosition.intValue
 
     fun setLotteries(list: List<Lottery>) {
-        lotteryList = list;
-        notifyViews()
+        lotteries.value = list
     }
+
     fun setStatusMessage(msg: String) {
-        statusMessage = msg;
-        notifyViews()
+        message.value = msg
     }
 
-    /** The open lottery for the campsite on screen, or null if there is none. */
-    var activeLottery: Lottery? = null
-        private set
+    fun setEntrantStatus(
+        lottery: Lottery?,
+        onWaitlist: Boolean,
+        position: Int
+    ) {
+        currentLottery.value = lottery
+        isOnWaitlist.value = onWaitlist
+        waitlistPosition.intValue = position
 
-    /** True if the current user is on the active lottery's waiting list. */
-    var joinedActive: Boolean = false
-        private set
-
-    /** How many entrants are on the active lottery's waiting list. */
-    var waitlistSize: Int = 0
-        private set
-
-    /** Sets the open lottery (or null), whether the user is on its list, and the list size. */
-    fun setEntrantStatus(lottery: Lottery?, joined: Boolean, size: Int) {
-        activeLottery = lottery
-        joinedActive = joined
-        waitlistSize = size
-        notifyViews()
+        // notifyViews() if you still use observer updates
     }
-
 }
