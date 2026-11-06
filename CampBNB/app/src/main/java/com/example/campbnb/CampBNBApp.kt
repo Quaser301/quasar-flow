@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -22,6 +23,7 @@ import com.example.campbnb.controller.LotteryController
 import com.example.campbnb.data.LotteryRepository
 import com.example.campbnb.database.Database
 import com.example.campbnb.models.LotteryModel
+import com.example.campbnb.notifications.NotificationRoutes
 import com.example.campbnb.ui.Screens.ExploreScreen
 import com.example.campbnb.ui.Screens.HomeDestination
 import com.example.campbnb.ui.Screens.HomeScreen
@@ -30,6 +32,9 @@ import com.example.campbnb.ui.Screens.PlaceholderTab
 import com.example.campbnb.ui.Screens.RoleSelectScreen
 import com.example.campbnb.ui.Screens.SignUpScreen
 import com.example.campbnb.ui.Screens.StartScreen
+import com.example.campbnb.ui.inbox.CorrespondenceScreen
+import com.example.campbnb.ui.inbox.NotificationInboxScreen
+import com.example.campbnb.ui.inbox.NotificationViewModel
 import com.example.campbnb.ui.components.UserRole
 import com.example.campbnb.ui.lottery.LotteryDetailsActivity
 import com.example.campbnb.ui.lottery.LotteryEditActivity
@@ -37,9 +42,13 @@ import com.example.campbnb.ui.lottery.LotteryMonitorActivity
 import com.example.campbnb.ui.settings.SettingsScreen
 import com.example.campbnb.viewModels.AppView
 import com.example.campbnb.viewModels.AppViewSettingController
+import com.example.campbnb.viewModels.simpleViewModelFactory
 
 @Composable
-fun CampBnbApp(appViewSettings: AppViewSettingController) {
+fun CampBnbApp(appViewSettings: AppViewSettingController,
+               pendingRoute: String? = null,
+               onPendingRouteHandled: () -> Unit = {}
+) {
 
     val nav = rememberNavController()
 
@@ -219,6 +228,22 @@ fun CampBnbApp(appViewSettings: AppViewSettingController) {
             }
             val model = remember { LotteryModel() }
             activity.LotteryDetails(model = model)
+        }
+
+        // Notification and message destinations are additive: existing typed
+        // destinations above remain unchanged.
+        composable(NotificationRoutes.NOTIFICATIONS) {
+            CorrespondenceDestination(nav = nav, initialTab = 0)
+        }
+        composable(NotificationRoutes.MESSAGES) {
+            CorrespondenceDestination(nav = nav, initialTab = 1)
+        }
+    }
+
+    LaunchedEffect(pendingRoute) {
+        if (!pendingRoute.isNullOrBlank()) {
+            nav.navigate(pendingRoute)
+            onPendingRouteHandled()
         }
     }
 }
