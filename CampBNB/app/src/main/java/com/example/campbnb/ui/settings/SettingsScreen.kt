@@ -7,6 +7,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -18,7 +20,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.example.campbnb.ui.components.GradientButton
+import com.example.campbnb.ui.components.GradientBarButton
 import com.example.campbnb.ui.components.UserRole
 import com.example.campbnb.ui.theme.ButtonStart
 import com.example.campbnb.ui.theme.FieldGrey
@@ -102,7 +104,7 @@ fun SettingsScreen(
         settingsGroupsFor(role, currentView.value).forEach { groupId ->
             SettingsDropdown(display, groupId) {
                 when (groupId) {
-                    SettingsGroupId.APP_VIEW_SWITCH -> ViewSwitchItems(viewSettings)
+                    SettingsGroupId.APP_VIEW_SWITCH -> ViewSwitchMenu(display, viewSettings)
                     SettingsGroupId.ADMIN_SETTINGS -> adminSettingsContent()
                     SettingsGroupId.ENTRANT_SETTINGS -> EntrantSettingsItems(entrantSettings)
                     SettingsGroupId.OWNER_SETTINGS -> OwnerSettingsItems(ownerSettings)
@@ -120,13 +122,10 @@ private fun SettingsTopBar(display: SettingsDisplayController) {
             .height(56.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Box(
-            Modifier
-                .clickable(onClick = { display.pressBack() })
-                .padding(12.dp)
-        ) {
-            Text("<", fontSize = 26.sp, color = Color.Black)
-        }
+        GradientBarButton(
+            "< back",
+            onClick = { display.pressBack() }
+        )
         Box(
             modifier = Modifier.weight(1f),
             contentAlignment = Alignment.Center
@@ -163,33 +162,40 @@ private fun SettingsDropdown(
     Column(
         verticalArrangement = Arrangement.spacedBy(32.dp)
     ) {
-        GradientButton(
+        GradientBarButton(
             groupLabel(groupId) + if (expanded.value) "" else " - tap to open",
             onClick = { display.toggleGroup(groupId.name) },
-            modifier = Modifier.padding(6.dp)
+            modifier = Modifier.fillMaxWidth().padding(6.dp)
         )
         if (expanded.value) content()
     }
 }
 
 /**
- * The app view switch's group of settings: the three views, each one moving
- * the current setting when chosen.
+ * The app view switch&apos;s group of settings: choosing one of the three views is
+ * exactly what a dropdown menu is for, so this group uses the material3 menu. Its
+ * expansion is still the display controller&apos;s state, and a dismissal through the
+ * menu&apos;s own closing runs the same controller toggle so the two never disagree.
  *
+ * @param display The holder of the dropdown expansion state.
  * @param viewSettings The app view setting controller to move.
  */
 @Composable
-private fun ViewSwitchItems(viewSettings: AppViewSettingController) {
-    val viewSetting = viewSettings.viewSetting.collectAsStateWithLifecycle()
-    Column(
-        verticalArrangement = Arrangement.spacedBy(16.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
+private fun ViewSwitchMenu(
+    display: SettingsDisplayController,
+    viewSettings: AppViewSettingController,
+) {
+    val expanded = display.expandedStateOf(SettingsGroupId.APP_VIEW_SWITCH.name).collectAsStateWithLifecycle()
+    val currentView = viewSettings.viewSetting.collectAsStateWithLifecycle()
+    DropdownMenu(
+        expanded = expanded.value,
+        onDismissRequest = { display.toggleGroup(SettingsGroupId.APP_VIEW_SWITCH.name) }
     ) {
         listOf(AppView.AdminView, AppView.OwnerView, AppView.EntrantView).forEach { view ->
-            GradientButton(
-                view.name + if (view == viewSetting.value) " (current)" else "",
-                { viewSettings.changeViewTo(view) }
-                )
+            DropdownMenuItem(
+                text = { Text(view.name + if (view == currentView.value) " <- current" else "") },
+                onClick = { viewSettings.changeViewTo(view) }
+            )
         }
     }
 }

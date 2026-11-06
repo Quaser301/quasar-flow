@@ -22,6 +22,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.campbnb.ui.theme.*
@@ -50,6 +51,40 @@ fun GradientButton(
         contentAlignment = Alignment.Center
     ) {
         Text(text, color = Color.White, fontSize = 18.sp)
+    }
+}
+
+/**
+ * Clone of [GradientButton] with knobs the Settings screens need: the caller sizes it
+ * instead of it forcing full width, and a second modifier styles the text so long
+ * labels or small heights stay readable.
+ *
+ * @param text The label drawn centered on the gradient pill.
+ * @param onClick Runs when the pill is pressed.
+ * @param modifier Outer sizing left to the caller, unlike the original.
+ * @param textModifier Styles the label; e.g. smaller fonts for long labels.
+ * @param height The pill height.
+ * @param enabled The pill stays but ignores presses while false.
+ */
+@Composable
+fun GradientBarButton(
+    text: String,
+    onClick: () -> Unit = {},
+    modifier: Modifier = Modifier,
+    textModifier: Modifier = Modifier,
+    height: Dp = 44.dp,
+    enabled: Boolean = true
+) {
+    Box(
+        modifier = modifier
+            .height(height)
+            .alpha(if (enabled) 1f else 0.5f)
+            .clip(RoundedCornerShape(50))
+            .background(ButtonGradient)
+            .clickable(enabled = enabled, onClick = onClick),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(text, color = Color.White, fontSize = 18.sp, modifier = textModifier)
     }
 }
 
