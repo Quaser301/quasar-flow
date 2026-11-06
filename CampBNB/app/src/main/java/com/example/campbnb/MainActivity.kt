@@ -6,9 +6,6 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.setValue
 import com.example.campbnb.ui.theme.CampBnbTheme
 import com.example.campbnb.viewModels.AppViewSettingController
 import com.example.campbnb.notifications.NotificationChannels
@@ -24,17 +21,18 @@ class MainActivity : ComponentActivity() {
             SystemNotifier(applicationContext)
         )
     }
-    private var pendingRoute by mutableStateOf<String?>(null)
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         // declare your static lifetime controllers here.
         val appViewSettingsControl = AppViewSettingController()
+
         NotificationChannels.createAll(applicationContext) // channels must exist before any notifications are posted
+
         if (savedInstanceState == null) {
             handleNotificationIntent(intent)
         }
-        val appViewSettingsControl = AppViewSettingController()
         val deviceId = DeviceId.get(this)
 
         setContent {
@@ -43,11 +41,7 @@ class MainActivity : ComponentActivity() {
                     AppContainer.currentUserId = deviceId
                     watcher.start(deviceId)
                 }
-                CampBnbApp(
-                    appViewSettings = appViewSettingsControl,
-                    pendingRoute = pendingRoute,
-                    onPendingRouteHandled = { pendingRoute = null }
-                )
+                CampBnbApp(appViewSettingsControl)
             }
         }
     }
@@ -60,8 +54,9 @@ class MainActivity : ComponentActivity() {
     private fun handleNotificationIntent(intent: Intent?) {
         if (intent == null) return
 
-        val route = intent.getStringExtra(NotificationRoutes.EXTRA_ROUTE)
-            ?: return
+        val route = intent.getStringExtra(
+            NotificationRoutes.EXTRA_ROUTE
+        ) ?: return
 
         val notificationId = intent.getStringExtra(
             NotificationRoutes.EXTRA_NOTIFICATION_ID
@@ -70,8 +65,6 @@ class MainActivity : ComponentActivity() {
         if (!notificationId.isNullOrBlank()) {
             AppContainer.notificationController.markRead(notificationId)
         }
-
-        pendingRoute = route
     }
 
     override fun onDestroy() {
