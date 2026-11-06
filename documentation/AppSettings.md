@@ -50,3 +50,56 @@ Reading the diagram:
   the `StateFlow` handle itself, never a snapshot value.
 - The default is `EntrantView` because it has the least nefarious use; `OwnerView`
   and `EntrantView` mirror those users' perspectives.
+
+## Role settings placeholders for the Settings modal
+
+UML documentation for the per-role settings ViewModels in
+`CampBNB/app/src/main/java/com/example/campbnb/viewModels/SettingsViewModels.kt`, edited from the
+Settings modal while the matching view is current (US 03.11.01, paired with the Admin settings
+worked separately). The settings entries themselves are placeholders chosen from what each role's
+own views can do; only the structure is settled so real entries can replace them later.
+
+```mermaid
+classDiagram
+    class ViewModel <<abstract>>
+
+    class EntrantSettingsController {
+        -_bookingSortSetting MutableStateFlow~String~
+        -_inboxAlertsSetting MutableStateFlow~String~
+        -_messageFilterSetting MutableStateFlow~String~
+        +bookingSortSetting StateFlow~String~
+        +inboxAlertsSetting StateFlow~String~
+        +messageFilterSetting StateFlow~String~
+        +changeBookingSortTo(newSort String)
+        +changeInboxAlertsTo(newAlerts String)
+        +changeMessageFilterTo(newFilter String)
+    }
+
+    class OwnerSettingsController {
+        -_listingVisibilitySetting MutableStateFlow~String~
+        -_lotteryOpenSetting MutableStateFlow~Boolean~
+        -_availabilityNoticeSetting MutableStateFlow~String~
+        +listingVisibilitySetting StateFlow~String~
+        +lotteryOpenSetting StateFlow~Boolean~
+        +availabilityNoticeSetting StateFlow~String~
+        +changeListingVisibilityTo(newVisibility String)
+        +changeLotteryOpenTo(open Boolean)
+        +changeAvailabilityNoticeTo(newNotice String)
+    }
+
+    ViewModel <|-- EntrantSettingsController
+    ViewModel <|-- OwnerSettingsController
+```
+
+Reading the diagram:
+
+- Inheritance (solid line, hollow triangle): both controllers extend `ViewModel` so the
+  settings survive re-rendering, exactly as `AppViewSettingController` does.
+- Each entry follows the established private-`MutableStateFlow` plus public-`asStateFlow`
+  shape: the panels latch on to the readonly flows and re-render when a `change...` method
+  moves one.
+- The panel composables in `ui/settings/SettingsPanels.kt` consume these plus an
+  `AppViewSetting`: while their view is current they render their entries, and otherwise one
+  muted inactive line. Neither panel fills its container, so both stay stackable below the
+  Admin settings section, which keeps being editable regardless.
+
