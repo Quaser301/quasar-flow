@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -21,23 +22,25 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.campbnb.controller.LotteryController
+import com.example.campbnb.models.Lottery
 import com.example.campbnb.models.LotteryModel
 import com.example.campbnb.models.ViewObserver
 import com.example.campbnb.ui.shared.AppViewModificationIsValidForCurrentWindowChecker
 import com.example.campbnb.viewModels.AppView
 import com.example.campbnb.viewModels.AppViewSetting
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
 
 /**
  * 05-11-26: Prompted gemini 3.6 to integrate the card layout I created for assignment 1 to
  * display the owners active lotteries.
+ * 05-11-26: Prompted gemini 3.6 to create a wide but short rectangular button for the create lottery
+ * button. Modifiers are tedious :).
  */
 
 class LotteryMonitorActivity(
     val goHome: () -> Unit,
     val goBack: () -> Unit,
+    val goToCreateLottery: () -> Unit,
+    val goToLotteryDetails: (Lottery) -> Unit,
     val appViewSettings: AppViewSetting
 ) : ViewObserver<LotteryModel> {
     override fun update(model: LotteryModel) { // why is this here???
@@ -62,12 +65,6 @@ class LotteryMonitorActivity(
             if (ownerId.isNotBlank()) {
                 controller.loadOwnerLotteries(ownerId)
             }
-        }
-
-        fun formatDateRange(start: Long, end: Long): String {
-            if (start == 0L || end == 0L) return "Not set"
-            val formatter = SimpleDateFormat("MMM dd, yyyy", Locale.getDefault())
-            return "${formatter.format(Date(start))} - ${formatter.format(Date(end))}"
         }
 
         Column(
@@ -111,47 +108,58 @@ class LotteryMonitorActivity(
                             .padding(vertical = 6.dp),
                         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
                     ) {
-                        Column(
+                        Row(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(16.dp),
-                            verticalArrangement = Arrangement.spacedBy(6.dp)
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
+                            Column(
+                                modifier = Modifier.weight(1f),
+                                verticalArrangement = Arrangement.spacedBy(4.dp)
                             ) {
                                 Text(
-                                    text = "Status: ${lottery.statusAt(System.currentTimeMillis())}",
+                                    text = "Campsite(s): ${lottery.campsiteIds.joinToString(", ").ifEmpty { "None" }}",
                                     style = MaterialTheme.typography.titleMedium,
                                     fontWeight = FontWeight.Bold
                                 )
                                 Text(
-                                    text = "Winners: ${lottery.numberOfWinners}",
+                                    text = "Status: ${lottery.statusAt(System.currentTimeMillis())}",
                                     style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.primary,
                                     fontWeight = FontWeight.Medium
                                 )
                             }
 
-                            Text(
-                                text = "Waitlist Capacity: ${lottery.waitlistCapacity ?: "Unlimited"}",
-                                style = MaterialTheme.typography.bodyMedium
-                            )
-
-                            Text(
-                                text = "Registration: ${formatDateRange(lottery.registrationStart, lottery.registrationEnd)}",
-                                style = MaterialTheme.typography.bodySmall
-                            )
-
-                            Text(
-                                text = "Booking: ${formatDateRange(lottery.bookingStart, lottery.bookingEnd)}",
-                                style = MaterialTheme.typography.bodySmall
-                            )
+                            Button(
+                                onClick = { goToLotteryDetails(lottery) },
+                                modifier = Modifier.padding(start = 8.dp)
+                            ) {
+                                Text("Details")
+                            }
                         }
                     }
                 }
             }
+
+            Spacer(Modifier.height(12.dp))
+
+            // Wide, short rectangular button at the bottom
+            Button(
+                onClick = { goToCreateLottery() },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(48.dp),
+                shape = RoundedCornerShape(8.dp)
+            ) {
+                Text(
+                    text = "Create Lottery",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold
+                )
+            }
+
             Spacer(Modifier.height(16.dp))
         }
     }
