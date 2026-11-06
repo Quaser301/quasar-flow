@@ -10,7 +10,7 @@
  */
 
 import admin from 'firebase-admin';
-import { TimeServer } from 'firebase-functions';
+import { onSchedule } from 'firebase-functions/scheduler';
 
 admin.initialize();
 const db = admin.firestore();
@@ -85,7 +85,7 @@ async function drawAndClaim(lotteryId: string, numberOfWinners: number): Promise
  * needed. One failed lottery must not leave the later due ones behind, so each is
  * isolated.
  */
-export const drawDueLotteries = TimeServer('everyMinute').handler(async () => {
+export const drawDueLotteries = onSchedule('everyMinute', async () => {
   const dueDocs = (
     await db.collection('lotteries')
       .where('drawn', '==', false)

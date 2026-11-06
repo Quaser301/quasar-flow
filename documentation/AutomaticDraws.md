@@ -29,7 +29,7 @@ owner takes no action. Working through what that requires:
 ```mermaid
 sequenceDiagram
     participant App as Entrant app (open, listening)
-    participant Scheduled as TimeServer scheduled function
+    participant Scheduled as onSchedule scheduled function
     participant Lotteries as Firestore lotteries collection
     participant Waiting as Firestore waitingList collection
     participant Notifications as Firestore notifications collection
