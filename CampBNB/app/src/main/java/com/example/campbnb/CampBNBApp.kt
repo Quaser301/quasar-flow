@@ -27,19 +27,24 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.toRoute
 import com.example.campbnb.controller.CampsiteController
 import com.example.campbnb.controller.LotteryController
+import com.example.campbnb.controller.UserController
 import com.example.campbnb.controller.NotificationController
 import com.example.campbnb.data.CampsiteRepository
 import com.example.campbnb.data.FirestoreNotificationRepository
 import com.example.campbnb.data.LotteryRepository
+import com.example.campbnb.data.UserRepository
 import com.example.campbnb.database.Database
 import com.example.campbnb.models.Campsite
 import com.example.campbnb.models.CampsiteModel
 import com.example.campbnb.models.LotteryModel
+import com.example.campbnb.models.Role
+import com.example.campbnb.models.User
+import com.example.campbnb.models.UserModel
+import com.example.campbnb.ui.Screens.DeviceSignInScreen
 import com.example.campbnb.notifications.NotificationRoutes
 import com.example.campbnb.ui.Screens.ExploreScreen
 import com.example.campbnb.ui.Screens.HomeDestination
 import com.example.campbnb.ui.Screens.HomeScreen
-import com.example.campbnb.ui.Screens.LoginScreen
 import com.example.campbnb.ui.Screens.PlaceholderTab
 import com.example.campbnb.ui.Screens.RoleSelectScreen
 import com.example.campbnb.ui.Screens.SignUpScreen
@@ -61,9 +66,10 @@ import com.example.campbnb.ui.lottery.LotteryDetailsActivity
 import com.example.campbnb.ui.lottery.LotteryEditActivity
 import com.example.campbnb.ui.lottery.LotteryMonitorActivity
 import com.example.campbnb.ui.lottery.LotteryWaitlistActivity
+import com.example.campbnb.ui.shared.DeviceId
+import com.example.campbnb.ui.shared.toUserRole
 import com.example.campbnb.ui.search.SearchScreen
 import com.example.campbnb.ui.settings.SettingsScreen
-import com.example.campbnb.ui.shared.DeviceId
 import com.example.campbnb.ui.shared.observeModel
 import com.example.campbnb.viewModels.AppView
 import com.example.campbnb.viewModels.AppViewSettingController
@@ -78,6 +84,10 @@ fun CampBnbApp(
 ) {
 
     val nav = rememberNavController()
+    val context = LocalContext.current
+    val userModel = remember { UserModel() }
+    val userRepo = remember { UserRepository() }
+    val userController = remember { UserController(userModel, userRepo) }
 
     NavHost(navController = nav, startDestination = Screen.Start) {
         // Start
@@ -182,31 +192,34 @@ fun CampBnbApp(
 
         // Login
         composable<Screen.Login> {
-            LoginScreen(
-                onLogin = { _, role, _ ->
-                    val targetView = when (role) {
-                        UserRole.ADMIN -> AppView.AdminView
-                        UserRole.OWNER -> AppView.OwnerView
-                        UserRole.CAMPER -> AppView.EntrantView
-                    }
-                    appViewSettings.changeViewTo(targetView)
-                    nav.navigate(Screen.Home(role = role)) {
-                        popUpTo(Screen.Start) {
-                            inclusive = true
-                        }
+            DeviceSignInScreen(
+                readDevice = { DeviceId.get(context, {""}) },
+                userController = userController,
+                onEntered = {
+                    val role = userModel.currentUser?.roles?.firstOrNull() ?: Role.ENTRANT
+                    nav.navigate(Screen.Home(role = toUserRole(role))) {
+                        popUpTo(Screen.Start) { inclusive = true }
                     }
                 },
-                onSignUpClick = { nav.navigate(Screen.SignUp) }
+                onNotFound = {
+                    nav.navigate(Screen.SignUp)
+                }
             )
         }
 
         // SignUp
         composable<Screen.SignUp> {
             SignUpScreen(
-                onSignUp = { _, _ ->
-                    nav.navigate(Screen.Role)
-                },
-                onLoginClick = { nav.navigateUp() }
+                onSignUp = { email, username, phoneNumber ->
+                    val newUser = User(
+                        deviceId = DeviceId.get(context),
+                        name = username,
+                        email = email,
+                        phone = phoneNumber,
+                        roles = listOf(Role.ADMIN)
+                    )
+                    Database.Users.writeEngine().save(newUser, { /* TODO: handle the complete */})
+                    nav.navigate(Screen.Role) }
             )
         }
 
@@ -331,12 +344,13 @@ fun CampBnbApp(
                 )
             }
         }
-
         // Lottery edit
         composable<Screen.LotteryEditActivity> {
             val activity = remember {
                 LotteryEditActivity(
                     { nav.navigateUp() },
+                    // using NavigateUp prevents the user from clicking on the back screen
+                    // quickly and navigating too far up
                     { nav.navigateUp() },
                     appViewSettings.toAppViewSetting()
                 )
@@ -352,12 +366,11 @@ fun CampBnbApp(
             }
             activity.LotteryEdit(model = model, controller = controller)
         }
-
         // Lottery monitor (owner's list of lotteries)
         composable<Screen.LotteryMonitorActivity> {
             val activity = remember {
                 LotteryMonitorActivity(
-                    { nav.navigate(Screen.Start) },
+                    { nav.navigate(Screen.Start /* TODO: CHANGE TO HOME */) },
                     { nav.navigateUp() },
                     { nav.navigate(Screen.LotteryEditActivity) },
                     { _ -> nav.navigate(Screen.LotteryDetailsActivity) },
@@ -413,6 +426,8 @@ fun CampBnbApp(
         }
 
         composable<Screen.Settings> { entry ->
+            // need to know our role so we can show
+            // the relevant settings
             val role = entry.toRoute<Screen.Settings>().role
             SettingsScreen(
                 { nav.navigateUp() },
@@ -438,6 +453,12 @@ fun CampBnbApp(
     }
 }
 
+/**
+ * Goes to the home page on the given tab, clearing any screens opened on top of it.
+ *
+ * @param role The signed-in role, which decides the bottom bar.
+ * @param tab Index of the bottom bar tab to open.
+ */
 private fun NavController.goHome(role: UserRole, tab: Int = 0) {
     navigate(Screen.Home(role = role, tab = tab)) {
         popUpTo<Screen.Home> { inclusive = true }
@@ -445,9 +466,16 @@ private fun NavController.goHome(role: UserRole, tab: Int = 0) {
     }
 }
 
+/**
+ * The Notifications / Messages screen, with its tabs.
+ *
+ * @param nav The app's NavController, used when a notification is tapped.
+ * @param initialTab 0 opens Notifications, 1 opens Messages.
+ */
 @Composable
 private fun CorrespondenceDestination(nav: NavController, initialTab: Int) {
     val context = LocalContext.current
+    // viewModel() keeps the same inbox (and its Firestore listener) across recompositions
     val inboxViewModel: NotificationViewModel = viewModel(
         factory = simpleViewModelFactory {
             NotificationViewModel(
@@ -466,4 +494,20 @@ private fun CorrespondenceDestination(nav: NavController, initialTab: Int) {
             PlaceholderTab(HomeDestination.MESSAGES)
         }
     )
+}
+
+/** Owner's My Campsites tab. For now it links to campsite registration and the lottery list. */
+@Composable
+private fun MyCampsitesTab(onRegisterCampsite: () -> Unit, onOpenLotteries: () -> Unit) {
+    Column(
+        Modifier.fillMaxSize().padding(24.dp),
+        verticalArrangement = Arrangement.Center,
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text("My Campsites", fontSize = 22.sp)
+        Spacer(Modifier.height(16.dp))
+        GradientButton("Register Campsite", onRegisterCampsite)
+        Spacer(Modifier.height(12.dp))
+        GradientButton("My Lotteries", onOpenLotteries)
+    }
 }
