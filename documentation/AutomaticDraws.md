@@ -20,11 +20,11 @@ owner takes no action. Working through what that requires:
 - Conclusion: there is no fully Blaze-free drawing inside Firebase that meets the
   criterion as written. The options were:
   1. Deferred client-side draw at next app open — keeps "no owner action", relaxes
-     "without opening the app" (the notification arrives on next open). Not implemented.
+     "without opening the app" (the notification arrives on next open). Not taken.
   2. An external free-tier scheduler hitting Firestore over REST — outside Firebase
-     entirely, adds another moving part and another account. Not implemented.
-  3. Accept Blaze with one time-scheduled function doing all of it — at this project's
-     scale the usage is negligible. Chosen, and implemented bare-bones below.
+     entirely, adds another moving part and another account. Not taken.
+  3. Accept Blaze with one time-scheduled function doing all of it. Executed: the
+     project is taken to be on the Blaze plan by the owner's decision of 2026-11-06.
 
 ```mermaid
 sequenceDiagram
@@ -48,12 +48,21 @@ Reading the diagram:
 
 - One scheduled function handles the whole criterion: draw, mark, notify. Nothing else
   runs out-of-app.
+- Claiming is transactional: the transaction re-reads the lottery and only sets
+  `drawn=true` while it is still false, so the winner set is decided exactly once even
+  if two runs ever see the same due lottery; notification records carry deterministic
+  ids, so their writes are idempotent too. A failing lottery is logged and does not
+  leave the later due ones behind.
 - The app already consumes every artefact it produces (`LotteryController.checkIfWon`
   reads `drawn`/`winnerIds`, the inbox listener receives the added notification), so
   the Kotlin side needed no changes.
 - The issue's uncertainty about not overloading the DB by polling is answered by the
   existing streaming snapshot listener: the client is told about added notification
   documents by Firestore itself, no polling loop.
+- Scope note: the phone-level notification channel (Firebase Messaging pushes) has no
+  token infrastructure in the app at all; `Notification` is documented as the permanent
+  in-app record, separate from phone push. Telling a closed app's phone "you won" is
+  a separate feature and out of scope here.
 
 ## Wire contract the function must match
 
