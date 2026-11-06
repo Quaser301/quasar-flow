@@ -11,6 +11,8 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
+import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.navigation.NavController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
@@ -19,6 +21,7 @@ import com.example.campbnb.controller.LotteryController
 import com.example.campbnb.data.LotteryRepository
 import com.example.campbnb.database.Database
 import com.example.campbnb.models.LotteryModel
+import com.example.campbnb.notifications.NotificationRoutes
 import com.example.campbnb.ui.Screens.HomeDestination
 import com.example.campbnb.ui.Screens.HomeScreen
 import com.example.campbnb.ui.Screens.LoginScreen
@@ -26,10 +29,14 @@ import com.example.campbnb.ui.Screens.PlaceholderTab
 import com.example.campbnb.ui.Screens.RoleSelectScreen
 import com.example.campbnb.ui.Screens.SignUpScreen
 import com.example.campbnb.ui.Screens.StartScreen
+import com.example.campbnb.ui.inbox.CorrespondenceScreen
+import com.example.campbnb.ui.inbox.NotificationInboxScreen
+import com.example.campbnb.ui.inbox.NotificationViewModel
 import com.example.campbnb.ui.lottery.LotteryDetailsActivity
 import com.example.campbnb.ui.lottery.LotteryEditActivity
 import com.example.campbnb.ui.lottery.LotteryMonitorActivity
 import com.example.campbnb.viewModels.AppViewSettingController
+import com.example.campbnb.viewModels.simpleViewModelFactory
 
 @Composable
 fun CampBnbApp(appViewSettings: AppViewSettingController,
@@ -208,5 +215,50 @@ fun CampBnbApp(appViewSettings: AppViewSettingController,
             val model = remember { LotteryModel() }
             activity.LotteryDetails(model = model)
         }
+
+        // Notification and message destinations are additive: existing typed
+        // destinations above remain unchanged.
+        composable(NotificationRoutes.NOTIFICATIONS) {
+            CorrespondenceDestination(nav = nav, initialTab = 0)
+        }
+        composable(NotificationRoutes.MESSAGES) {
+            CorrespondenceDestination(nav = nav, initialTab = 1)
+        }
     }
+
+    LaunchedEffect(pendingRoute) {
+        if (!pendingRoute.isNullOrBlank()) {
+            nav.navigate(pendingRoute)
+            onPendingRouteHandled()
+        }
+    }
+}
+@Composable
+private fun CorrespondenceDestination(
+    nav: NavController,
+    initialTab: Int
+) {
+    val userId = AppContainer.currentUserId
+    val notificationViewModel: NotificationViewModel = viewModel(
+        key = "notification-inbox-$userId",
+        factory = simpleViewModelFactory {
+            NotificationViewModel(
+                AppContainer.notificationController,
+                userId
+            )
+        }
+    )
+    CorrespondenceScreen(
+        navController = nav,
+        initialTab = initialTab,
+        notificationsContent = {
+            NotificationInboxScreen(
+                viewModel = notificationViewModel,
+                navController = nav
+            )
+        },
+        messagesContent = {
+            Text("Messages will appear here.")
+        }
+    )
 }
