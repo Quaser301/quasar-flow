@@ -185,6 +185,7 @@ private fun AdminProfilesTopBar(back: () -> Unit) {
     }
 }
 
+/** One profile's lines, shown as a grey card in the admin profiles list. */
 @Composable
 private fun ProfileEntry(entry: String) {
     Box(

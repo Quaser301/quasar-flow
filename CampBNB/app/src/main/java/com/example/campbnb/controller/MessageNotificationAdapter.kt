@@ -7,6 +7,7 @@ import com.example.campbnb.models.Message
  * Notifies interested parties when a new message is sent.
  */
 fun interface NewMessageNotifier {
+    /** Called with a message that was just saved, plus the campsite to name in the notice. */
     fun messageSent(message: Message, campsiteName: String)
 }
 
@@ -19,6 +20,7 @@ class MessageNotificationAdapter(
     private val notifications: NotificationController
 ) : NewMessageNotifier {
 
+    /** Tells the other party the message was sent, with a short preview. */
     override fun messageSent(
         message: Message,
         campsiteName: String

@@ -48,15 +48,10 @@ import com.example.campbnb.models.Message
 import com.example.campbnb.viewModels.MessageViewModel
 import com.example.campbnb.viewModels.MessagesState
 
-/**
- * The "Messages" tab of the Correspondence screen.
+/** The list of chats, newest unread first as given; a tapped row opens its thread.
  *
- * Shows the list of chats. Tapping a chat opens its thread, where the user can read and reply.
- *
- * @param currentUserId the signed-in user, used to decide which messages are "mine"
- */
-
-
+ * @param conversations the user's chats
+ * @param onOpen called with the chat of a tapped row */
 @Composable
 private fun ConversationList(
     conversations: List<Conversation>,
@@ -80,6 +75,11 @@ private fun ConversationList(
     }
 }
 
+/** One chat row: its title, last message and relative time, with a count badge
+ *  while unread messages remain.
+ *
+ * @param conversation the chat to show
+ * @param onClick called when the row is tapped */
 @Composable
 private fun ConversationRow(
     conversation: Conversation,
@@ -135,6 +135,14 @@ private fun ConversationRow(
     }
 }
 
+/** One chat: the whole thread scrolled to the newest message, plus an input line and
+ *  a Send button; a failed send keeps the draft and shows the reason.
+ *
+ * @param currentUserId the signed-in user, used to decide which messages are mine
+ * @param conversation the chat being read
+ * @param thread the messages of the chat
+ * @param onBack called to leave the thread
+ * @param onSend called with the typed text, and with a handler for the sent message */
 @Composable
 private fun ChatThread(
     currentUserId: String,
@@ -239,6 +247,10 @@ private fun ChatThread(
     }
 }
 
+/** One message, pushed to the far side and shaded when it belongs to the viewer.
+ *
+ * @param message the message to show
+ * @param mine whether this message belongs to the viewer */
 @Composable
 private fun MessageBubble(
     message: Message,
@@ -274,6 +286,7 @@ private fun MessageBubble(
     }
 }
 
+/** Human relative time for a unix-seconds timestamp; absent means just now. */
 private fun relativeTime(seconds: Long?): String =
     seconds?.let {
         DateUtils.getRelativeTimeSpanString(

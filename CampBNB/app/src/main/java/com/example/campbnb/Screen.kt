@@ -22,7 +22,11 @@ import com.example.campbnb.viewModels.AppView
  */
 @Serializable
 sealed interface Screen {
-    // the app's entry point.
+
+    /** The entry screen the app opens on.
+     * @property role decides which bottom-bar tabs are reachable.
+     * @property tab which bottom-bar tab is open; the destination it shows is decided
+     *     by the role as well. */
     @Serializable
     data class Home(val role: UserRole, val tab: Int = 0): Screen
 
@@ -30,6 +34,8 @@ sealed interface Screen {
     @Serializable
     data object CampsiteEditActivity : Screen
 
+    /** The owner's editing surface for one campsite.
+     * @property campsiteId the campsite being edited. */
     @Serializable
     data class EditCampsite(val campsiteId: String): Screen
 
@@ -58,15 +64,22 @@ sealed interface Screen {
     @Serializable
     data object Role: Screen
 
+    /** Settings surface; which settings are visible depends on the role.
+     * @property role the role whose settings groups are offered. */
     @Serializable
     data class Settings(val role: UserRole): Screen
 
 
+    /** Browse for campsites, optionally narrowed by a search.
+     * @property role the role browsing; an admin sees everything.
+     * @property query the current search text; empty means plain browse. */
     @Serializable
     data class Search(val role: UserRole, val query: String = "", val openFilter: Boolean = false) : Screen
     // the screen where a Campsite Owner views reservations.
     @Serializable
     data object Reservations : Screen
+    /** Vocabulary entry for one campsite's detail page. No window constructs this
+     *     screen today; the reachable detail screen is [CampsiteDetailsScreen]. */
     @Serializable
     data class CampsiteDetail(val role: UserRole, val campsiteId: String) : Screen
 
@@ -77,6 +90,9 @@ sealed interface Screen {
 
 
     // one campsite's details page.
+    /** One campsite's detail page, reached from Browse or from Home.
+     * @property role who is viewing it.
+     * @property campsiteId which campsite. */
     @Serializable
     data class CampsiteDetailsScreen(val role: UserRole, val campsiteId: String): Screen
 

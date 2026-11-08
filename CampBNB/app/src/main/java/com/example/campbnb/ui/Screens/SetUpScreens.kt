@@ -17,6 +17,8 @@ import androidx.compose.ui.unit.sp
 import com.example.campbnb.ui.components.*
 import com.example.campbnb.ui.theme.RoleGradient
 
+/** The app's very first screen: brand, tagline, and one Get Started button.
+ * @param onGetStarted called when the button is tapped */
 @Composable
 fun StartScreen(onGetStarted: () -> Unit) {
     AuthScaffold {
@@ -33,6 +35,9 @@ fun StartScreen(onGetStarted: () -> Unit) {
     }
 }
 
+/** Shown when the person is not yet in our records: gathers email, username, and phone,
+ * and hands the completed form over once every field is filled.
+ * @param onSignUp called with the three fields once all are filled */
 @Composable
 fun SignUpScreen(
     onSignUp: (email: String, username: String, phoneNumber: String) -> Unit,
@@ -64,6 +69,8 @@ fun SignUpScreen(
     }
 }
 
+/** Offers every role as a button so the person can choose their identity.
+ * @param onRoleSelected called with the role they picked */
 @Composable
 fun RoleSelectScreen(onRoleSelected: (UserRole) -> Unit) {
     Box(

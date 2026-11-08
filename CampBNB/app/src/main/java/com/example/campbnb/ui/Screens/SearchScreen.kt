@@ -39,6 +39,8 @@ import com.example.campbnb.ui.campsite.RatingDisplay
 import com.example.campbnb.ui.theme.FieldGrey
 import com.example.campbnb.ui.theme.SearchBarBg
 
+/** Stand-in results so the design previews render without data; never shown in the
+ *  running app. */
 private val placeholderResults = List(8) { CampsiteCardData("search$it", "Campsite ${it + 1}") }
 
 /**

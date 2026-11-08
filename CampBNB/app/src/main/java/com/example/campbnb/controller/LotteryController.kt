@@ -157,6 +157,7 @@ class LotteryController(
         )
     }
 
+    /** Records the entry then refreshes the entrant's waitlist state through the model. */
     private fun addToWaitlist(lottery: Lottery, userId: String, now: Long) {
         val entry = WaitingListEntry(lottery.id, userId, now)
         repo.addEntry(
@@ -172,6 +173,7 @@ class LotteryController(
         )
     }
 
+    /** Refreshes the model with the current waiting-list membership and size. */
     private fun loadWaitlist(lottery: Lottery, userId: String) {
         repo.getEntries(
             lottery.id,
@@ -182,6 +184,7 @@ class LotteryController(
         )
     }
 
+    /** A drawn lottery is never open for entries again. */
     private fun isRegistrationOpen(lottery: Lottery, now: Long): Boolean {
         if (lottery.drawn) {
             return false
@@ -189,6 +192,7 @@ class LotteryController(
         return lottery.statusAt(now) == LotteryStatus.OPEN
     }
 
+    /** True if any entry names this user. */
     private fun containsUser(entries: List<WaitingListEntry>, userId: String): Boolean {
         for (entry in entries) {
             if (entry.userId == userId) {
@@ -198,6 +202,7 @@ class LotteryController(
         return false
     }
 
+    /** A lottery with no capacity set has no limit. */
     private fun isWaitlistFull(lottery: Lottery, size: Int): Boolean {
         val capacity = lottery.waitlistCapacity
         if (capacity == null) {
@@ -205,6 +210,8 @@ class LotteryController(
         }
         return size >= capacity
     }
+    /** Loads the campsites an owner publishes; a failed read reports an empty list.
+     * The owner edit screens bind to this result. */
     fun loadOwnerCampsites(ownerId: String, onResult: (List<Campsite>) -> Unit) {
         repo.loadCampsitesByOwner(
             ownerId = ownerId,
@@ -212,10 +219,12 @@ class LotteryController(
             onFailure = { onResult(emptyList()) }
         )
     }
+    /** Publishes a lottery the owner is creating. */
     fun saveLottery(lottery: Lottery, onSuccess: () -> Unit, onFailure: (Exception) -> Unit) {
         repo.save(lottery, onSuccess, onFailure)
     }
 
+    /** Loads the owner's own lotteries onto the model for the edit screens. */
     fun loadOwnerLotteries(ownerId: String) {
         repo.getLotteriesForOwner(
             ownerId,
@@ -240,6 +249,8 @@ class LotteryController(
         }
     }
 
+    /** The current waiting-list entries, in join order; a failed read reports none.
+     * The owner's waitlist view binds to this result. */
     fun loadWaitlistEntries(lotteryId: String, onResult: (List<WaitingListEntry>) -> Unit) {
         repo.getEntries(
             lotteryId = lotteryId,

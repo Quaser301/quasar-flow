@@ -32,11 +32,6 @@ class CampsiteController (
     }
 
     /**
-     * Shows only the campsites whose name, location or a tag contains [query] (ignoring case)
-     * and that hold at least [guests] people. Blank text or null guests means no filter
-     * (US 01.01.01, 01.01.03).
-     */
-    /**
      * Shows only the campsites that match [query] (name, location or a tag) and every filter
      * set in [filters] (US 01.01.01, 01.01.02, 01.01.03).
      */
@@ -109,6 +104,8 @@ class CampsiteController (
         loadRatings()
     }
 
+    /** Case-insensitive match of the query against name, location, or any tag;
+     *     an empty query matches everything. */
     private fun matchesText(campsite: Campsite, query: String): Boolean {
         val text = query.trim()
         if (text.isEmpty()) {
@@ -128,6 +125,8 @@ class CampsiteController (
         return false
     }
 
+    /** True when the campsite sleeps at least the requested party size;
+     *     no size requested means no filter. */
     private fun matchesGuests(campsite: Campsite, guests: Int?): Boolean {
         if (guests == null) {
             return true
@@ -182,6 +181,11 @@ class CampsiteController (
         model.setRatings(updated)
     }
     // Registers a new campsite for the current user
+    /** Publishes a new campsite owned by this user; a blank owner is refused through the
+     *     model's status message and reports false.
+     * @param campsite the details the owner filled in
+     * @param ownerId the signed-in owner publishing it
+     * @param onComplete called with whether the registration was saved */
     fun registerCampsite(
         campsite: Campsite,
         ownerId: String,

@@ -41,11 +41,14 @@ class CampsiteModel : ObservableModel<CampsiteModel>() {
         notifyViews()
     }
 
+    /** Stores every rating loaded for the visible campsites; the star displays are
+     * computed from this list on demand. */
     fun setRatings(list: List<Rating>) {
         ratings = list
         notifyViews()
     }
 
+    /** Records a load failure message for the campsite screens to show. */
     fun setStatusMessage(message: String) {
         statusMessage = message
         notifyViews()

@@ -12,6 +12,8 @@ class FirestoreNotificationRepository (
 ): NotificationRepository {
     private val collection = db.collection(Database.Notifications.COLLECTION_NAME)
 
+    /** Saves in MAX_BATCH-sized Firestore batches: the first failure is reported right
+     *     away, success is only reported once every batch has committed. */
     override fun saveAll(notifications: List<Notification>, onDone: (Result<Unit>) -> Unit) {
         if (notifications.isEmpty()) {
             onDone(Result.success(Unit))
@@ -38,6 +40,8 @@ class FirestoreNotificationRepository (
         }
     }
 
+    /** Subscribes to the user's notification documents; each snapshot carries everything
+     *     current plus what was newly added. The returned action unsubscribes. */
     override fun listenForUser(
         userId: String,
         onUpdate: (NotificationUpdate) -> Unit,
@@ -60,6 +64,7 @@ class FirestoreNotificationRepository (
         return { registration.remove() }
     }
 
+    /** Writes READ and a server-side read time onto one notification. */
     override fun markRead(notificationId: String, onDone: (Result<Unit>) -> Unit) {
         collection.document(notificationId)
             .update(

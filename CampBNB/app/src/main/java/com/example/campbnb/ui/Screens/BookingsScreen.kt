@@ -20,11 +20,20 @@ import com.example.campbnb.ui.components.UserRole
 private val BookingGreen = Color(0xFF64A83F)
 private val BookingGray = Color(0xFFD9D9D9)
 
+/** Which half of the bookings list the screen shows. */
 enum class BookingTab {
     CONFIRMED,
     PENDING
 }
 
+/** The "Bookings" home tab: a Confirmed/Pending switch over one list of booking
+ *  cards, with a placeholder notice while the list is empty.
+ *
+ * @param confirmedBookings the settled bookings
+ * @param pendingBookings the bookings not settled yet
+ * @param selectedTab which list is open
+ * @param onTabSelected called with the tab the switch was tapped to open
+ * @param onBookingClick called with a tapped booking card */
 @Composable
 fun BookingsScreen(
     confirmedBookings: List<BookingCardData>,
@@ -127,6 +136,7 @@ fun BookingsScreen(
     }
 }
 
+/** One pill-shaped tab of the switch; only the selected one is filled in. */
 @Composable
 private fun BookingTabButton(
     label: String,
@@ -154,6 +164,11 @@ private fun BookingTabButton(
     }
 }
 
+/** One booking card: the site names first, then the status text, the dates and the
+ *  party size only when they are recorded.
+ *
+ * @param booking the booking to show
+ * @param onClick called when the card is tapped */
 @Composable
 private fun BookingCard(
     booking: BookingCardData,

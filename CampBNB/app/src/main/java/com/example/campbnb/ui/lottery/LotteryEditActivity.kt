@@ -174,6 +174,7 @@ class LotteryEditActivity(
             }
         }
 
+        /** Human-readable booking window for the editor; unset reads as blank, not shown. */
         fun formatDateRange(start: Long?, end: Long?): String {
             if (start == null || end == null) return ""
             val formatter = SimpleDateFormat("MMM dd, yyyy", Locale.getDefault())
