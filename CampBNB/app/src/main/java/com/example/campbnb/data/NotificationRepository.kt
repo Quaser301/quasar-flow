@@ -26,6 +26,19 @@ interface NotificationRepository {
     fun saveAll( notifications: List<Notification>, onDone: (Result<Unit>) -> Unit)
 
     /**
+     * starts live listener for EVERY notification, whichever user receives it
+     *
+     * Only the notification debug screen uses this: the per-user listener above cannot
+     * answer "what has the app sent overall".
+     *
+     * @return a function that stops the listener. Called when screen goes away, otherwise listener keeps running
+     */
+    fun listenForAll(
+        onUpdate: (NotificationUpdate) -> Unit,
+        onError: (Exception) -> Unit
+    ): () -> Unit
+
+    /**
      * starts live listener for one user's notification
      *
      * @return a function that stops the listener. Called when screen goes away, otherwise listener keeps running

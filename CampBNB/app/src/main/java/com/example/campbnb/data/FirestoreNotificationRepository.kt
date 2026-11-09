@@ -38,6 +38,30 @@ class FirestoreNotificationRepository (
         }
     }
 
+    /**
+     * Listens for every saved notification, whichever user receives it. The same snapshot
+     * handling as the per-user listener below, without the recipientId filter.
+     */
+    override fun listenForAll(
+        onUpdate: (NotificationUpdate) -> Unit,
+        onError: (Exception) -> Unit
+    ): () -> Unit {
+        val registration = collection
+            .addSnapshotListener { snapshot, error ->
+                if (error != null) {
+                    onError(error)
+                    return@addSnapshotListener
+                }
+                if (snapshot == null) return@addSnapshotListener
+                val all = snapshot.toObjects(Notification::class.java)
+                val added = snapshot.documentChanges
+                    .filter { it.type == DocumentChange.Type.ADDED }
+                    .map { it.document.toObject(Notification::class.java) }
+                onUpdate(NotificationUpdate(all, added))
+            }
+        return { registration.remove() }
+    }
+
     override fun listenForUser(
         userId: String,
         onUpdate: (NotificationUpdate) -> Unit,

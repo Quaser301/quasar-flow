@@ -10,9 +10,11 @@ class FakeNotificationRepository : NotificationRepository {
     var saveCalls = 0
     var failNextSave = false
     var stopCalls = 0
+    var failNextListenAll = false
 
     private var listeningUserId: String? = null
     private var listener: ((NotificationUpdate) -> Unit)? = null
+    private var allListener: ((NotificationUpdate) -> Unit)? = null
 
     override fun saveAll(notifications: List<Notification>, onDone: (Result<Unit>) -> Unit) {
         saveCalls++
@@ -28,6 +30,27 @@ class FakeNotificationRepository : NotificationRepository {
     /** Simulates a Firestore snapshot update in tests. */
     fun emit(update: NotificationUpdate) {
         listener?.invoke(update)
+    }
+
+    /** Simulates a snapshot update for the all-notifications listener. */
+    fun emitAll(update: NotificationUpdate) {
+        allListener?.invoke(update)
+    }
+
+    override fun listenForAll(
+        onUpdate: (NotificationUpdate) -> Unit,
+        onError: (Exception) -> Unit
+    ): () -> Unit {
+        if (failNextListenAll) {
+            failNextListenAll = false
+            onError(Exception("fake read failure"))
+            return {}
+        }
+        allListener = onUpdate
+        return {
+            stopCalls++
+            allListener = null
+        }
     }
 
     override fun listenForUser(

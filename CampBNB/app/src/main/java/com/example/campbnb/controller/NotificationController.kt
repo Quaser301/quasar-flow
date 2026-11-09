@@ -75,6 +75,16 @@ class NotificationController (
         onError: (Exception) -> Unit
     ): () -> Unit = repo.listenForUser(userId, onUpdate, onError)
 
+    /**
+     * Starts the all-notifications listener, for the notification debug screen only.
+     *
+     * @return a function that stops the listener
+     */
+    fun listenAll(
+        onUpdate: (NotificationUpdate) -> Unit,
+        onError: (Exception) -> Unit
+    ): () -> Unit = repo.listenForAll(onUpdate, onError)
+
     fun markRead(notificationId: String, onDone: (Result<Unit>) -> Unit = {}) =
         repo.markRead(notificationId, onDone)
 
