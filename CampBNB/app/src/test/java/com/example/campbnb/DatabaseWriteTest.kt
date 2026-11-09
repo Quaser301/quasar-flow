@@ -150,4 +150,77 @@ class WriteEngineTest {
         verify(exactly = 1) { mockDocRef.update(updateMap) }
         assertTrue(testResult!!.isSuccess)
     }
+
+    // Adversarial additions: blank ids, unknown ids, empty and unusual field maps
+    @Test
+    fun test_SavingWithBlankId_WritesThatEmptyDocumentPath() {
+        val user = TestUserWrite("", "No Name", 1)
+        val successSlot = slot<OnSuccessListener<Void>>()
+        every { mockTask.addOnSuccessListener(capture(successSlot)) } returns mockTask
+
+        var testResult: Result<Exception?>? = null
+
+        writeEngine.save(user) { result ->
+            testResult = result
+        }
+        successSlot.captured.onSuccess(null)
+
+        assertEquals(null, testResult!!.exceptionOrNull())
+        verify(exactly = 1) { mockCollection.document("") }
+        verify(exactly = 1) { mockDocRef.set(user) }
+    }
+
+    @Test
+    fun test_DeleteOfUnknownId_StillReachesThatDocumentPath() {
+        val successSlot = slot<OnSuccessListener<Void>>()
+        every { mockTask.addOnSuccessListener(capture(successSlot)) } returns mockTask
+
+        var testResult: Result<Exception?>? = null
+
+        writeEngine.delete("was-never-saved") { result ->
+            testResult = result
+        }
+        successSlot.captured.onSuccess(null)
+
+        assertTrue(testResult!!.isSuccess)
+        verify(exactly = 1) { mockCollection.document("was-never-saved") }
+        verify(exactly = 1) { mockDocRef.delete() }
+    }
+
+    @Test
+    fun test_UpdateWithEmptyFieldMap_IsStillAnUpdateCall() {
+        val emptyFields = emptyMap<String, Any?>()
+        val successSlot = slot<OnSuccessListener<Void>>()
+        every { mockTask.addOnSuccessListener(capture(successSlot)) } returns mockTask
+
+        var testResult: Result<Exception?>? = null
+
+        writeEngine.update("user_abc", emptyFields) { result ->
+            testResult = result
+        }
+        successSlot.captured.onSuccess(null)
+
+        assertTrue(testResult!!.isSuccess)
+        verify(exactly = 1) { mockDocRef.update(emptyMap<String, Any?>()) }
+    }
+
+    @Test
+    fun test_UpdateWithUnusualFieldNames_ReachesTheDocumentUnchanged() {
+        val oddFields = mapOf(
+            "camp name" to "two words",
+            "meta/name" to 7
+        )
+        val successSlot = slot<OnSuccessListener<Void>>()
+        every { mockTask.addOnSuccessListener(capture(successSlot)) } returns mockTask
+
+        var testResult: Result<Exception?>? = null
+
+        writeEngine.update("user_abc", oddFields) { result ->
+            testResult = result
+        }
+        successSlot.captured.onSuccess(null)
+
+        assertTrue(testResult!!.isSuccess)
+        verify(exactly = 1) { mockDocRef.update(oddFields) }
+    }
 }

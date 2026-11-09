@@ -5,7 +5,8 @@ package com.example.campbnb
  * suites do to their ViewModel-backed holders. The cases are the ones the request
  * leaves open: a device that cannot be read signs nobody on, the first readable
  * device is written down once and for all, a later different read never replaces
- * it, and notices appear on demand.
+ * it, and notices appear on demand. Added cases show a blank read after a sign-on and
+ * a burst of reads never replacing the identity the session signed on with.
  */
 
 import com.example.campbnb.viewModels.DeviceSignInController
@@ -65,5 +66,30 @@ class DeviceSignInTest {
         display.rememberDevice("dev-same")
 
         assertTrue("an unchanging identity stays put", display.deviceId.value == "dev-same")
+    }
+
+    @Test
+    fun test_ABlankReadAfterSignOnLeavesTheIdentityPut() {
+        val display = DeviceSignInController()
+
+        display.rememberDevice("dev-1")
+        display.rememberDevice("")
+        display.rememberDevice("   ")
+
+        assertTrue("a blank read never clears an identity already signed on",
+            display.deviceId.value == "dev-1")
+    }
+
+    @Test
+    fun test_ReadingTwentyTimesQuicklyStillKeepsTheFirst() {
+        val display = DeviceSignInController()
+
+        display.rememberDevice("dev-first")
+        for (index in 1..20) {
+            display.rememberDevice("dev-$index")
+        }
+
+        assertTrue("mashing the reader never replaces the session identity",
+            display.deviceId.value == "dev-first")
     }
 }

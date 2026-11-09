@@ -155,6 +155,66 @@ class CampsiteOwnerTest {
         assertTrue(result?.isFailure == true)
     }
 
+    // TEST 9: A whitespace owner cannot register
+    @Test
+    fun registerCampsite_whitespaceOwner_fails() {
+        var result: Boolean? = null
+
+        controller.registerCampsite(campsite(), "   ") {
+            result = it
+        }
+
+        assertEquals(false, result)
+        assertTrue(repo.saved.isEmpty())
+        assertEquals("Please log in to register a campsite", model.statusMessage)
+    }
+
+    // TEST 10: The register button mashed twice saves both registrations
+    @Test
+    fun registerCampsite_pressedTwice_savesBothRegistrations() {
+        var first: Boolean? = null
+        var second: Boolean? = null
+
+        controller.registerCampsite(campsite(), "owner1") {
+            first = it
+        }
+        controller.registerCampsite(campsite(), "owner1") {
+            second = it
+        }
+
+        assertEquals(true, first)
+        assertEquals(true, second)
+        assertEquals(2, repo.saved.size)
+    }
+
+    // TEST 11: Updating an id that was never there fails like the wrong owner does
+    @Test
+    fun updateCampsite_unknownId_fails() {
+        val stranger = campsite(name = "Not Ours")
+
+        var result: Boolean? = null
+
+        controller.updateCampsite(stranger, "owner1") {
+            result = it
+        }
+
+        assertEquals(false, result)
+        assertTrue(repo.saved.isEmpty())
+        assertEquals("You cannot update this campsite", model.statusMessage)
+    }
+
+    // TEST 12: A large owned list still loads every row
+    @Test
+    fun loadOwnerCampsites_fiftyOwned_allShowUp() {
+        for (index in 1..50) {
+            repo.existing.add(campsite(owner = "owner1", name = "Camp $index"))
+        }
+
+        controller.loadOwnerCampsites("owner1")
+
+        assertEquals(50, model.ownedCampsites.size)
+    }
+
     // Fake repository - no Firebase connection
     private class FakeRepository : CampsiteRepository() {
 

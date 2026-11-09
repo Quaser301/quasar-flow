@@ -157,4 +157,38 @@ class QueryEngineTest {
         verify(exactly = 1) { mockQuery.orderBy("name", Query.Direction.DESCENDING) }
         verify(exactly = 1) { mockQuery.orderBy("age", Query.Direction.DESCENDING) }
     }
+
+    // Adversarial additions: no conditions, extreme limits, and a value the caller cannot control
+    @Test
+    fun test_AQueryWithNoConditions_StillRunsExactlyOnce() {
+        queryEngine.query()
+            .execute(onSuccess = {}, onFailure = {})
+
+        verify(exactly = 1) { mockCollection.get() }
+    }
+
+    @Test
+    fun test_LimitZeroAndCeiling_MapToFirestoreWithoutAdjustment() {
+        queryEngine.query()
+            .limitResults(0L)
+            .execute(onSuccess = {}, onFailure = {})
+
+        queryEngine.query()
+            .limitResults(Int.MAX_VALUE.toLong())
+            .execute(onSuccess = {}, onFailure = {})
+
+        verify(exactly = 1) { mockCollection.limit(0) }
+        verify(exactly = 1) { mockCollection.limit(2147483647) }
+    }
+
+    @Test
+    fun test_WhereEqualsWithWeirdValue_PassesTheValueThroughUnchanged() {
+        val odd = "Bob \"Zed\" ١٢ — ünquoted"
+
+        queryEngine.query()
+            .whereEquals(TestUser::name, odd)
+            .execute(onSuccess = {}, onFailure = {})
+
+        verify(exactly = 1) { mockCollection.whereEqualTo("name", odd) }
+    }
 }

@@ -95,4 +95,12 @@ class NotificationControllerTest {
             it.recipientId
         }.toSet())
     }
+
+    @Test
+    fun fifty_winners_all_get_recorded() {
+        val ids = (1..50).map { "u$it" }
+        val r = result<Int> { done -> controller.notifyWinners("lot1", "Banff", ids, done) }
+        Assert.assertEquals(50, r.getOrNull())
+        Assert.assertEquals(50, repo.saved.size)
+    }
 }

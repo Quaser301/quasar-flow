@@ -6,7 +6,8 @@ package com.example.campbnb
  *
  * The three tests follow the request made in that prompt: the simplest correct Firestore
  * transaction, a write-before-read transaction which must fail correctly, and a large
- * transaction which must only fail if Firestore itself fails.
+ * transaction which must only fail if Firestore itself fails. An added case covers a
+ * commit block with no operations at all, which must complete like any other.
  */
 
 import com.example.campbnb.database.TransactionEngine
@@ -180,5 +181,28 @@ class TransactionEngineTest {
         verify(exactly = 100) { mockTransaction.set(any(), mapOf("campsiteId" to "campsite_0")) }
 
         assertTrue(testResult!!.isSuccess)
+    }
+
+    // Adversarial addition: a commit block with no operations at all
+    @Test
+    fun test_CommitWithNoOperations_StillCompletesLikeAnyOther() {
+        val successSlot = slot<OnSuccessListener<Any>>()
+        val callbackSlot = slot<com.google.firebase.firestore.Transaction.Function<Any>>()
+
+        every { mockTask.addOnSuccessListener(capture(successSlot)) } returns mockTask
+        every { mockDb.runTransaction(capture(callbackSlot)) } returns mockTask
+
+        var testResult: Result<Exception?>? = null
+
+        transactionEngine.commit({}) { result ->
+            testResult = result
+        }
+
+        callbackSlot.captured.apply(mockTransaction)
+        successSlot.captured.onSuccess(null)
+
+        assertTrue(testResult!!.isSuccess)
+        verify(exactly = 0) { mockTransaction.get(any()) }
+        verify(exactly = 0) { mockTransaction.set(any(), any()) }
     }
 }

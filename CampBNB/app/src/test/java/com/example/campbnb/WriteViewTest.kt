@@ -45,8 +45,8 @@ class WriteViewTest {
         testStateIsX(WriteState.Idle)
     }
 
-    // Note: this test is ok for all IF and ONLY IF the other 2 methods (Update, Delete) all use the same
-    // state handling code.
+    // Note: the update and delete paths below carry their own state-machine coverage
+    // now, so this test no longer has to stand in for them.
     @Test
     fun test_StateTransitionsOnWriteSuccess() {
         val item = TestUser("Tester", 18, false)
@@ -101,6 +101,87 @@ class WriteViewTest {
 
         assertEquals(exception, (stateHistory[2] as WriteState.Fault).exception)
         jobCollector.cancel()
+    }
+
+    // Adversarial additions: the update and delete paths get their own state-machine
+    // coverage instead of relying on the create path standing in for them, and a
+    // mashed pair of operations ends at the state the last one reached.
+    @Test
+    fun test_UpdateTransitionsThroughTheSameStates() {
+        val item = TestUser("Tester", 18, false)
+        val fields = mapOf("name" to "Renamed")
+
+        val callbackSlot = slot<(Result<Exception?>) -> Unit>()
+        every { mockEngine.update(any(), any(), capture(callbackSlot)) } returns Unit
+
+        val stateHistory = mutableListOf<WriteState>()
+        val jobCollector = CoroutineScope(testDispatcher).launch {
+            view.writeState.collect { stateHistory.add(it) }
+        }
+
+        view.update(item, fields)
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        callbackSlot.captured.invoke(Result.success(null))
+
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(3, stateHistory.size)
+        assertTrue("Expected First State to be Idle", stateHistory[0] is WriteState.Idle)
+        assertTrue("Expected Second State to be Loading", stateHistory[1] is WriteState.Loading)
+        assertTrue("Expected Third State to be Successful", stateHistory[2] is WriteState.Success)
+
+        jobCollector.cancel()
+    }
+
+    @Test
+    fun test_DeleteTransitionsThroughTheSameStates() {
+        val item = TestUser("Tester", 18, false)
+
+        val callbackSlot = slot<(Result<Exception?>) -> Unit>()
+        every { mockEngine.delete(any(), capture(callbackSlot)) } returns Unit
+
+        val stateHistory = mutableListOf<WriteState>()
+        val jobCollector = CoroutineScope(testDispatcher).launch {
+            view.writeState.collect { stateHistory.add(it) }
+        }
+
+        view.delete(item)
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        callbackSlot.captured.invoke(Result.success(null))
+
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(3, stateHistory.size)
+        assertTrue("Expected First State to be Idle", stateHistory[0] is WriteState.Idle)
+        assertTrue("Expected Second State to be Loading", stateHistory[1] is WriteState.Loading)
+        assertTrue("Expected Third State to be Successful", stateHistory[2] is WriteState.Success)
+
+        jobCollector.cancel()
+    }
+
+    @Test
+    fun test_CreatingThenDeletingTheSameItemEndsAtSuccess() {
+        val item = TestUser("Tester", 18, false)
+
+        val saveSlot = slot<(Result<Exception?>) -> Unit>()
+        every { mockEngine.save(eq(item), capture(saveSlot)) } returns Unit
+        val deleteSlot = slot<(Result<Exception?>) -> Unit>()
+        every { mockEngine.delete(any(), capture(deleteSlot)) } returns Unit
+
+        view.create(item)
+        testDispatcher.scheduler.advanceUntilIdle()
+        saveSlot.captured.invoke(Result.success(null))
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        view.delete(item)
+        testDispatcher.scheduler.advanceUntilIdle()
+        deleteSlot.captured.invoke(Result.success(null))
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertTrue("the last mashed operation decides the state",
+            view.writeState.value is WriteState.Success)
     }
 
 

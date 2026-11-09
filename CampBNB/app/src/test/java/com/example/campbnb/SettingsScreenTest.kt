@@ -8,7 +8,9 @@ package com.example.campbnb
  * back, tapping a dropdown element drops down that element, and switching the view
  * introduces the settings where they are supposed to be. The Settings screen keeps its
  * behaviour in the [SettingsDisplayController] state and the pure settingsGroupsFor
- * ordering model, which is what these tests drive.
+ * ordering model, which is what these tests drive. Added cases cover an unknown
+ * dropdown key keeping its own state, a second tap closing the group it opened, and
+ * repeated back presses each running the handed-in lambda once.
  */
 
 import com.example.campbnb.ui.settings.SettingsGroupId
@@ -75,5 +77,55 @@ class SettingsScreenTest {
                 SettingsGroupId.ENTRANT_SETTINGS
             )
         )
+    }
+
+    @Test
+    fun test_AnUnknownGroupTapTracksItsOwnStateAndNothingElse() {
+        val display = SettingsDisplayController({})
+
+        display.toggleGroup("SOME_WHERE_ELSE")
+
+        assertTrue(
+            "the unknown key keeps its own dropdown state apart from the named groups",
+            display.expandedStateOf("SOME_WHERE_ELSE").value
+        )
+        assertTrue(
+            "the named groups stay closed",
+            !display.expandedStateOf(SettingsGroupId.APP_VIEW_SWITCH.name).value &&
+                    !display.expandedStateOf(SettingsGroupId.ADMIN_SETTINGS.name).value &&
+                    !display.expandedStateOf(SettingsGroupId.ENTRANT_SETTINGS.name).value &&
+                    !display.expandedStateOf(SettingsGroupId.OWNER_SETTINGS.name).value
+        )
+    }
+
+    @Test
+    fun test_ASecondTapOnTheSameGroupClosesItAgain() {
+        val display = SettingsDisplayController({})
+
+        display.toggleGroup(SettingsGroupId.ADMIN_SETTINGS.name)
+
+        assertTrue(
+            "the first tap opens",
+            display.expandedStateOf(SettingsGroupId.ADMIN_SETTINGS.name).value
+        )
+
+        display.toggleGroup(SettingsGroupId.ADMIN_SETTINGS.name)
+
+        assertTrue(
+            "the tap toggles, so two taps land back closed",
+            !display.expandedStateOf(SettingsGroupId.ADMIN_SETTINGS.name).value
+        )
+    }
+
+    @Test
+    fun test_BackPressedThreeTimesRunsTheLambdaThreeTimes() {
+        var wentBack = 0
+        val display = SettingsDisplayController({ wentBack++ })
+
+        display.pressBack()
+        display.pressBack()
+        display.pressBack()
+
+        assertTrue("every back press runs the lambda exactly once", wentBack == 3)
     }
 }

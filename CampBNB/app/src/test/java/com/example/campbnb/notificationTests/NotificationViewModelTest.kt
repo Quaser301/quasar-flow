@@ -74,6 +74,24 @@ class NotificationViewModelTest {
     }
 
     @Test
+    fun openingTheSameNotificationTwice_stillLeavesItRead() {
+        val viewModel = NotificationViewModel(
+            NotificationController(repository),
+            "user-1"
+        )
+        val unread = notification("n2", 100)
+        repository.saved[unread.id] = unread
+
+        viewModel.open(unread)
+        viewModel.open(unread)
+
+        assertEquals(
+            NotificationStatus.READ,
+            repository.saved.getValue("n2").status
+        )
+    }
+
+    @Test
     fun blankUserShowsErrorInsteadOfListening() {
         val viewModel = NotificationViewModel(
             NotificationController(repository),

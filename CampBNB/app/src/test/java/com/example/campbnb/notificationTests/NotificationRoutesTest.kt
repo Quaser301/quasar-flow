@@ -50,4 +50,38 @@ class NotificationRoutesTest {
             NotificationRoutes.routeFor(Notification(type = NotificationType.CONFIRMATION))
         )
     }
+
+    @Test
+    fun cancellation_rejection_and_owner_notice_open_reservations() {
+        assertEquals(
+            "reservations",
+            NotificationRoutes.routeFor(Notification(type = NotificationType.CANCELLATION))
+        )
+        assertEquals(
+            "reservations",
+            NotificationRoutes.routeFor(Notification(type = NotificationType.REJECTION))
+        )
+        assertEquals(
+            "reservations",
+            NotificationRoutes.routeFor(Notification(type = NotificationType.OWNER_NOTICE))
+        )
+    }
+
+    @Test
+    fun message_without_a_reservation_opens_the_plain_messages_screen() {
+        assertEquals(
+            "messages",
+            NotificationRoutes.routeFor(Notification(type = NotificationType.MESSAGE))
+        )
+    }
+
+    @Test
+    fun an_awkward_reservation_id_reaches_the_route_untouched() {
+        assertEquals(
+            "chat/res 9/\"x\"",
+            NotificationRoutes.routeFor(
+                Notification(type = NotificationType.MESSAGE, reservationId = "res 9/\"x\"")
+            )
+        )
+    }
 }

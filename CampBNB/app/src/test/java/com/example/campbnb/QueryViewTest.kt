@@ -117,6 +117,72 @@ class QueryViewTest {
         jobCollector.cancel()
     }
 
+    // Adversarial additions: the smallest result the success path can carry, and a good
+    // fetch following a faulted one
+    @Test
+    fun test_EmptyResultSetIsSuccessWithNothingToShow() {
+        val resultSlot = slot<(List<TestUser>) -> Unit>()
+        every {
+            mockChain.execute(
+                capture(resultSlot),
+                any())
+        } returns Unit
+
+        val stateHistory = mutableListOf<QueryState<TestUser>>()
+        val jobCollector = CoroutineScope(testDispatcher).launch {
+            view.queryState.collect { stateHistory.add(it) }
+        }
+
+        view.fetchAll()
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        resultSlot.captured.invoke(emptyList<TestUser>())
+
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(3, stateHistory.size)
+        assertTrue("Expected Third State to be Successful", stateHistory[2] is QueryState.Success)
+        assertEquals(emptyList<TestUser>(), (stateHistory[2] as QueryState.Success).data)
+        jobCollector.cancel()
+    }
+
+    @Test
+    fun test_AFaultedFetchThenASuccessfulOneEndsShowingData() {
+        val exception = Exception("First attempt failed")
+        val failSlot = slot<(Exception) -> Unit>()
+        every {
+            mockChain.execute(
+                any(),
+                capture(failSlot)
+            )
+        } returns Unit
+
+        view.fetchAll()
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        failSlot.captured.invoke(exception)
+
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        val data = listOf(TestUser("Zed", 1, true))
+        val okSlot = slot<(List<TestUser>) -> Unit>()
+        every {
+            mockChain.execute(
+                capture(okSlot),
+                any())
+        } returns Unit
+
+        view.fetchAll()
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        okSlot.captured.invoke(data)
+
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertTrue("a good fetch after a fault leaves the view showing data",
+            view.queryState.value is QueryState.Success)
+        assertEquals(data, (view.queryState.value as QueryState.Success).data)
+    }
 
     fun testStateIsX(state: QueryState<TestUser>) {
         assertEquals(state, view.queryState.value)

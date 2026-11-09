@@ -5,7 +5,9 @@ package com.example.campbnb
  * profileRowsFor and profileRowText, which is what the Profiles subview draws.
  * The cases are the ones the request leaves open: nothing saved at all, a user
  * with no fields to show, listing order despite capital differences and a nameless
- * user, several roles on one person, and a row line keeping all three fields.
+ * user, several roles on one person, and a row line keeping all three fields. Added
+ * cases cover names made only of whitespace or wrapped in padding, and a hundred-user
+ * listing keeping one row per user.
  */
 
 import com.example.campbnb.models.Role
@@ -82,5 +84,30 @@ class AdminProfilesTest {
             "the role is visible even when none is held",
             "(no role)" in line
         )
+    }
+
+    @Test
+    fun test_ANameOfOnlyWhitespaceReadsAsNameless() {
+        val rows = profileRowsFor(listOf(User(deviceId = "d-ws", name = "   ")))
+
+        assertTrue("whitespace is not a name", rows.count() == 1)
+        assertTrue(
+            "the placeholder shows instead of the blanks",
+            rows[0].nameLabel == "(no name)"
+        )
+    }
+
+    @Test
+    fun test_ANameWrappedInSpacesIsTrimmedForDisplay() {
+        val rows = profileRowsFor(listOf(User(deviceId = "d-pad", name = "  Bob  ")))
+
+        assertTrue("the name shows without the padding around it", rows[0].nameLabel == "Bob")
+    }
+
+    @Test
+    fun test_AHundredSavedUsersProduceAHundredRows() {
+        val rows = profileRowsFor((1..100).map { User(deviceId = "d-$it", name = "user-$it") })
+
+        assertTrue("nobody is merged or dropped under load", rows.count() == 100)
     }
 }
