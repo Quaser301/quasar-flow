@@ -66,6 +66,7 @@ class NotificationLogViewModel(
     private var readLogs: List<NotificationLogGroup>? = null
 
     init {
+        println("NotificationLogRecomposition: NotificationLogViewModel constructed")
         readLog()
     }
 
@@ -75,6 +76,7 @@ class NotificationLogViewModel(
      * tapped; a read that is already showing the log is asked for again on a tap.
      */
     fun readLog() {
+        println("NotificationLogRecomposition: NotificationLogViewModel.readLog")
         _state.value = LogViewState.Loading
         controller.readAll(
             onSuccess = { records ->
@@ -105,6 +107,7 @@ class NotificationLogViewModel(
      * @param logName The stable name of the log dropdown.
      */
     fun toggleLog(logName: String) {
+        println("NotificationLogRecomposition: NotificationLogViewModel.toggleLog $logName")
         if (logName.isEmpty()) {
             return
         }

@@ -57,7 +57,10 @@ fun NotificationLogScreen(
     navController: androidx.navigation.NavController,
     profileText: (String) -> String = unresolvableProfileLabel,
 ) {
-    val display = viewModel { NotificationLogViewModel(controller, profileText) }
+    val display = viewModel {
+        println("NotificationLogScreen: NotificationLogViewModel factory invoked")
+        NotificationLogViewModel(controller, profileText)
+    }
     val state by display.state.collectAsState()
 
     Column(
@@ -99,7 +102,10 @@ private fun NotificationLogTopBar(
     Row(Modifier.fillMaxWidth()) {
         Box(
             modifier = Modifier
-                .clickable(onClick = { navController.navigateUp() })
+                .clickable(onClick = {
+                    println("NotificationLogScreen: back button clicked")
+                    navController.navigateUp()
+                })
                 .padding(12.dp)
         ) {
             BackArrow()
@@ -114,7 +120,10 @@ private fun NotificationLogTopBar(
 
         Box(
             modifier = Modifier
-                .clickable(onClick = { display.readLog() })
+                .clickable(onClick = {
+                    println("NotificationLogScreen: refresh log clicked")
+                    display.readLog()
+                })
                 .padding(12.dp)
         ) {
             Text("refresh log", fontSize = 14.sp, color = FieldGrey)
@@ -140,7 +149,10 @@ private fun NotificationLogLineDisplay(
         LogLineStyle.DROPDOWN -> {
             Box(
                 modifier = Modifier
-                    .clickable(onClick = { display.toggleLog(line.logId) })
+                    .clickable(onClick = {
+                        println("NotificationLogScreen: dropdown bar clicked: ${line.logId}")
+                        display.toggleLog(line.logId)
+                    })
                     .padding(6.dp)
             ) {
                 Text(line.text, fontSize = 18.sp)

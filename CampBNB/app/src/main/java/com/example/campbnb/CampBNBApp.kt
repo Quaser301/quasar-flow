@@ -898,6 +898,7 @@ fun CampBnbApp(
             )
         }
         composable<Screen.NotificationLogs> {
+            println("NotificationLogRecomposition: notification log destination composable invoked")
             NotificationLogScreen(
                 controller = AppContainer.notificationController,
                 navController = nav
