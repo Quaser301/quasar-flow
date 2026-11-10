@@ -1,7 +1,7 @@
 package com.example.campbnb.ui.notification
 
 // AI-assisted (re-pull of US 03.08.01, debug screen): written by Qwen 3.8 Flash Next Coder
-// IQ1_M. No disclosure-table row: the user asked to stop logging prompts.
+// IQ1_M.
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
@@ -19,62 +19,35 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.campbnb.controller.NotificationController
-import com.example.campbnb.models.NotificationLogGroup
+import com.example.campbnb.models.LogLineStyle
+import com.example.campbnb.models.NotificationLogLine
 import com.example.campbnb.ui.components.BackArrow
 import com.example.campbnb.ui.components.profileLabelOf
 import com.example.campbnb.viewModels.LogViewState
 import com.example.campbnb.viewModels.NotificationLogViewModel
 import com.example.campbnb.ui.theme.FieldGrey
-import com.google.firebase.Timestamp
-import java.nio.file.WatchEvent
-import java.text.SimpleDateFormat
-import java.util.Locale
-
-/**
- * The collapsed line of a log dropdown, in order: who sent the notification, how many
- * receivers got it, its timestamp, and where opening it goes.
- *
- * @param group The log entry to describe.
- * @return The one-line summary the dropdown bar shows.
- */
-fun summaryLine(group: NotificationLogGroup): String {
-    val sender = group.senderId.ifEmpty { "the system" }
-    return "sent by $sender  -  ${group.recipientIds.count()} recipient(s)  -  " +
-        "${describeTimestamp(group.sentAt)}  -  opens ${group.routeText}"
-}
-
-/**
- * Turns a saved timestamp into a date-and-time label for the log.
- *
- * @param sentAt The saved timestamp, if any.
- * @return The label, or a note when no timestamp was saved.
- */
-private fun describeTimestamp(sentAt: Timestamp?): String {
-    if (sentAt == null) return "no saved timestamp"
-    return SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.US).format(sentAt.seconds * 1000L)
-}
 
 /**
  * The Notification Debugging screen body: a back button in the top left, a Notification
- * Debugging header in the top center, and every log entry as a dropdown. What the log shows
- * comes from [NotificationLogViewModel], which reads every saved notification through the
- * controller it was handed; the screen never reaches the data itself.
+ * Debugging header in the top center, a button that reads the log again in the top right,
+ * and the log itself below them.
  *
- * Registration is done separately: this composable is only the body, and it is not wired
- * into navigation yet.
+ * The screen only draws. What the log holds and the lines it shows come from
+ * [NotificationLogViewModel], which reads every saved notification once through the
+ * controller it was handed and turns it into lines; the screen never reaches the records
+ * themselves and does no formatting of its own. Opening a dropdown is a tap on its bar:
+ * the view adds that entry's receivers and its notice to the lines, and the keyed list
+ * draws only the lines that differ.
  *
- * Each dropdown opens its second list: a scrollable list of the profiles that received the
- * notification, with the notification content kept exactly as it was written below it,
- * including any placeholder text inside it.
+ * Registration is done separately: this composable is only the body.
  *
  * @param back Called when the back button is pressed.
  * @param controller Where notifications are read from; the app hands its one instance.
  * @param profileText How a profile reference is drawn. The default only knows the reference,
- * so it labels unknown ones as such: a caller that wants real names hands this its own
- * lookup, for example the app&apos;s saved users fed to [profileLabelOf].
+ *     so it labels unknown ones as such: a caller that wants real names hands this its own
+ *     lookup, for example the app&apos;s saved users fed to [profileLabelOf].
  */
 @Composable
 fun NotificationLogScreen(
@@ -82,12 +55,11 @@ fun NotificationLogScreen(
     controller: NotificationController,
     profileText: (String) -> String = { userId -> profileLabelOf(userId, emptyList()) },
 ) {
-    val display = viewModel { NotificationLogViewModel(controller, back) }
+    val display = viewModel { NotificationLogViewModel(controller, profileText, back) }
     val state by display.state.collectAsState()
-    val openNames by display.openLogs.collectAsStateWithLifecycle()
 
     Column(
-      modifier = Modifier.padding(top = 32.dp, start = 12.dp, end = 12.dp)
+        modifier = Modifier.padding(top = 32.dp, start = 12.dp, end = 12.dp)
     ) {
         NotificationLogTopBar(display)
         when (val shown = state) {
@@ -100,34 +72,14 @@ fun NotificationLogScreen(
             }
 
             is LogViewState.Ready -> {
-                if (shown.logs.isEmpty()) {
+                if (shown.lines.isEmpty()) {
                     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                         Text("No logs to show!", fontSize = 22.sp, color = FieldGrey)
                     }
                 } else {
                     LazyColumn(modifier = Modifier.fillMaxSize()) {
-                        shown.logs.forEach { group ->
-                            val expanded = group.logId in openNames
-                            item(key = group.logId) {
-                                NotificationLogDropdown(display, group, expanded)
-                            }
-
-                            if (expanded) {
-                                items(items = group.recipientIds, key = {"${group.logId}_$it"}) {
-                                    userId ->
-                                    Text(
-                                        text = profileText(userId),
-                                        fontSize = 16.sp,
-                                        modifier = Modifier.padding(start = 24.dp, bottom = 4.dp)
-                                    )
-                                }
-                                item(key = "${group.logId}_content") {
-                                    Column(modifier = Modifier.padding(start = 24.dp, bottom = 12.dp)) {
-                                        Text(group.title, fontSize = 18.sp)
-                                        Text(group.message, fontSize = 16.sp, color = Color.Gray)
-                                    }
-                                }
-                            }
+                        items(items = shown.lines, key = { it.lineKey }) { line ->
+                            NotificationLogLineDisplay(display, line)
                         }
                     }
                 }
@@ -136,16 +88,15 @@ fun NotificationLogScreen(
     }
 }
 
-/** The back button in the top left and the Notification Debugging header in the top center. */
+/** The back button, the Notification Debugging header, and the button that reads the log again. */
 @Composable
 private fun NotificationLogTopBar(display: NotificationLogViewModel) {
     Row(Modifier.fillMaxWidth()) {
         Box(
             modifier = Modifier
-                .clickable(onClick = { display.pressBack() } )
+                .clickable(onClick = { display.pressBack() })
                 .padding(12.dp)
         ) {
-
             BackArrow()
         }
 
@@ -158,39 +109,58 @@ private fun NotificationLogTopBar(display: NotificationLogViewModel) {
 
         Box(
             modifier = Modifier
+                .clickable(onClick = { display.readLog() })
                 .padding(12.dp)
         ) {
-            BackArrow(color = Color.Transparent)
+            Text("refresh log", fontSize = 14.sp, color = FieldGrey)
         }
     }
 }
 
 /**
- * One log dropdown: a bar summarizing who sent the notification, how many received it, its
- * timestamp and where it opens, which opens or closes on a tap and shows its detail while
- * open.
+ * Draws one log line in the look its style names: a dropdown bar that opens or closes that
+ * entry on a tap, a receiver of it, or the title and body of the notice it carried.
  *
- * @param display The holder of the dropdown expansion state.
- * @param group The log entry this dropdown stands for.
- * @param expanded If this dropdown is expanded.
+ * The text is already written, so this only gives it a size, an indent and a colour.
+ *
+ * @param display The holder of the dropdown expansion state, so a bar can open its entry.
+ * @param line The line to draw.
  */
 @Composable
-private fun NotificationLogDropdown(
+private fun NotificationLogLineDisplay(
     display: NotificationLogViewModel,
-    group: NotificationLogGroup,
-    expanded: Boolean,
+    line: NotificationLogLine,
 ) {
-    Column {
-        Box(
-            Modifier
-                .clickable(onClick = { display.toggleLog(group.logId) })
-                .padding(6.dp)
-        ) {
+    when (line.style) {
+        LogLineStyle.DROPDOWN -> {
+            Box(
+                modifier = Modifier
+                    .clickable(onClick = { display.toggleLog(line.logId) })
+                    .padding(6.dp)
+            ) {
+                Text(line.text, fontSize = 18.sp)
+            }
+        }
+
+        LogLineStyle.RECIPIENT -> {
             Text(
-                summaryLine(group) + if (expanded) " - open" else " - tap to open",
-                fontSize = 18.sp
+                line.text,
+                fontSize = 16.sp,
+                modifier = Modifier.padding(start = 24.dp, bottom = 4.dp)
+            )
+        }
+
+        LogLineStyle.NOTICE_TITLE -> {
+            Text(line.text, fontSize = 18.sp, modifier = Modifier.padding(start = 24.dp))
+        }
+
+        LogLineStyle.NOTICE_BODY -> {
+            Text(
+                line.text,
+                fontSize = 16.sp,
+                color = Color.Gray,
+                modifier = Modifier.padding(start = 24.dp, bottom = 12.dp)
             )
         }
     }
 }
-

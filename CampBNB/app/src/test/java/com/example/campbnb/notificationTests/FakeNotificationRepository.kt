@@ -8,13 +8,13 @@ import com.example.campbnb.models.NotificationStatus
 class FakeNotificationRepository : NotificationRepository {
     val saved = mutableMapOf<String, Notification>()
     var saveCalls = 0
-    var failNextSave = false
+    var readAllCalls = 0
     var stopCalls = 0
-    var failNextListenAll = false
+    var failNextSave = false
+    var failNextReadAll = false
 
     private var listeningUserId: String? = null
     private var listener: ((NotificationUpdate) -> Unit)? = null
-    private var allListener: ((NotificationUpdate) -> Unit)? = null
 
     override fun saveAll(notifications: List<Notification>, onDone: (Result<Unit>) -> Unit) {
         saveCalls++
@@ -27,30 +27,25 @@ class FakeNotificationRepository : NotificationRepository {
         onDone(Result.success(Unit))
     }
 
-    /** Simulates a Firestore snapshot update in tests. */
+    /** Forgets what this fake holds, so a case can read only the records it saved. */
+    fun forgetSaved() {
+        saved.clear()
+    }
+
+    /** Serves whatever this fake holds, the way one read of the collection does. */
+    override fun readAll(onSuccess: (List<Notification>) -> Unit, onFailure: (Exception) -> Unit) {
+        readAllCalls++
+        if (failNextReadAll) {
+            failNextReadAll = false
+            onFailure(Exception("fake read failure"))
+            return
+        }
+        onSuccess(saved.values.toList())
+    }
+
+    /** Simulates a Firestore snapshot update for the per-user listener. */
     fun emit(update: NotificationUpdate) {
         listener?.invoke(update)
-    }
-
-    /** Simulates a snapshot update for the all-notifications listener. */
-    fun emitAll(update: NotificationUpdate) {
-        allListener?.invoke(update)
-    }
-
-    override fun listenForAll(
-        onUpdate: (NotificationUpdate) -> Unit,
-        onError: (Exception) -> Unit
-    ): () -> Unit {
-        if (failNextListenAll) {
-            failNextListenAll = false
-            onError(Exception("fake read failure"))
-            return {}
-        }
-        allListener = onUpdate
-        return {
-            stopCalls++
-            allListener = null
-        }
     }
 
     override fun listenForUser(
@@ -67,7 +62,6 @@ class FakeNotificationRepository : NotificationRepository {
             listeningUserId = null
         }
     }
-
 
 
     override fun markRead(

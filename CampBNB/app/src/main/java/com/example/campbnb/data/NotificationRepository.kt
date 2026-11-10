@@ -26,17 +26,20 @@ interface NotificationRepository {
     fun saveAll( notifications: List<Notification>, onDone: (Result<Unit>) -> Unit)
 
     /**
-     * starts live listener for EVERY notification, whichever user receives it
+     * reads every saved notification, in one read, whichever user receives them
      *
-     * Only the notification debug screen uses this: the per-user listener above cannot
-     * answer "what has the app sent overall".
+     * Only the notification debug screen uses this: the per-user listener below cannot
+     * answer "what has the app sent overall". It is read once and re-read on an explicit
+     * tap rather than listened to, because a listener over the whole collection re-delivers
+     * every saved record on every write anywhere.
      *
-     * @return a function that stops the listener. Called when screen goes away, otherwise listener keeps running
+     * @param onSuccess called once with every saved notification
+     * @param onFailure called once when the read fails
      */
-    fun listenForAll(
-        onUpdate: (NotificationUpdate) -> Unit,
-        onError: (Exception) -> Unit
-    ): () -> Unit
+    fun readAll(
+        onSuccess: (List<Notification>) -> Unit,
+        onFailure: (Exception) -> Unit
+    )
 
     /**
      * starts live listener for one user's notification

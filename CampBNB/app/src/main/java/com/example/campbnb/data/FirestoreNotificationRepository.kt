@@ -39,27 +39,16 @@ class FirestoreNotificationRepository (
     }
 
     /**
-     * Listens for every saved notification, whichever user receives it. The same snapshot
-     * handling as the per-user listener below, without the recipientId filter.
+     * Reads every saved notification once, whichever user receives it. The debug log is a
+     * record of broadcasts that have already been sent, so it is read through the read engine
+     * the other repositories use rather than subscribed to: nothing is left open here that a
+     * later write could re-deliver.
      */
-    override fun listenForAll(
-        onUpdate: (NotificationUpdate) -> Unit,
-        onError: (Exception) -> Unit
-    ): () -> Unit {
-        val registration = collection
-            .addSnapshotListener { snapshot, error ->
-                if (error != null) {
-                    onError(error)
-                    return@addSnapshotListener
-                }
-                if (snapshot == null) return@addSnapshotListener
-                val all = snapshot.toObjects(Notification::class.java)
-                val added = snapshot.documentChanges
-                    .filter { it.type == DocumentChange.Type.ADDED }
-                    .map { it.document.toObject(Notification::class.java) }
-                onUpdate(NotificationUpdate(all, added))
-            }
-        return { registration.remove() }
+    override fun readAll(
+        onSuccess: (List<Notification>) -> Unit,
+        onFailure: (Exception) -> Unit
+    ) {
+        Database.Notifications.readEngine().query().execute(onSuccess, onFailure)
     }
 
     override fun listenForUser(
