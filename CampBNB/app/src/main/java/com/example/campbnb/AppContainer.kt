@@ -11,10 +11,14 @@ import com.example.campbnb.data.FirestoreMessageRepository
 import com.example.campbnb.data.FirestoreNotificationRepository
 import com.example.campbnb.data.MessageRepository
 import com.example.campbnb.data.NotificationRepository
+import com.example.campbnb.data.NotificationUpdate
 import com.example.campbnb.data.ReservationRepository
 import com.example.campbnb.data.UserRepository
 import com.example.campbnb.database.Database
+import com.example.campbnb.models.Notification
+import com.example.campbnb.models.NotificationStatus
 import com.example.campbnb.models.UserModel
+import kotlin.collections.forEach
 
 /**
  * Central place for creating and connecting app dependencies.

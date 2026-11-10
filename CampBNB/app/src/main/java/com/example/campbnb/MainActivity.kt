@@ -54,7 +54,6 @@ class MainActivity : ComponentActivity() {
                     appViewSettings = appViewSettingsControl,
                     pendingRoute = pendingRoute,
                     onPendingRouteHandled = { pendingRoute = null },
-                    notificationRepo
                 )
             }
         }

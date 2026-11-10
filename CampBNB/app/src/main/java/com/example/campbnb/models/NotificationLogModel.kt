@@ -3,12 +3,12 @@ package com.example.campbnb.models
 // AI-assisted (re-pull of US 03.08.01, model side): written by Qwen 3.8 Flash Next Coder
 // IQ1_M.
 
-import com.example.campbnb.models.Notification
 import com.example.campbnb.notifications.NotificationRoutes
 import com.google.firebase.Timestamp
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import com.example.campbnb.controller.NotificationController
 
 /**
  * One entry of the notification log: the records written together for one broadcast,
@@ -96,7 +96,7 @@ fun notificationLogKeyOf(notification: Notification): String =
  * @return The saved timestamp, or nothing when none was saved.
  */
 private fun sentAtOf(members: List<Notification>): Timestamp? =
-    members.mapNotNull { it.sentAt }.firstOrNull()
+    members.firstNotNullOfOrNull { it.sentAt }
 
 /**
  * The date-and-time label one saved timestamp takes in the log.
@@ -131,7 +131,7 @@ private fun summaryLineOf(group: NotificationLogGroup): String {
  *
  * Records of one broadcast join into one entry, the receivers are collected in order
  * without repeats, and the entries take the order their input gives them - the caller
- * sorts the records newest first first, which is what [NotificationController] does.
+ * sorts the records newest first, which is what [NotificationController] does.
  * The label and the timestamp label are written here, once, so the screen has no
  * formatting left to do per line.
  *

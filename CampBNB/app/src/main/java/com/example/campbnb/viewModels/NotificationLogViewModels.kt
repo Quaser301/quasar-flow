@@ -36,12 +36,12 @@ sealed interface LogViewState {
  * The log reads every saved notification, across every user, once when the screen opens and
  * again only when the screen taps [readLog]. It is a record of broadcasts that have already
  * been sent, so nothing is subscribed: a whole-collection listener would re-deliver every
- * saved record on every write anywhere, which is what makes opening the screen crawl.
+ * saved record on every write anywhere.
  *
  * What the log reads is grouped into one entry per broadcast with [notificationLogGroupsFor]
- * after [NotificationController] orders it newest first, and turned into lines once here, so
- * a tap that opens or closes a dropdown hands the screen a new list and only the lines that
- * differ are drawn again.
+ * after [NotificationController] orders it, newest first. Then, entries are turned into lines
+ * *once* here, so a tap that opens or closes a dropdown hands the screen a new list and only
+ * the lines that differ are redrawn.
  *
  * @memberproperty state The readonly [StateFlow] of what the log currently shows.
  * @memberproperty openLogs The readonly [StateFlow] of which log dropdowns are open.
@@ -49,7 +49,7 @@ sealed interface LogViewState {
  * @param controller Where notifications are read from; the app hands its one instance.
  * @param profileLabel How a profile reference is drawn; the screen hands a stable resolver, so a
  *     caller that can resolve references against the saved users gets real names and one that
- *     cannot gets references labelled unknown. Resolved once per receiver while the lines are
+ *     cannot gets references labeled unknown. Resolved once per receiver while the lines are
  *     built.
  */
 class NotificationLogViewModel(

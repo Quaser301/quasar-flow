@@ -99,7 +99,7 @@ fun SettingsScreen(
     val currentView = viewSettings.viewSetting.collectAsStateWithLifecycle()
 
     Column(
-        modifier = Modifier.padding(top = 16.dp),
+        modifier = Modifier.padding(top = 24.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         SettingsTopBar(display)

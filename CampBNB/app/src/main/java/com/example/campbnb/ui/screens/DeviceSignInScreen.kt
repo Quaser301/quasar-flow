@@ -15,7 +15,7 @@ import com.example.campbnb.ui.components.GradientButton
 import com.example.campbnb.ui.theme.FieldGrey
 import com.example.campbnb.viewModels.DeviceSignInController
 import com.example.campbnb.ui.components.AuthScaffold
-
+import com.example.campbnb.ui.theme.ErrorRed
 
 
 /**
@@ -62,8 +62,9 @@ fun DeviceSignInScreen(
 
     AuthScaffold(headerImage) {
         Text("Sign on", fontSize = 24.sp, textAlign = TextAlign.Center, fontWeight = FontWeight.Bold)
+        Spacer(modifier = Modifier.height(4.dp))
         if (notice.value.isNotBlank()) {
-            Text(notice.value, fontSize = 14.sp, color = FieldGrey)
+            Text(notice.value, fontSize = 14.sp, color = ErrorRed, textAlign = TextAlign.Center)
         }
         Spacer(modifier = Modifier.height(8.dp))
         GradientButton(

@@ -16,6 +16,18 @@ val EyePink = Color(0xFFF0A8A8)
 val DeleteStart = Color(0xFFA64545)
 val DeleteEnd = Color(0xFF6B1212)
 
+val ErrorRed = Color(0xFFFC3A6B)
+
+// For headers/system info (IE "Fetching logs...", that sort of thing)
+val AdminInfoColor = Color(0xFF424A52)
+val AdminInteractionColor = Color(0xFF3C4B28)
+// for the actual info pulled from the system
+val AdminDataColor1 = Color(0xFF002147)
+val AdminDataColor2 = Color(0xFFD4AF37)
+
+val AdminDataColor3 = Color(0xFF7A560F)
+
+
 /** Red pill button for destructive actions like Delete Site. */
 val DeleteGradient = Brush.horizontalGradient(listOf(DeleteStart, DeleteEnd))
 

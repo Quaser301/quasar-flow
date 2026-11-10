@@ -17,6 +17,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
@@ -29,6 +30,12 @@ import com.example.campbnb.ui.components.unresolvableProfileLabel
 import com.example.campbnb.viewModels.LogViewState
 import com.example.campbnb.viewModels.NotificationLogViewModel
 import com.example.campbnb.ui.theme.FieldGrey
+import com.example.campbnb.ui.screens.ExploreScreen
+import com.example.campbnb.ui.theme.AdminDataColor1
+import com.example.campbnb.ui.theme.AdminDataColor2
+import com.example.campbnb.ui.theme.AdminDataColor3
+import com.example.campbnb.ui.theme.AdminInfoColor
+import com.example.campbnb.ui.theme.AdminInteractionColor
 
 /**
  * The Notification Debugging screen body: a back button in the top left, a Notification
@@ -45,8 +52,9 @@ import com.example.campbnb.ui.theme.FieldGrey
  * Registration is done separately: this composable is only the body.
  *
  * @param controller Where notifications are read from; the app hands its one instance.
- * @param navController The navigation controller the back button walks up; the app hands
- *     its one instance.
+ * @param returnFunc The return function used by the back button. Not passing the direct Nav
+ * reference, since the current navigation method (from the [ExploreScreen]) would then return to
+ * the sign-in page.
  * @param profileText How a profile reference is drawn. The default is the stable resolver for
  *     listings that cannot look up saved users, so it labels unknown references as such. A
  *     caller that can resolve references hands this its own stable lookup.
@@ -54,7 +62,7 @@ import com.example.campbnb.ui.theme.FieldGrey
 @Composable
 fun NotificationLogScreen(
     controller: NotificationController,
-    navController: androidx.navigation.NavController,
+    returnFunc: () -> Unit,
     profileText: (String) -> String = unresolvableProfileLabel,
 ) {
     val display = viewModel {
@@ -66,20 +74,35 @@ fun NotificationLogScreen(
     Column(
         modifier = Modifier.padding(top = 32.dp, start = 12.dp, end = 12.dp)
     ) {
-        NotificationLogTopBar(display, navController)
+        NotificationLogTopBar(display, returnFunc)
+        Box(
+            modifier = Modifier
+                .clickable(onClick = {
+                    display.readLog()
+                })
+                .padding(12.dp)
+                .align(Alignment.CenterHorizontally)
+        ) {
+            Text(
+                "Refresh",
+                fontSize = 14.sp,
+                color = AdminInteractionColor,
+                textAlign = TextAlign.Center
+            )
+        }
         when (val shown = state) {
             is LogViewState.Loading -> {
-                Text("reading notifications...", fontSize = 18.sp, color = FieldGrey)
+                Text("Reading Notifications...", fontSize = 18.sp, color = AdminInfoColor)
             }
 
             is LogViewState.Error -> {
-                Text(shown.message, fontSize = 18.sp, color = FieldGrey)
+                Text(shown.message, fontSize = 18.sp, color = AdminInfoColor)
             }
 
             is LogViewState.Ready -> {
                 if (shown.lines.isEmpty()) {
                     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        Text("No logs to show!", fontSize = 22.sp, color = FieldGrey)
+                        Text("No logs to show!", fontSize = 22.sp, color = AdminInfoColor)
                     }
                 } else {
                     LazyColumn(modifier = Modifier.fillMaxSize()) {
@@ -97,15 +120,12 @@ fun NotificationLogScreen(
 @Composable
 private fun NotificationLogTopBar(
     display: NotificationLogViewModel,
-    navController: androidx.navigation.NavController,
+    returnFunc: () -> Unit,
 ) {
     Row(Modifier.fillMaxWidth()) {
         Box(
             modifier = Modifier
-                .clickable(onClick = {
-                    println("NotificationLogScreen: back button clicked")
-                    navController.navigateUp()
-                })
+                .clickable(onClick = returnFunc)
                 .padding(12.dp)
         ) {
             BackArrow()
@@ -115,18 +135,14 @@ private fun NotificationLogTopBar(
             Modifier.weight(1.0f),
             contentAlignment = Alignment.Center
         ) {
-            Text("Notification Debugging", fontSize = 26.sp)
+            Text("Notification Debugging", fontSize = 26.sp, textAlign = TextAlign.Center)
         }
 
         Box(
             modifier = Modifier
-                .clickable(onClick = {
-                    println("NotificationLogScreen: refresh log clicked")
-                    display.readLog()
-                })
                 .padding(12.dp)
         ) {
-            Text("refresh log", fontSize = 14.sp, color = FieldGrey)
+            BackArrow(color = Color.Transparent)
         }
     }
 }
@@ -135,7 +151,7 @@ private fun NotificationLogTopBar(
  * Draws one log line in the look its style names: a dropdown bar that opens or closes that
  * entry on a tap, a receiver of it, or the title and body of the notice it carried.
  *
- * The text is already written, so this only gives it a size, an indent and a colour.
+ * The text is already written, so this only gives it a size, an indent and a color.
  *
  * @param display The holder of the dropdown expansion state, so a bar can open its entry.
  * @param line The line to draw.
@@ -150,32 +166,38 @@ private fun NotificationLogLineDisplay(
             Box(
                 modifier = Modifier
                     .clickable(onClick = {
-                        println("NotificationLogScreen: dropdown bar clicked: ${line.logId}")
                         display.toggleLog(line.logId)
                     })
-                    .padding(6.dp)
+                    .padding(6.dp),
+                contentAlignment = Alignment.CenterStart
             ) {
-                Text(line.text, fontSize = 18.sp)
+                Text(line.text, fontSize = 18.sp, color = AdminDataColor1)
             }
         }
 
         LogLineStyle.RECIPIENT -> {
             Text(
-                line.text,
+                "Recipients: ${line.text}",
                 fontSize = 16.sp,
+                color = AdminDataColor2,
                 modifier = Modifier.padding(start = 24.dp, bottom = 4.dp)
             )
         }
 
         LogLineStyle.NOTICE_TITLE -> {
-            Text(line.text, fontSize = 18.sp, modifier = Modifier.padding(start = 24.dp))
+            Text(
+                "Title: ${line.text}",
+                fontSize = 18.sp,
+                modifier = Modifier
+                    .padding(start = 24.dp),
+                color = AdminDataColor3)
         }
 
         LogLineStyle.NOTICE_BODY -> {
             Text(
-                line.text,
+                "Body: ${line.text}",
                 fontSize = 16.sp,
-                color = Color.Gray,
+                color = AdminDataColor1,
                 modifier = Modifier.padding(start = 24.dp, bottom = 12.dp)
             )
         }

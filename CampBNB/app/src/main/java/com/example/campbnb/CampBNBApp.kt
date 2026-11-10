@@ -86,17 +86,18 @@ import com.example.campbnb.ui.shared.DeviceId
 import com.example.campbnb.ui.shared.observeModel
 import com.example.campbnb.ui.shared.roleFor
 import com.example.campbnb.ui.shared.toUserRole
+import com.example.campbnb.ui.shared.viewFor
 import com.example.campbnb.viewModels.AppView
 import com.example.campbnb.viewModels.AppViewSettingController
 import com.example.campbnb.viewModels.MessageViewModel
 import com.example.campbnb.viewModels.simpleViewModelFactory
+import kotlin.collections.emptyList
 
 @Composable
 fun CampBnbApp(
     appViewSettings: AppViewSettingController,
     pendingRoute: String? = null,
     onPendingRouteHandled: () -> Unit = {},
-    notificationRepository: NotificationRepository
 ) {
 
     val nav = rememberNavController()
@@ -129,10 +130,16 @@ fun CampBnbApp(
         // Login
         composable<Screen.Login> {
             DeviceSignInScreen(
-                readDevice = { DeviceId.get(context, {""}) },
+                readDevice = { DeviceId.get(context) },
                 userController = userController,
                 onEntered = {
-                    val role = userModel.currentUser?.roles?.firstOrNull() ?: Role.ENTRANT
+                    val privileges = userModel.currentUser?.roles ?: emptyList()
+                    val role = when {
+                        Role.ADMIN in privileges -> Role.ADMIN
+                        Role.OWNER in privileges -> Role.OWNER
+                        else -> Role.ENTRANT
+                    }
+                    appViewSettings.changeViewTo(viewFor(role))
                     nav.navigate(Screen.Home(role = toUserRole(role))) {
                         popUpTo(Screen.Start) { inclusive = true }
                     }
@@ -274,6 +281,9 @@ fun CampBnbApp(
                 initialTab = route.tab,
                 destinationContent = { destination ->
                     when (destination) {
+                        // NOTE: do NOT use a direct nav call to switch to different screens.
+                        // That WILL repeatedly invoke that nav call and redraw your screen
+                        // INFINITELY.
                         HomeDestination.MY_CAMPSITES -> {
                             MyCampsitesTab(
                                 onOpenMyCampsites = {
@@ -325,7 +335,10 @@ fun CampBnbApp(
                         }
 
                         HomeDestination.ADMIN_NOTIFICATION_VIEW -> {
-                            nav.navigate(Screen.NotificationLogs)
+                            NotificationLogScreen(
+                                controller = AppContainer.notificationController,
+                                returnFunc = { nav.goHome(role) }
+                            )
                         }
 
                         else -> {
@@ -897,13 +910,7 @@ fun CampBnbApp(
                 openReservationId = entry.arguments?.getString("reservationId")
             )
         }
-        composable<Screen.NotificationLogs> {
-            println("NotificationLogRecomposition: notification log destination composable invoked")
-            NotificationLogScreen(
-                controller = AppContainer.notificationController,
-                navController = nav
-            )
-        }
+
     }
 
     LaunchedEffect(pendingRoute) {
