@@ -22,6 +22,7 @@ import com.example.campbnb.models.Role
 import com.example.campbnb.models.User
 import com.example.campbnb.models.UserModel
 import com.example.campbnb.ui.components.BackArrow
+import com.example.campbnb.ui.shared.BarWithBackChevronAndHeaderCentered
 
 /**
  * One browsed profile row: the three fields the admin sees, each already turned
@@ -143,7 +144,7 @@ fun AdminProfilesScreen(back: () -> Unit, userModel: UserModel) {
     val rows = profileRowsFor(userModel.allUsers)
 
     Column {
-        AdminProfilesTopBar(back)
+        BarWithBackChevronAndHeaderCentered(back, "Profiles")
         Box(Modifier.verticalScroll(rememberScrollState())) {
             Column(
                 verticalArrangement = spacedBy(8.dp)
@@ -153,34 +154,6 @@ fun AdminProfilesScreen(back: () -> Unit, userModel: UserModel) {
                     ProfileEntry(profileRowText(row))
                 }
             }
-        }
-    }
-}
-
-/** The back button in the top left and the Profiles header in the top center. */
-@Composable
-private fun AdminProfilesTopBar(back: () -> Unit) {
-    Row(Modifier.fillMaxWidth()) {
-        Box(
-        Modifier
-            .clickable(onClick = { back() })
-            .padding(12.dp)
-    ) {
-        BackArrow()
-    }
-        Box(
-            modifier = Modifier.weight(1f),
-            contentAlignment = Alignment.Center
-        ) {
-            Text("Profiles", fontSize = 26.sp)
-        }
-
-        // secret spacer to move it back
-        Box(
-            modifier = Modifier
-                .padding(12.dp)
-        ) {
-            Text("<", fontSize = 26.sp, color = Color.Transparent)
         }
     }
 }

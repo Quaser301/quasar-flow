@@ -96,7 +96,7 @@ fun SettingsScreen(
     ownerSettings: OwnerSettingsController = OwnerSettingsController(),
     adminSettingsContent: @Composable () -> Unit = { AdminSettingsPlaceholder() },
 ) {
-    val display = remember { SettingsDisplayController(back) }
+    val display = remember { SettingsDisplayController() }
     val currentView = viewSettings.viewSetting.collectAsStateWithLifecycle()
 
     Column(

@@ -67,7 +67,6 @@ fun NotificationLogScreen(
     profileText: (String) -> String = unresolvableProfileLabel,
 ) {
     val display = viewModel {
-        println("NotificationLogScreen: NotificationLogViewModel factory invoked")
         NotificationLogViewModel(controller, profileText)
     }
     val state by display.state.collectAsState()
@@ -145,6 +144,7 @@ private fun NotificationLogLineDisplay(
             }
         }
 
+        // TODO: make a factory for the titles in case this is more than just this file
         LogLineStyle.RECIPIENT -> {
             Text(
                 "Recipients: ${line.text}",

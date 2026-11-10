@@ -260,9 +260,7 @@ class NotificationController (
             // Save the notification.
             repo.saveAll(listOf(notification)) { result ->
                 result.onFailure { error ->
-                    println(
-                        "Failed to save notification: ${error.message}"
-                    )
+                    // TODO: Handle this
                 }
             }
         }

@@ -76,7 +76,6 @@ import com.example.campbnb.ui.lottery.LotteryWaitlistActivity
 import com.example.campbnb.ui.notification.NotificationLogScreen
 import com.example.campbnb.ui.search.SearchScreen
 import com.example.campbnb.ui.settings.SettingsScreen
-import com.example.campbnb.ui.shared.DeviceId
 import com.example.campbnb.ui.shared.observeModel
 import com.example.campbnb.ui.shared.roleFor
 import com.example.campbnb.ui.shared.toUserRole
@@ -972,7 +971,7 @@ private fun CorrespondenceDestination(
 /** The notification inbox. viewModel() keeps the same inbox (and its Firestore listener) across recompositions. */
 @Composable
 private fun NotificationsTab(nav: NavController, deps: Dependencies) {
-    val userId = DeviceId.get(LocalContext.current)
+    val userId = deps.deviceID
     val inboxViewModel: NotificationViewModel = viewModel(
         key = "notification-inbox-$userId",
         factory = simpleViewModelFactory {
@@ -985,7 +984,7 @@ private fun NotificationsTab(nav: NavController, deps: Dependencies) {
 /** The chat list and chat threads. [openReservationId] jumps straight into one chat. */
 @Composable
 private fun MessagesTab(openReservationId: String? = null, deps: Dependencies) {
-    val userId = DeviceId.get(LocalContext.current)
+    val userId = deps.deviceID
     val messageViewModel: MessageViewModel = viewModel(
         key = "message-inbox-$userId",
         factory = simpleViewModelFactory {
