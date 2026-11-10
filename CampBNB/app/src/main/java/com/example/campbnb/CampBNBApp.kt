@@ -28,19 +28,19 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.toRoute
-import com.example.campbnb.ui.Screens.ReservationScreen
+import com.example.campbnb.ui.screens.ReservationScreen
 import com.example.campbnb.controller.CampsiteController
 import com.example.campbnb.controller.LotteryController
 import com.example.campbnb.controller.UserController
 import com.example.campbnb.controller.NotificationController
 import com.example.campbnb.controller.ReservationFilter
 import com.example.campbnb.data.CampsiteRepository
-import com.example.campbnb.data.FirestoreNotificationRepository
 import com.example.campbnb.models.ReservationStatus
 import com.example.campbnb.models.BookingCardData
-import com.example.campbnb.ui.Screens.BookingsScreen
-import com.example.campbnb.ui.Screens.BookingTab
+import com.example.campbnb.ui.screens.BookingsScreen
+import com.example.campbnb.ui.screens.BookingTab
 import com.example.campbnb.data.LotteryRepository
+import com.example.campbnb.data.NotificationRepository
 import com.example.campbnb.data.ReservationRepository
 import com.example.campbnb.data.UserRepository
 import com.example.campbnb.database.Database
@@ -51,16 +51,16 @@ import com.example.campbnb.models.LotteryModel
 import com.example.campbnb.models.Role
 import com.example.campbnb.models.User
 import com.example.campbnb.models.UserModel
-import com.example.campbnb.ui.Screens.DeviceSignInScreen
+import com.example.campbnb.ui.screens.DeviceSignInScreen
 import com.example.campbnb.notifications.NotificationRoutes
-import com.example.campbnb.ui.Screens.CampsiteCardData
-import com.example.campbnb.ui.Screens.ExploreScreen
-import com.example.campbnb.ui.Screens.HomeDestination
-import com.example.campbnb.ui.Screens.HomeScreen
-import com.example.campbnb.ui.Screens.PlaceholderTab
-import com.example.campbnb.ui.Screens.RoleSelectScreen
-import com.example.campbnb.ui.Screens.SignUpScreen
-import com.example.campbnb.ui.Screens.StartScreen
+import com.example.campbnb.ui.screens.CampsiteCardData
+import com.example.campbnb.ui.screens.ExploreScreen
+import com.example.campbnb.ui.screens.HomeDestination
+import com.example.campbnb.ui.screens.HomeScreen
+import com.example.campbnb.ui.screens.PlaceholderTab
+import com.example.campbnb.ui.screens.RoleSelectScreen
+import com.example.campbnb.ui.screens.SignUpScreen
+import com.example.campbnb.ui.screens.StartScreen
 import com.example.campbnb.ui.admin.AdminProfilesScreen
 import com.example.campbnb.ui.campsite.CampsiteMonitorActivity
 import com.example.campbnb.ui.campsite.CampsiteRatingSection
@@ -80,6 +80,7 @@ import com.example.campbnb.ui.lottery.LotteryDetailsActivity
 import com.example.campbnb.ui.lottery.LotteryEditActivity
 import com.example.campbnb.ui.lottery.LotteryMonitorActivity
 import com.example.campbnb.ui.lottery.LotteryWaitlistActivity
+import com.example.campbnb.ui.notification.NotificationLogScreen
 import com.example.campbnb.ui.search.SearchScreen
 import com.example.campbnb.ui.settings.SettingsScreen
 import com.example.campbnb.ui.shared.DeviceId
@@ -90,13 +91,13 @@ import com.example.campbnb.viewModels.AppView
 import com.example.campbnb.viewModels.AppViewSettingController
 import com.example.campbnb.viewModels.MessageViewModel
 import com.example.campbnb.viewModels.simpleViewModelFactory
-import com.google.firebase.auth.FirebaseAuth
 
 @Composable
 fun CampBnbApp(
     appViewSettings: AppViewSettingController,
     pendingRoute: String? = null,
-    onPendingRouteHandled: () -> Unit = {}
+    onPendingRouteHandled: () -> Unit = {},
+    notificationRepository: NotificationRepository
 ) {
 
     val nav = rememberNavController()
@@ -110,6 +111,10 @@ fun CampBnbApp(
             reservationWriter = Database.Reservations.writeEngine(),
             bookedDateWriter = Database.BookedDates.writeEngine()
         )
+    }
+
+    val notificationRepo = remember {
+        notificationRepository
     }
 
     val campsiteRepository = remember {
@@ -322,6 +327,10 @@ fun CampBnbApp(
                                 { nav.goHome(role) },
                                 userModel
                             )
+                        }
+
+                        HomeDestination.ADMIN_NOTIFICATION_VIEW -> {
+                            nav.navigate(Screen.NotificationLogs)
                         }
 
                         else -> {
@@ -891,6 +900,15 @@ fun CampBnbApp(
                 nav = nav,
                 initialTab = 1,
                 openReservationId = entry.arguments?.getString("reservationId")
+            )
+        }
+        composable<Screen.NotificationLogs> {
+            NotificationLogScreen(
+                back = { nav.navigateUp() },
+                NotificationController(
+                    notificationRepo
+                    // TODO: Save settings locally and handle notification opt in/out
+                )
             )
         }
     }

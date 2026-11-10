@@ -33,8 +33,8 @@ import com.example.campbnb.ui.lottery.todayAsPickerMillis
 import com.example.campbnb.models.SearchFilters
 import com.example.campbnb.ui.components.ArrowDownGlyph
 import com.example.campbnb.ui.components.CircleLabelButton
-import com.example.campbnb.ui.Screens.CampSearchBar
-import com.example.campbnb.ui.Screens.CampsiteCardData
+import com.example.campbnb.ui.screens.CampSearchBar
+import com.example.campbnb.ui.screens.CampsiteCardData
 import com.example.campbnb.ui.campsite.RatingDisplay
 import com.example.campbnb.ui.theme.FieldGrey
 import com.example.campbnb.ui.theme.SearchBarBg

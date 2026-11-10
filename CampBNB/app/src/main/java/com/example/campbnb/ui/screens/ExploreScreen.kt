@@ -1,4 +1,4 @@
-package com.example.campbnb.ui.Screens
+package com.example.campbnb.ui.screens
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -24,7 +24,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.campbnb.ui.components.CircleLabelButton
 import com.example.campbnb.ui.components.MenuGlyph
 import com.example.campbnb.ui.components.SearchGlyph
 import com.example.campbnb.ui.theme.FieldGrey
@@ -136,7 +135,7 @@ fun ExploreScreen(
  *
  * @param query The current text.
  * @param onQueryChange Called as the user types.
- * @param onSearch Called with the query when the user submits it.
+ * @param onSubmitSearch Called with the query when the user submits it.
  * @param onMenuClick Called when the hamburger icon is tapped.
  * @param menuContent A dropdown menu anchored to the hamburger icon. Empty by default.
  */

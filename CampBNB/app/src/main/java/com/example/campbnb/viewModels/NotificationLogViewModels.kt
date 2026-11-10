@@ -4,12 +4,16 @@ package com.example.campbnb.viewModels
 // IQ1_M. No disclosure-table row: the user asked to stop logging prompts at this point.
 
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
 import com.example.campbnb.controller.NotificationController
 import com.example.campbnb.models.NotificationLogGroup
 import com.example.campbnb.models.notificationLogGroupsFor
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /**
  * The state of the notification log: nothing read yet, the log entries, or a read failure.
@@ -64,9 +68,15 @@ class NotificationLogViewModel(
 
         stopListening = controller.listenAll(
             onUpdate = { update ->
-                _state.value = LogViewState.Ready(
-                    notificationLogGroupsFor(NotificationController.sortNewestFirst(update.all))
-                )
+                // Offload sorting, grouping, and filtering entirely to a background worker thread
+                viewModelScope.launch {
+                    val processedLogs = withContext(Dispatchers.Default) {
+                        val sortedList = NotificationController.sortNewestFirst(update.all)
+                        notificationLogGroupsFor(sortedList)
+                    }
+                    // Safely push the optimized data payload back to the UI thread
+                    _state.value = LogViewState.Ready(processedLogs)
+                }
             },
             onError = { error ->
                 _state.value = LogViewState.Error(
@@ -91,7 +101,7 @@ class NotificationLogViewModel(
     }
 
     /**
-     * Runs the back navigation: presses the screen&apos;s back button by calling the back
+     * Runs the back navigation: presses the screen's back button by calling the back
      * lambda it was handed.
      */
     fun pressBack() {

@@ -1,4 +1,4 @@
-package com.example.campbnb.ui.Screens
+package com.example.campbnb.ui.screens
 
 import androidx.annotation.DrawableRes
 import androidx.compose.foundation.layout.*

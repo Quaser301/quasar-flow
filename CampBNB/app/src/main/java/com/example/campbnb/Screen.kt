@@ -81,6 +81,9 @@ sealed interface Screen {
     data class CampsiteDetailsScreen(val role: UserRole, val campsiteId: String): Screen
 
     @Serializable
+    data object NotificationLogs: Screen
+
+    @Serializable
     data object AdminProfileView: Screen
 
 }

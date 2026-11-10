@@ -2,7 +2,7 @@ package com.example.campbnb.ui.campsite
 
 import com.example.campbnb.models.Campsite
 import com.example.campbnb.models.CampsiteModel
-import com.example.campbnb.ui.Screens.CampsiteCardData
+import com.example.campbnb.ui.screens.CampsiteCardData
 import com.example.campbnb.ui.details.CampsiteDetails
 
 /** Converts a campsite into the summary card shown in lists (US 01.01.04). */

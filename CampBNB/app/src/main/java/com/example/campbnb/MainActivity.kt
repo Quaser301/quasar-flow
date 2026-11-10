@@ -9,6 +9,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import com.example.campbnb.data.FirestoreNotificationRepository
 import com.example.campbnb.ui.theme.CampBnbTheme
 import com.example.campbnb.viewModels.AppViewSettingController
 import com.example.campbnb.notifications.NotificationChannels
@@ -33,8 +34,10 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         // declare your static lifetime controllers here.
         val appViewSettingsControl = AppViewSettingController()
+        val notificationRepo = FirestoreNotificationRepository()
 
-        NotificationChannels.createAll(applicationContext) // channels must exist before any notifications are posted
+        // channels must exist before any notifications are posted
+        NotificationChannels.createAll(applicationContext)
 
         if (savedInstanceState == null) {
             handleNotificationIntent(intent)
@@ -50,7 +53,8 @@ class MainActivity : ComponentActivity() {
                 CampBnbApp(
                     appViewSettings = appViewSettingsControl,
                     pendingRoute = pendingRoute,
-                    onPendingRouteHandled = { pendingRoute = null }
+                    onPendingRouteHandled = { pendingRoute = null },
+                    notificationRepo
                 )
             }
         }

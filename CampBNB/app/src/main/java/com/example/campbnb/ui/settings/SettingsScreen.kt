@@ -99,6 +99,7 @@ fun SettingsScreen(
     val currentView = viewSettings.viewSetting.collectAsStateWithLifecycle()
 
     Column(
+        modifier = Modifier.padding(top = 16.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         SettingsTopBar(display)
@@ -180,10 +181,10 @@ private fun SettingsDropdown(
 }
 
 /**
- * The app view switch&apos;s group of settings: choosing one of the three views is
+ * The app view switch's group of settings: choosing one of the three views is
  * exactly what a dropdown menu is for, so this group uses the material3 menu. Its
- * expansion is still the display controller&apos;s state, and a dismissal through the
- * menu&apos;s own closing runs the same controller toggle so the two never disagree.
+ * expansion is still the display controller's state, and a dismissal through the
+ * menu's own closing runs the same controller toggle so the two never disagree.
  *
  * @param display The holder of the dropdown expansion state.
  * @param viewSettings The app view setting controller to move.
@@ -245,8 +246,8 @@ private fun AdminSettingsPlaceholder() {
         verticalArrangement = Arrangement.spacedBy(16.dp)
     )
     {
-        SettingsEntry("policy review", "placeholder")
-        SettingsEntry("flagged content", "placeholder")
+        SettingsEntry("Policy review", "placeholder")
+        SettingsEntry("Flagged content", "placeholder")
     }
 }
 

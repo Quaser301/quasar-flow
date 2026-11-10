@@ -16,16 +16,20 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.campbnb.controller.NotificationController
 import com.example.campbnb.models.NotificationLogGroup
+import com.example.campbnb.ui.components.BackArrow
 import com.example.campbnb.ui.components.profileLabelOf
 import com.example.campbnb.viewModels.LogViewState
 import com.example.campbnb.viewModels.NotificationLogViewModel
 import com.example.campbnb.ui.theme.FieldGrey
 import com.google.firebase.Timestamp
+import java.nio.file.WatchEvent
 import java.text.SimpleDateFormat
 import java.util.Locale
 
@@ -37,7 +41,7 @@ import java.util.Locale
  * @return The one-line summary the dropdown bar shows.
  */
 fun summaryLine(group: NotificationLogGroup): String {
-    val sender = if (group.senderId.isEmpty()) "the system" else group.senderId
+    val sender = group.senderId.ifEmpty { "the system" }
     return "sent by $sender  -  ${group.recipientIds.count()} recipient(s)  -  " +
         "${describeTimestamp(group.sentAt)}  -  opens ${group.routeText}"
 }
@@ -78,14 +82,16 @@ fun NotificationLogScreen(
     controller: NotificationController,
     profileText: (String) -> String = { userId -> profileLabelOf(userId, emptyList()) },
 ) {
-    val display = remember { NotificationLogViewModel(controller, back) }
+    val display = viewModel { NotificationLogViewModel(controller, back) }
     val state by display.state.collectAsState()
     val openNames by display.openLogs.collectAsStateWithLifecycle()
 
-    Column {
+    Column(
+      modifier = Modifier.padding(top = 32.dp, start = 12.dp, end = 12.dp)
+    ) {
         NotificationLogTopBar(display)
         when (val shown = state) {
-            LogViewState.Loading -> {
+            is LogViewState.Loading -> {
                 Text("reading notifications...", fontSize = 18.sp, color = FieldGrey)
             }
 
@@ -99,10 +105,28 @@ fun NotificationLogScreen(
                         Text("No logs to show!", fontSize = 22.sp, color = FieldGrey)
                     }
                 } else {
-                    LazyColumn {
-                        items(items = shown.logs, key = { it.logId }) { group ->
-                            NotificationLogDropdown(display, group, openNames) {
-                                NotificationLogDetail(group, profileText)
+                    LazyColumn(modifier = Modifier.fillMaxSize()) {
+                        shown.logs.forEach { group ->
+                            val expanded = group.logId in openNames
+                            item(key = group.logId) {
+                                NotificationLogDropdown(display, group, expanded)
+                            }
+
+                            if (expanded) {
+                                items(items = group.recipientIds, key = {"${group.logId}_$it"}) {
+                                    userId ->
+                                    Text(
+                                        text = profileText(userId),
+                                        fontSize = 16.sp,
+                                        modifier = Modifier.padding(start = 24.dp, bottom = 4.dp)
+                                    )
+                                }
+                                item(key = "${group.logId}_content") {
+                                    Column(modifier = Modifier.padding(start = 24.dp, bottom = 12.dp)) {
+                                        Text(group.title, fontSize = 18.sp)
+                                        Text(group.message, fontSize = 16.sp, color = Color.Gray)
+                                    }
+                                }
                             }
                         }
                     }
@@ -117,17 +141,26 @@ fun NotificationLogScreen(
 private fun NotificationLogTopBar(display: NotificationLogViewModel) {
     Row(Modifier.fillMaxWidth()) {
         Box(
-            Modifier
-                .clickable(onClick = { display.pressBack() })
-                .padding(6.dp)
+            modifier = Modifier
+                .clickable(onClick = { display.pressBack() } )
+                .padding(12.dp)
         ) {
-            Text("< back", fontSize = 16.sp, color = FieldGrey)
+
+            BackArrow()
         }
+
         Box(
             Modifier.weight(1.0f),
             contentAlignment = Alignment.Center
         ) {
             Text("Notification Debugging", fontSize = 26.sp)
+        }
+
+        Box(
+            modifier = Modifier
+                .padding(12.dp)
+        ) {
+            BackArrow(color = Color.Transparent)
         }
     }
 }
@@ -139,18 +172,14 @@ private fun NotificationLogTopBar(display: NotificationLogViewModel) {
  *
  * @param display The holder of the dropdown expansion state.
  * @param group The log entry this dropdown stands for.
- * @param openNames Which log dropdowns are open.
- * @param content The entry&apos;s detail, rendered only while the dropdown is open.
+ * @param expanded If this dropdown is expanded.
  */
 @Composable
 private fun NotificationLogDropdown(
     display: NotificationLogViewModel,
     group: NotificationLogGroup,
-    openNames: Set<String>,
-    content: @Composable () -> Unit,
+    expanded: Boolean,
 ) {
-    val expanded = group.logId in openNames
-
     Column {
         Box(
             Modifier
@@ -162,29 +191,6 @@ private fun NotificationLogDropdown(
                 fontSize = 18.sp
             )
         }
-        if (expanded) content()
     }
 }
 
-/**
- * The detail of an open log dropdown: the scrollable list of the profiles that received the
- * notification, and below it the notification content exactly as it was written.
- *
- * @param group The open log entry.
- * @param profileText How a profile reference is drawn.
- */
-@Composable
-private fun NotificationLogDetail(
-    group: NotificationLogGroup,
-    profileText: (String) -> String,
-) {
-    Column {
-        LazyColumn {
-            items(items = group.recipientIds, key = { it }) { userId ->
-                Text(profileText(userId), fontSize = 16.sp)
-            }
-        }
-        Text(group.title, fontSize = 18.sp)
-        Text(group.message, fontSize = 16.sp)
-    }
-}
