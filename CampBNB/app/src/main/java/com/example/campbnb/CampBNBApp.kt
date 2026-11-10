@@ -32,7 +32,6 @@ import com.example.campbnb.ui.screens.ReservationScreen
 import com.example.campbnb.controller.CampsiteController
 import com.example.campbnb.controller.LotteryController
 import com.example.campbnb.controller.UserController
-import com.example.campbnb.controller.NotificationController
 import com.example.campbnb.controller.ReservationFilter
 import com.example.campbnb.data.CampsiteRepository
 import com.example.campbnb.models.ReservationStatus
@@ -111,10 +110,6 @@ fun CampBnbApp(
             reservationWriter = Database.Reservations.writeEngine(),
             bookedDateWriter = Database.BookedDates.writeEngine()
         )
-    }
-
-    val notificationRepo = remember {
-        notificationRepository
     }
 
     val campsiteRepository = remember {
@@ -905,10 +900,7 @@ fun CampBnbApp(
         composable<Screen.NotificationLogs> {
             NotificationLogScreen(
                 back = { nav.navigateUp() },
-                NotificationController(
-                    notificationRepo
-                    // TODO: Save settings locally and handle notification opt in/out
-                )
+                AppContainer.notificationController
             )
         }
     }
