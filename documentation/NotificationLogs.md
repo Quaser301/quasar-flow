@@ -15,44 +15,62 @@ classDiagram
     class NotificationLogViewModel {
         -_state MutableStateFlow~LogViewState~
         -_openLogs MutableStateFlow~Set~String~~
-        -stopListening (() -> Unit)?
+        -readLogs List~NotificationLogGroup~?
         +state StateFlow~LogViewState~
         +openLogs StateFlow~Set~String~~
-        +start()
-        +stop()
+        +readLog()
         +toggleLog(logName String)
         +pressBack()
-        +onCleared()
     }
 
     sealed LogViewState {
         Loading
-        Ready(logs List<NotificationLogGroup>)
+        Ready(logs List~NotificationLogGroup~, lines List~NotificationLogLine~)
         Error(message String)
     }
 
     class NotificationLogGroup {
         +logId String
         +senderId String
-        +recipientIds List<String>
-        +sentAt Timestamp?
+        +recipientIds List~String~
+        +sentAtLabel String
         +title String
         +message String
         +routeText String
     }
 
+    class NotificationLogLine {
+        +lineKey String
+        +logId String
+        +text String
+        +style LogLineStyle
+    }
+
+    enum LogLineStyle {
+        DROPDOWN
+        RECIPIENT
+        NOTICE_TITLE
+        NOTICE_BODY
+    }
+
     NotificationLogModel {
-        +notificationLogGroupsFor(notifications List<Notification>) List<NotificationLogGroup>
         +notificationLogKeyOf(notification Notification) String
+        +notificationLogGroupsFor(notifications List~Notification~) List~NotificationLogGroup~
+        +notificationLogLinesFor(logs List~NotificationLogGroup~, openLogIds Set~String~, profileLabel) List~NotificationLogLine~
     }
 
     class NotificationController {
-        +listenAll(onUpdate, onError) (() -> Unit)
-        +sortNewestFirst(list) List<Notification>
+        +readAll(onSuccess onFailure, onError)
+        +sortNewestFirst(list) List~Notification~
     }
 
     NotificationRepository {
-        +listenForAll(onUpdate, onError) (() -> Unit)
+        +saveAll(notifications, onDone)
+        +readAll(onSuccess, onFailure)
+    }
+
+    FirestoreNotificationRepository {
+        +readAll(onSuccess, onFailure) via readEngine().query().execute
     }
 
     NotificationRoutes {
@@ -63,70 +81,85 @@ classDiagram
         +profileLabelOf(userId, users) String
     }
 
+    class NotificationLogScreen {
+        +NotificationLogScreen(back, controller, profileText)
+        +NotificationLogTopBar(display)
+        +NotificationLogLineDisplay(display, line)
+    }
+
     ViewModel <|-- NotificationLogViewModel
     NotificationLogViewModel o-- "1" LogViewState : readonly flow
-    NotificationLogViewModel ..> NotificationController : one all-user listener
-    NotificationLogScreen ..> NotificationLogViewModel : draws the current state
-    NotificationLogScreen ..> ProfileLabel : default profile label
-    NotificationLogViewModel ..> NotificationLogModel : groups after sorting
+    NotificationLogViewModel o-- "1" openLogs : readonly flow
+    NotificationLogScreen ..> NotificationLogViewModel : draws one keyed line list
+    NotificationLogScreen ..> ProfileLabel : default unresolved reference
+    NotificationLogViewModel ..> NotificationController : one-shot read and ordering
+    NotificationController ..> NotificationRepository : readAll pass-through
+    NotificationRepository <|.. FirestoreNotificationRepository : Firestore read engine
+    NotificationLogViewModel ..> NotificationLogModel : groups and builds lines
     NotificationLogModel ..> NotificationRoutes : where opening leads
-    NotificationController ..> NotificationRepository : listenAll pass-through
 ```
 
 Reading the diagram: the screen never reaches data. It asks its view state for the current
-`LogViewState`; the view starts the one listener that is ever live through the controller,
-sorts every record newest first with the controller's own ordering, and asks the grouping
-model for one entry per broadcast. A dropdown bar names its entry and toggles it in the view,
-which holds open dropdowns as a `Set<String>` flow, so a tap re-renders only what changed.
+`LogViewState`; the view reads every saved notification once through the controller it was
+handed, orders every record newest first with the controller's own ordering, asks the grouping
+model for one entry per broadcast, and turns those entries into a flat list of keyed lines.
+A dropdown bar names its entry and toggles it in the view; opening it replaces the lines with
+that entry's receivers and notice, and the keyed list redraws only the lines that differ. A
+refresh button re-runs the same read. The ready state carries both the entries and their lines,
+so a tap or a refresh has one observable result, not two.
 
 Choices made, in answer to what changed on main since the story was first written:
 
-- **The global feed.** The repository contract is per-user (`listenForUser` filters by
-  `recipientId`), so nothing could yield all notifications. The contract grows `listenForAll`
-  with the same snapshot handling and no filter, and `NotificationController.listenAll` passes
-  it through. A one-shot `getAll` would work but would leave the debug log blind to every
-  later broadcast; the listener matches how the rest of this feature already works, and the
-  view stops it through its own `stop()`, which `onCleared` runs when the screen goes away.
-  Stopping twice changes nothing, so a screen that tears down more than once is safe.
-- **The grouping key is now exact, not approximate.** `NotificationController.buildLotteryNotification`
-  writes every receiver of one draw with the same fields and an id derived from
-  `lotteryId_userId_TYPE`, and its `send` path writes one record per reservation or message
-  event. So records sharing the key fields are the same event, and two different broadcasts
-  cannot share it without colliding on the document id. The earlier "records that merely
-  happen to share these fields would merge" placeholder is replaced by that statement.
+- **One-shot read, refresh on tap.** The repository contract remains per-user for delivery, but
+  the log needs every saved record. `NotificationRepository` grows `readAll(onSuccess, onFailure)`,
+  `FirestoreNotificationRepository` implements it through the existing read engine, and
+  `NotificationController.readAll` passes it through. The debug log is a record of broadcasts that
+  have already been sent, so it does not subscribe. A whole-collection listener re-delivers every
+  record on every write anywhere in the collection; reading once on open and again on a tap removes
+  that cost and the listener accumulation. Nothing owns a subscription, so `stop()` and `onCleared()`
+  are gone.
+- **The grouping key is exact, not approximate.** `NotificationController.buildLotteryNotification`
+  writes every receiver of one draw with the same broadcast fields and a receiver-derived document
+  id, and its send path writes one record per reservation or message event. Records sharing the
+  broadcast fields are the same event; two different broadcasts cannot share this key without also
+  sharing the generated document id, which would overwrite the first one.
 - **One entry per message, not one per thread.** `MessageNotificationAdapter` emits one
-  `MESSAGE` record per message per recipient, and their texts differ, so a thread of three
-  messages is three log entries. That is the debug shape wanted: each broadcast as it was
-  written, in order.
-- **Timestamp of a joined broadcast.** Members of one broadcast share one server timestamp,
-  so the first saved one wins and the per-member scan is gone.
-- **Where opening leads.** The entry carries `routeText` from `NotificationRoutes.routeFor`
-  rather than inventing a second notion of what a notification opens.
-- **The state holder is named for what it is.** `NotificationLogDisplayController` became
-  `NotificationLogViewModel`: it extends `ViewModel`, and the rest of this package names such
-  classes by their role (`NotificationViewModel`, `MessageViewModel`).
-- **Open dropdowns are typed, not delimited.** A `Set<String>` flow replaces the newline-joined
-  string of open names; the delimiter-collision caveat disappears with it, and a name that
-  contains another name stays separate (tested).
-- **Ordering is the controller's.** The local `sortedByDescending` is dropped; the view calls
-  `NotificationController.sortNewestFirst`, and the grouping model keeps the order its input
-  gives so the order is decided in exactly one place.
-- **Profile labels.** The screen keeps `profileText` injected. The default only knows the
-  reference, so it labels it unknown; the shared `profileLabelOf` in `ui/components` resolves
-  a reference against the saved users the way admin listings already do, and a caller that
-  wants real names passes that lookup. Upstream's inbox screen and admin screen are not edited
-  here - wiring this helper into them stays with whoever registers those screens.
+  `MESSAGE` record per message per recipient, and their texts differ, so a thread of three messages
+  is three log entries. That is the debug shape wanted: each broadcast as it was written.
+- **Timestamp is a label, built once.** The entry carries `sentAtLabel` as text. `describeSavedAt`
+  formats a saved Firebase timestamp once while the log is built and returns "no saved timestamp"
+  for an unserved record. The screen does no date formatting.
+- **The flat list is model data, not screen control flow.** `LogLineStyle` names the four looks the
+  debug screen gives a line; `NotificationLogLine` carries the already-written text, a stable
+  `lineKey`, the owning `logId`, and that style. `notificationLogLinesFor` produces the only list
+  the screen can draw: a closed entry contributes its dropdown bar; an open entry contributes its
+  bar, one line per receiver, then the notice title and body. Keys use a separate namespace inside
+  each entry (`logId#receiver#id`, `logId#notice#title`, `logId#notice#body`), so a receiver id
+  cannot collide with another line key. The screen calls `LazyColumn { items(items = shown.lines,
+  key = { it.lineKey }) }`; opening or closing one dropdown changes only that entry's lines.
+- **Labels are resolved at line-build time.** The screen injects `profileText`, and the view passes
+  it to `notificationLogLinesFor` once per successful read or dropdown tap. A default with no saved
+  users labels references as unknown; a caller with users can pass `profileLabelOf`. Per-receiver
+  lookup is not run while drawing.
+- **Ordering is the controller's.** The local sort is dropped; the view calls
+  `NotificationController.sortNewestFirst`, and the grouping model keeps the order its input gives,
+  so order is decided in exactly one place.
+- **The state holder is named for what it is.** It extends `ViewModel` and is named
+  `NotificationLogViewModel`, matching the package's convention for state holders.
+- **Open dropdowns are typed, not delimited.** A `StateFlow<Set<String>>` holds open entry names,
+  and a name that matches no entry changes nothing. A name that carries another entry's name stays
+  separate because the set holds whole keys, not substrings.
 
-Not wired: the screen body is not registered into navigation, and the admin/inbox integration
-is left to the owner of those files.
+Not wired by this document: the screen body is not registered into navigation. That is a separate
+integration decision. The inbox and admin screens are not edited here; `profileLabelOf` is the shared
+lookup they can adopt.
 
-Test placement: `notificationTests/NotificationLogTest.kt`, beside the other notification
-suites. It drives the state holder and the grouping model through the shared
-`FakeNotificationRepository` (the same contract the real repository implements), covering:
-the ideal flow (records read, grouped newest first, every receiver counted, the route each
-entry carries), no records at all, a read failure, an unserved record inside a served
-broadcast, a hundred records over three broadcasts, two records of one message thread
-staying separate, two draws never sharing one entry, an empty dropdown name, one log name
-that carries another, mashing dropdowns for twenty rounds (an even number of taps ends
-closed, an odd one ends open), stopping the listener and stopping it again, the back press
-running the lambda it was handed, and the profile-label cases.
+Test placement: `notificationTests/NotificationLogTest.kt`, beside the other notification suites.
+It drives the state holder and the model through the shared `FakeNotificationRepository` (the same
+contract the real repository implements), covering: the ideal flow (records saved, read once when the
+log opens, grouped newest first, one entry per broadcast, a dropdown opened drawing its receivers and
+its notice), the extremes (nothing saved at all, an unserved record with no saved timestamp, a
+hundred records over three broadcasts), wrongly entered data (an empty dropdown name, a log name
+that matches no entry, a receiver whose id spells another line's key, a profile reference that cannot
+be resolved), and stress (mashing dropdowns, tapping refresh several times, a failed read after a
+successful one, and an open state kept across a failed read).
