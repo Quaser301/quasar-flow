@@ -17,8 +17,6 @@ object DeviceId {
         context: Context,
         src: () -> String = { Settings.Secure.getString(context.contentResolver, Settings.Secure.ANDROID_ID) }
     ): String {
-        val id = Settings.Secure.getString(context.contentResolver, Settings.Secure.ANDROID_ID)
-            ?: return ""
-        return id
+        return src()
     }
 }

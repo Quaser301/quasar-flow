@@ -19,7 +19,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.campbnb.controller.CampsiteController
@@ -27,7 +26,6 @@ import com.example.campbnb.models.Campsite
 import com.example.campbnb.models.CampsiteModel
 import com.example.campbnb.models.ViewObserver
 import com.example.campbnb.ui.shared.AppViewModificationIsValidForCurrentWindowChecker
-import com.example.campbnb.ui.shared.DeviceId
 import com.example.campbnb.ui.shared.observeModel
 import com.example.campbnb.viewModels.AppView
 import com.example.campbnb.viewModels.AppViewSetting
@@ -63,7 +61,8 @@ class CampsiteMonitorActivity(
     val goToRegisterCampsite: () -> Unit,
     val goToCampsiteDetails: (Campsite) -> Unit,
     val goToEditCampsite: (Campsite) -> Unit,
-    val appViewSettings: AppViewSetting
+    val appViewSettings: AppViewSetting,
+    val deviceID: String
 ) : ViewObserver<CampsiteModel> {
 
     // Required by ViewObserver. The screen redraws through observeModel(), so there is
@@ -97,8 +96,7 @@ class CampsiteMonitorActivity(
         )
 
         // Must be the same id registerCampsite() saves as the owner, which is the device id.
-        val context = LocalContext.current
-        val resolvedOwnerId = ownerId.ifBlank { DeviceId.get(context) }
+        val resolvedOwnerId = ownerId.ifBlank { deviceID }
 
         LaunchedEffect(resolvedOwnerId) {
             if (resolvedOwnerId.isNotBlank()) {

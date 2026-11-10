@@ -8,8 +8,10 @@ import com.example.campbnb.models.NotificationStatus
 class FakeNotificationRepository : NotificationRepository {
     val saved = mutableMapOf<String, Notification>()
     var saveCalls = 0
-    var failNextSave = false
+    var readAllCalls = 0
     var stopCalls = 0
+    var failNextSave = false
+    var failNextReadAll = false
 
     private var listeningUserId: String? = null
     private var listener: ((NotificationUpdate) -> Unit)? = null
@@ -25,7 +27,23 @@ class FakeNotificationRepository : NotificationRepository {
         onDone(Result.success(Unit))
     }
 
-    /** Simulates a Firestore snapshot update in tests. */
+    /** Forgets what this fake holds, so a case can read only the records it saved. */
+    fun forgetSaved() {
+        saved.clear()
+    }
+
+    /** Serves whatever this fake holds, the way one read of the collection does. */
+    override fun readAll(onSuccess: (List<Notification>) -> Unit, onFailure: (Exception) -> Unit) {
+        readAllCalls++
+        if (failNextReadAll) {
+            failNextReadAll = false
+            onFailure(Exception("fake read failure"))
+            return
+        }
+        onSuccess(saved.values.toList())
+    }
+
+    /** Simulates a Firestore snapshot update for the per-user listener. */
     fun emit(update: NotificationUpdate) {
         listener?.invoke(update)
     }
@@ -44,7 +62,6 @@ class FakeNotificationRepository : NotificationRepository {
             listeningUserId = null
         }
     }
-
 
 
     override fun markRead(
