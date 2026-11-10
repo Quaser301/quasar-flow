@@ -899,8 +899,8 @@ fun CampBnbApp(
         }
         composable<Screen.NotificationLogs> {
             NotificationLogScreen(
-                back = { nav.navigateUp() },
-                AppContainer.notificationController
+                controller = AppContainer.notificationController,
+                navController = nav
             )
         }
     }

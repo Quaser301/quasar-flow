@@ -47,17 +47,14 @@ sealed interface LogViewState {
  * @memberproperty openLogs The readonly [StateFlow] of which log dropdowns are open.
  *
  * @param controller Where notifications are read from; the app hands its one instance.
- * @param profileLabel How a profile reference is drawn; the screen hands what it has, so a
+ * @param profileLabel How a profile reference is drawn; the screen hands a stable resolver, so a
  *     caller that can resolve references against the saved users gets real names and one that
  *     cannot gets references labelled unknown. Resolved once per receiver while the lines are
  *     built.
- * @param onBack Called whenever [pressBack] runs: the screen hands this its back lambda, so
- *     leaving Notification Debugging returns to the screen just on.
  */
 class NotificationLogViewModel(
     private val controller: NotificationController,
     private val profileLabel: (String) -> String,
-    private val onBack: () -> Unit,
 ) : ViewModel() {
     private val _state = MutableStateFlow<LogViewState>(LogViewState.Loading)
     val state: StateFlow<LogViewState> = _state.asStateFlow()
@@ -121,11 +118,4 @@ class NotificationLogViewModel(
         }
     }
 
-    /**
-     * Runs the back navigation: presses the screen's back button by calling the back
-     * lambda it was handed.
-     */
-    fun pressBack() {
-        onBack()
-    }
 }

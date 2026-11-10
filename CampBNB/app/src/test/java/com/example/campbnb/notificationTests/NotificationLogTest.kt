@@ -11,7 +11,8 @@ package com.example.campbnb.notificationTests
 // The screen itself is not driven here; the state it draws is, through
 // [NotificationLogViewModel], [notificationLogLinesFor], and the shared
 // [FakeNotificationRepository] - the same contract the real repository implements, so these
-// cases run against either.
+// cases run against either. The screen's back button is not driven here because navigation is
+// handled by the [androidx.navigation.NavController] the screen is handed, not by the view state.
 //
 // The fake keeps whatever was saved between cases, so every case that counts what a read
 // serves goes through openLog, which forgets the previous records first.
@@ -27,6 +28,7 @@ import com.example.campbnb.models.notificationLogGroupsFor
 import com.example.campbnb.models.notificationLogLinesFor
 import com.example.campbnb.models.User
 import com.example.campbnb.ui.components.profileLabelOf
+import com.example.campbnb.ui.components.unresolvableProfileLabel
 import com.example.campbnb.viewModels.LogViewState
 import com.example.campbnb.viewModels.NotificationLogViewModel
 import com.google.firebase.Timestamp
@@ -69,7 +71,7 @@ class NotificationLogTest {
     ): NotificationLogViewModel {
         repository.forgetSaved()
         repository.saveAll(records) {}
-        return NotificationLogViewModel(NotificationController(repository), { userId -> "profile $userId" }) {}
+        return NotificationLogViewModel(NotificationController(repository)) { userId -> "profile $userId" }
     }
 
     /** The state of a log that has successfully read its entries. */
@@ -96,7 +98,7 @@ class NotificationLogTest {
         repository.forgetSaved()
         repository.failNextReadAll = true
 
-        val log = NotificationLogViewModel(NotificationController(repository), { userId -> userId }) {}
+        val log = NotificationLogViewModel(NotificationController(repository)) { userId -> userId }
         val shown = log.state.value
 
         assertTrue(shown is LogViewState.Error)
@@ -124,7 +126,7 @@ class NotificationLogTest {
             lotteryId = "lot-l1")
         repository.saveAll(listOf(draw)) {}
         repository.failNextReadAll = true
-        val log = NotificationLogViewModel(NotificationController(repository), { userId -> userId }) {}
+        val log = NotificationLogViewModel(NotificationController(repository)) { userId -> userId }
         val name = notificationLogKeyOf(draw)
 
         log.toggleLog(name)
@@ -496,21 +498,13 @@ class NotificationLogTest {
     }
 
     @Test
-    fun backPressRunsTheHandedLambda() {
-        var wentBack = false
-        repository.forgetSaved()
-        val log = NotificationLogViewModel(NotificationController(repository), { userId -> userId }) {
-            wentBack = true
-        }
-
-        log.pressBack()
-
-        assertTrue(wentBack)
+    fun unknownProfileReferenceIsLabelledAsSuch() {
+        assertEquals("unknown (camper-7)", profileLabelOf("camper-7", emptyList()))
     }
 
     @Test
-    fun unknownProfileReferenceIsLabelledAsSuch() {
-        assertEquals("unknown (camper-7)", profileLabelOf("camper-7", emptyList()))
+    fun stableDefaultResolverLabelsUnresolvedReference() {
+        assertEquals("unknown (camper-7)", unresolvableProfileLabel("camper-7"))
     }
 
     @Test

@@ -30,3 +30,6 @@ fun profileLabelOf(userId: String, users: List<User>): String {
     }
     return name
 }
+
+/** Stable resolver for a listing that has no saved users to look up. */
+val unresolvableProfileLabel: (String) -> String = { userId -> profileLabelOf(userId, emptyList()) }

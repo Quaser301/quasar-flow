@@ -19,12 +19,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.navigation.NavController
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.campbnb.controller.NotificationController
 import com.example.campbnb.models.LogLineStyle
 import com.example.campbnb.models.NotificationLogLine
 import com.example.campbnb.ui.components.BackArrow
-import com.example.campbnb.ui.components.profileLabelOf
+import com.example.campbnb.ui.components.unresolvableProfileLabel
 import com.example.campbnb.viewModels.LogViewState
 import com.example.campbnb.viewModels.NotificationLogViewModel
 import com.example.campbnb.ui.theme.FieldGrey
@@ -43,25 +44,26 @@ import com.example.campbnb.ui.theme.FieldGrey
  *
  * Registration is done separately: this composable is only the body.
  *
- * @param back Called when the back button is pressed.
  * @param controller Where notifications are read from; the app hands its one instance.
- * @param profileText How a profile reference is drawn. The default only knows the reference,
- *     so it labels unknown ones as such: a caller that wants real names hands this its own
- *     lookup, for example the app&apos;s saved users fed to [profileLabelOf].
+ * @param navController The navigation controller the back button walks up; the app hands
+ *     its one instance.
+ * @param profileText How a profile reference is drawn. The default is the stable resolver for
+ *     listings that cannot look up saved users, so it labels unknown references as such. A
+ *     caller that can resolve references hands this its own stable lookup.
  */
 @Composable
 fun NotificationLogScreen(
-    back: () -> Unit,
     controller: NotificationController,
-    profileText: (String) -> String = { userId -> profileLabelOf(userId, emptyList()) },
+    navController: androidx.navigation.NavController,
+    profileText: (String) -> String = unresolvableProfileLabel,
 ) {
-    val display = viewModel { NotificationLogViewModel(controller, profileText, back) }
+    val display = viewModel { NotificationLogViewModel(controller, profileText) }
     val state by display.state.collectAsState()
 
     Column(
         modifier = Modifier.padding(top = 32.dp, start = 12.dp, end = 12.dp)
     ) {
-        NotificationLogTopBar(display)
+        NotificationLogTopBar(display, navController)
         when (val shown = state) {
             is LogViewState.Loading -> {
                 Text("reading notifications...", fontSize = 18.sp, color = FieldGrey)
@@ -90,11 +92,14 @@ fun NotificationLogScreen(
 
 /** The back button, the Notification Debugging header, and the button that reads the log again. */
 @Composable
-private fun NotificationLogTopBar(display: NotificationLogViewModel) {
+private fun NotificationLogTopBar(
+    display: NotificationLogViewModel,
+    navController: androidx.navigation.NavController,
+) {
     Row(Modifier.fillMaxWidth()) {
         Box(
             modifier = Modifier
-                .clickable(onClick = { display.pressBack() })
+                .clickable(onClick = { navController.navigateUp() })
                 .padding(12.dp)
         ) {
             BackArrow()

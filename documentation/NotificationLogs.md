@@ -20,7 +20,6 @@ classDiagram
         +openLogs StateFlow~Set~String~~
         +readLog()
         +toggleLog(logName String)
-        +pressBack()
     }
 
     sealed LogViewState {
@@ -79,11 +78,12 @@ classDiagram
 
     ProfileLabel {
         +profileLabelOf(userId, users) String
+        +unresolvableProfileLabel Function~String, String~
     }
 
     class NotificationLogScreen {
-        +NotificationLogScreen(back, controller, profileText)
-        +NotificationLogTopBar(display)
+        +NotificationLogScreen(controller, navController, profileText)
+        +NotificationLogTopBar(display, navController)
         +NotificationLogLineDisplay(display, line)
     }
 
@@ -106,7 +106,10 @@ model for one entry per broadcast, and turns those entries into a flat list of k
 A dropdown bar names its entry and toggles it in the view; opening it replaces the lines with
 that entry's receivers and notice, and the keyed list redraws only the lines that differ. A
 refresh button re-runs the same read. The ready state carries both the entries and their lines,
-so a tap or a refresh has one observable result, not two.
+so a tap or a refresh has one observable result, not two. The back button navigates through the
+`androidx.navigation.NavController` instance the screen is handed; no back callback is passed into
+the view state. The default profile resolver is the stable `unresolvableProfileLabel` value in
+`ProfileLabel`, so a caller that leaves `profileText` out keeps the same resolver across redraws.
 
 Choices made, in answer to what changed on main since the story was first written:
 
@@ -138,9 +141,10 @@ Choices made, in answer to what changed on main since the story was first writte
   cannot collide with another line key. The screen calls `LazyColumn { items(items = shown.lines,
   key = { it.lineKey }) }`; opening or closing one dropdown changes only that entry's lines.
 - **Labels are resolved at line-build time.** The screen injects `profileText`, and the view passes
-  it to `notificationLogLinesFor` once per successful read or dropdown tap. A default with no saved
-  users labels references as unknown; a caller with users can pass `profileLabelOf`. Per-receiver
-  lookup is not run while drawing.
+  it to `notificationLogLinesFor` once per successful read or dropdown tap. The default is the stable
+  `unresolvableProfileLabel` value for listings that have no saved users to look up; a caller that can
+  resolve references passes its own stable resolver, for example `profileLabelOf` fed with saved users.
+  Per-receiver lookup is not run while drawing.
 - **Ordering is the controller's.** The local sort is dropped; the view calls
   `NotificationController.sortNewestFirst`, and the grouping model keeps the order its input gives,
   so order is decided in exactly one place.
@@ -150,9 +154,10 @@ Choices made, in answer to what changed on main since the story was first writte
   and a name that matches no entry changes nothing. A name that carries another entry's name stays
   separate because the set holds whole keys, not substrings.
 
-Not wired by this document: the screen body is not registered into navigation. That is a separate
-integration decision. The inbox and admin screens are not edited here; `profileLabelOf` is the shared
-lookup they can adopt.
+This document covers the screen body and the arguments it is registered with: the app hands it its
+shared notification controller and one nav controller, and leaves `profileText` at the stable
+unresolved resolver unless it has a stable resolver of its own. The inbox and admin screens are not
+edited here; `profileLabelOf` is the shared lookup they can adopt.
 
 Test placement: `notificationTests/NotificationLogTest.kt`, beside the other notification suites.
 It drives the state holder and the model through the shared `FakeNotificationRepository` (the same
@@ -161,5 +166,6 @@ log opens, grouped newest first, one entry per broadcast, a dropdown opened draw
 its notice), the extremes (nothing saved at all, an unserved record with no saved timestamp, a
 hundred records over three broadcasts), wrongly entered data (an empty dropdown name, a log name
 that matches no entry, a receiver whose id spells another line's key, a profile reference that cannot
-be resolved), and stress (mashing dropdowns, tapping refresh several times, a failed read after a
-successful one, and an open state kept across a failed read).
+be resolved, and the stable default resolver labelling an unresolved reference), and stress (mashing
+dropdowns, tapping refresh several times, a failed read after a successful one, and an open state kept
+across a failed read).
