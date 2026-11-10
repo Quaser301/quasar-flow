@@ -34,7 +34,6 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         // declare your static lifetime controllers here.
         val appViewSettingsControl = AppViewSettingController()
-        val notificationRepo = FirestoreNotificationRepository()
 
         // channels must exist before any notifications are posted
         NotificationChannels.createAll(applicationContext)
@@ -54,6 +53,7 @@ class MainActivity : ComponentActivity() {
                     appViewSettings = appViewSettingsControl,
                     pendingRoute = pendingRoute,
                     onPendingRouteHandled = { pendingRoute = null },
+                    deviceID = deviceId
                 )
             }
         }

@@ -95,6 +95,7 @@ import kotlin.collections.emptyList
 
 @Composable
 fun CampBnbApp(
+    deviceID: String,
     appViewSettings: AppViewSettingController,
     pendingRoute: String? = null,
     onPendingRouteHandled: () -> Unit = {},
@@ -112,7 +113,7 @@ fun CampBnbApp(
             bookedDateWriter = Database.BookedDates.writeEngine()
         )
     }
-
+    var deviceID by remember { mutableStateOf(deviceID) }
     val campsiteRepository = remember {
         CampsiteRepository()
     }
@@ -130,7 +131,7 @@ fun CampBnbApp(
         // Login
         composable<Screen.Login> {
             DeviceSignInScreen(
-                readDevice = { DeviceId.get(context) },
+                deviceID,
                 userController = userController,
                 onEntered = {
                     val privileges = userModel.currentUser?.roles ?: emptyList()
@@ -155,7 +156,7 @@ fun CampBnbApp(
             SignUpScreen(
                 onSignUp = { email, username, phoneNumber ->
                     val newUser = User(
-                        deviceId = DeviceId.get(context),
+                        deviceId = deviceID,
                         name = username,
                         email = email,
                         phone = phoneNumber,
@@ -197,9 +198,8 @@ fun CampBnbApp(
             var pendingBookings by remember {
                 mutableStateOf<List<BookingCardData>>(emptyList())
             }
-            val userId = DeviceId.get(context)
 
-            var confirmedBookings by remember(userId) {
+            var confirmedBookings by remember(deviceID) {
                 mutableStateOf<List<BookingCardData>>(emptyList())
             }
 
@@ -207,9 +207,9 @@ fun CampBnbApp(
                 mutableStateOf(BookingTab.CONFIRMED)
             }
 
-            LaunchedEffect(userId) {
+            LaunchedEffect(deviceID) {
                 reservationRepository.getForEntrant(
-                    entrantId = userId,
+                    entrantId = deviceID,
                     onSuccess = { reservations ->
 
                         val activeReservations = reservations.filter {
@@ -304,7 +304,7 @@ fun CampBnbApp(
                                 pendingBookings = pendingBookings,
                                 selectedTab = selectedBookingTab,
                                 onTabSelected = { selectedBookingTab = it },
-                                onBookingClick = { booking ->
+                                onBookingClick = { _ ->
                                     // Booking details navigation can be added here later.
                                 }
                             )
@@ -372,13 +372,12 @@ fun CampBnbApp(
 
         // Campsite registration (owner)
         composable<Screen.CampsiteEditActivity> {
-            val context = LocalContext.current
             val controller = remember { CampsiteController(CampsiteModel(), CampsiteRepository()) }
             CampsiteRegistrationForm(
                 onBack = { nav.navigateUp() },
                 onUpload = { campsite, _ ->
                     // TODO: upload the chosen image too
-                    controller.registerCampsite(campsite, DeviceId.get(context)) { success ->
+                    controller.registerCampsite(campsite, deviceID) { success ->
                         if (success) {
                             nav.navigateUp()
                         }
@@ -390,7 +389,6 @@ fun CampBnbApp(
         // Campsite editing (owner)
         composable<Screen.EditCampsite> { backStackEntry ->
             val campsiteId = backStackEntry.toRoute<Screen.EditCampsite>().campsiteId
-            val context = LocalContext.current
 
             var campsite by remember(campsiteId) {
                 mutableStateOf<Campsite?>(null)
@@ -409,7 +407,7 @@ fun CampBnbApp(
                 repository.getAll(
                     onSuccess = { campsites ->
                         campsite = campsites.find {
-                            it.id == campsiteId && it.ownerId == DeviceId.get(context)
+                            it.id == campsiteId && it.ownerId == deviceID
                         }
                         isLoading = false
                     },
@@ -430,7 +428,7 @@ fun CampBnbApp(
                     onUpload = { updatedCampsite, _ ->
                         controller.updateCampsite(
                             updatedCampsite,
-                            DeviceId.get(context)
+                            deviceID
                         ) { success ->
                             if (success) {
                                 Toast.makeText(
@@ -486,8 +484,6 @@ fun CampBnbApp(
             val campsiteRepository = remember {
                 CampsiteRepository()
             }
-
-            val userId = DeviceId.get(context)
 
             // Follow the app view the user is in right now (like HomeScreen does), not the role
             // captured when they navigated here.
@@ -622,7 +618,7 @@ fun CampBnbApp(
                             nav.goHome(route.role, index)
                         },
                         onEnterLottery = {
-                            detailsLotteryController.toggleEntrantMembership(userId)
+                            detailsLotteryController.toggleEntrantMembership(deviceID)
                         },
                         lotteryButtonText = lotteryButtonText(detailsLotteryModel),
                         lotteryButtonEnabled = detailsLotteryModel.entrantLottery != null,
@@ -631,8 +627,8 @@ fun CampBnbApp(
                             // TODO: connect to the campsite deletion workflow
                         },
                         entrantContent = {
-                            CampsiteRatingSection(campsiteModel, campsiteController, route.campsiteId, userId)
-                            LotteryJoinSection(detailsLotteryModel, detailsLotteryController, route.campsiteId, userId)
+                            CampsiteRatingSection(campsiteModel, campsiteController, route.campsiteId, deviceID)
+                            LotteryJoinSection(detailsLotteryModel, detailsLotteryController, route.campsiteId, deviceID)
                         }
                     )
                 }
@@ -659,7 +655,12 @@ fun CampBnbApp(
                     Database.Lotteries.readEngine()
                 ) { System.currentTimeMillis() }
             }
-            activity.LotteryEdit(model = model, controller = controller, initialLottery = selectedLottery)
+            activity.LotteryEdit(
+                model = model,
+                controller = controller,
+                initialLottery = selectedLottery,
+                deviceID = deviceID
+            )
         }
 
         // Lottery monitor (owner's list of lotteries)
@@ -690,7 +691,7 @@ fun CampBnbApp(
                     System.currentTimeMillis()
                 }
             }
-            activity.LotteryMonitor(model = model, controller = controller)
+            activity.LotteryMonitor(model = model, controller = controller, deviceID = deviceID)
         }
 
         // Campsite monitor (owner's list of campsites)
@@ -708,7 +709,8 @@ fun CampBnbApp(
                     goToEditCampsite = { campsite ->
                         nav.navigate(Screen.EditCampsite(campsite.id))
                     },
-                    appViewSettings = appViewSettings.toAppViewSetting()
+                    appViewSettings = appViewSettings.toAppViewSetting(),
+                    deviceID = deviceID
                 )
             }
             val model = remember { CampsiteModel() }
@@ -743,8 +745,6 @@ fun CampBnbApp(
 
         // Reservations
         composable<Screen.Reservations> {
-            val ownerId = DeviceId.get(context)
-
             var campsites by remember {
                 mutableStateOf<List<Campsite>>(emptyList())
             }
@@ -762,11 +762,11 @@ fun CampBnbApp(
             }
 
             // Load only this owner's campsites.
-            LaunchedEffect(ownerId) {
+            LaunchedEffect(deviceID) {
                 campsiteRepository.getAll(
                     onSuccess = { allCampsites ->
                         val ownedCampsites = allCampsites.filter {
-                            it.ownerId == ownerId
+                            it.ownerId == deviceID
                         }
 
                         campsites = ownedCampsites

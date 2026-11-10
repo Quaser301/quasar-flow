@@ -12,7 +12,6 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.campbnb.controller.UserController
 import com.example.campbnb.ui.components.GradientButton
-import com.example.campbnb.ui.theme.FieldGrey
 import com.example.campbnb.viewModels.DeviceSignInController
 import com.example.campbnb.ui.components.AuthScaffold
 import com.example.campbnb.ui.theme.ErrorRed
@@ -31,17 +30,16 @@ import com.example.campbnb.ui.theme.ErrorRed
  * while its profile details are filled by the profile story. PLACEHOLDER NOTE:
  * new-device entry deliberately does not collect any details here.
  *
- * @param readDevice Supplies this device's id; the caller wires it to the
- * shared reader.
+ * @param deviceID This device's ID.
  * @param userController The existing control that identifies a device.
  * @param onEntered Runs once the sign-on is done: the caller moves to the screen
  * just after signing on.
  * @param onNotFound Runs if the provided Device ID does not exist in the Firestore Database.
  * @param headerImage An image to act as the backdrop. See [AuthScaffold].
  */
-@Composable()
+@Composable
 fun DeviceSignInScreen(
-    readDevice: () -> String,
+    deviceID: String,
     userController: UserController,
     onEntered: () -> Unit,
     onNotFound: () -> Unit,
@@ -52,11 +50,10 @@ fun DeviceSignInScreen(
     val notice = display.notice.collectAsStateWithLifecycle()
 
     if (currentId.value.isBlank()) {
-        val read = readDevice()
-        if (read.isBlank()) {
+        if (deviceID.isBlank()) {
             display.noticeFrom("Could not read this device's id, so sign-on is unavailable.")
         } else {
-            display.rememberDevice(read)
+            display.rememberDevice(deviceID)
         }
     }
 
@@ -73,7 +70,7 @@ fun DeviceSignInScreen(
             onClick = {
                 userController.identify(
                     deviceId = currentId.value,
-                    onFound = { user -> onEntered() },
+                    onFound = { _ -> onEntered() },
                     onNotFound = { onNotFound() },
                     onError = { message -> display.noticeFrom(message) }
                 )
