@@ -23,18 +23,8 @@ import org.junit.Test
 class SettingsScreenTest {
 
     @Test
-    fun test_BackPress_GoesBackByCallingThePassedInLambda() {
-        var wentBack = false
-        val display = SettingsDisplayController({ wentBack = true })
-
-        display.pressBack()
-
-        assertTrue("the back press must run the back lambda it was handed", wentBack)
-    }
-
-    @Test
     fun test_Tap_DropsDownThatElementOnly() {
-        val display = SettingsDisplayController({})
+        val display = SettingsDisplayController()
 
         display.toggleGroup(SettingsGroupId.APP_VIEW_SWITCH.name)
 
