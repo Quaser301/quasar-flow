@@ -31,7 +31,6 @@ import androidx.navigation.toRoute
 import com.example.campbnb.ui.screens.ReservationScreen
 import com.example.campbnb.controller.CampsiteController
 import com.example.campbnb.controller.LotteryController
-import com.example.campbnb.controller.UserController
 import com.example.campbnb.controller.ReservationFilter
 import com.example.campbnb.data.CampsiteRepository
 import com.example.campbnb.models.ReservationStatus
@@ -39,9 +38,6 @@ import com.example.campbnb.models.BookingCardData
 import com.example.campbnb.ui.screens.BookingsScreen
 import com.example.campbnb.ui.screens.BookingTab
 import com.example.campbnb.data.LotteryRepository
-import com.example.campbnb.data.NotificationRepository
-import com.example.campbnb.data.ReservationRepository
-import com.example.campbnb.data.UserRepository
 import com.example.campbnb.database.Database
 import com.example.campbnb.models.Campsite
 import com.example.campbnb.models.CampsiteModel
@@ -49,7 +45,6 @@ import com.example.campbnb.models.Lottery
 import com.example.campbnb.models.LotteryModel
 import com.example.campbnb.models.Role
 import com.example.campbnb.models.User
-import com.example.campbnb.models.UserModel
 import com.example.campbnb.ui.screens.DeviceSignInScreen
 import com.example.campbnb.notifications.NotificationRoutes
 import com.example.campbnb.ui.screens.CampsiteCardData
@@ -101,22 +96,12 @@ fun CampBnbApp(
     onPendingRouteHandled: () -> Unit = {},
 ) {
 
+    // needed for nav obviously
     val nav = rememberNavController()
+    // needed for Toasts
     val context = LocalContext.current
-    val userModel = remember { UserModel() }
-    val userRepo = remember { UserRepository() }
-    val userController = remember { UserController(userModel, userRepo) }
-    val reservationRepository = remember {
-        ReservationRepository(
-            engine = Database.Reservations.readEngine(),
-            reservationWriter = Database.Reservations.writeEngine(),
-            bookedDateWriter = Database.BookedDates.writeEngine()
-        )
-    }
+
     var deviceID by remember { mutableStateOf(deviceID) }
-    val campsiteRepository = remember {
-        CampsiteRepository()
-    }
 
     // The lottery the owner picked on the lottery list, shared by the lottery edit,
     // details and waitlist screens.
@@ -132,9 +117,9 @@ fun CampBnbApp(
         composable<Screen.Login> {
             DeviceSignInScreen(
                 deviceID,
-                userController = userController,
+                userController = AppContainer.userController,
                 onEntered = {
-                    val privileges = userModel.currentUser?.roles ?: emptyList()
+                    val privileges = AppContainer.userModel.currentUser?.roles ?: emptyList()
                     val role = when {
                         Role.ADMIN in privileges -> Role.ADMIN
                         Role.OWNER in privileges -> Role.OWNER
@@ -208,7 +193,7 @@ fun CampBnbApp(
             }
 
             LaunchedEffect(deviceID) {
-                reservationRepository.getForEntrant(
+                AppContainer.reservationRepository.getForEntrant(
                     entrantId = deviceID,
                     onSuccess = { reservations ->
 
@@ -326,11 +311,11 @@ fun CampBnbApp(
 
                         HomeDestination.ADMIN_PROFILE_VIEW -> {
                             LaunchedEffect(Unit) {
-                                userController.loadAllUsers()
+                                AppContainer.userController.loadAllUsers()
                             }
                             AdminProfilesScreen(
                                 { nav.goHome(role) },
-                                userModel
+                                AppContainer.userModel
                             )
                         }
 
@@ -454,7 +439,7 @@ fun CampBnbApp(
         composable<Screen.Search> { entry ->
             val route = entry.toRoute<Screen.Search>()
             val searchModel = remember { CampsiteModel() }
-            val searchController = remember { CampsiteController(searchModel, campsiteRepository) }
+            val searchController = remember { CampsiteController(searchModel, AppContainer.campsiteRepository) }
             observeModel(searchModel)
 
             LaunchedEffect(route.query) {
@@ -763,7 +748,7 @@ fun CampBnbApp(
 
             // Load only this owner's campsites.
             LaunchedEffect(deviceID) {
-                campsiteRepository.getAll(
+                AppContainer.campsiteRepository.getAll(
                     onSuccess = { allCampsites ->
                         val ownedCampsites = allCampsites.filter {
                             it.ownerId == deviceID
@@ -795,7 +780,7 @@ fun CampBnbApp(
                 if (campsiteId == null) {
                     reservations = emptyList()
                 } else {
-                    reservationRepository.run {
+                    AppContainer.reservationRepository.run {
                         when (selectedFilter) {
                             ReservationFilter.ACTIVE -> getActive(
                                 campsiteId,

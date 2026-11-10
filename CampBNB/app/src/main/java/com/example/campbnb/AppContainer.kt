@@ -7,6 +7,7 @@ import com.example.campbnb.controller.MessageController
 import com.example.campbnb.controller.MessageNotificationAdapter
 import com.example.campbnb.controller.NotificationController
 import com.example.campbnb.controller.UserController
+import com.example.campbnb.data.CampsiteRepository
 import com.example.campbnb.data.FirestoreMessageRepository
 import com.example.campbnb.data.FirestoreNotificationRepository
 import com.example.campbnb.data.MessageRepository
@@ -52,23 +53,8 @@ object AppContainer {
         FirestoreNotificationRepository()
     }
 
-    /**
-     * Creates the notification controller once, when first needed.
-     * The UserController is the opt-out check: users who turned notifications off still get the
-     * in-app record but no banner (US 01.10.01).
-     */
-    val notificationController: NotificationController by lazy {
-        NotificationController(
-            notificationRepository,
-            UserController(UserModel(), UserRepository())
-        )
-    }
-
-    /**
-     * Creates the message repository once, when first needed.
-     */
-    val messageRepository: MessageRepository by lazy {
-        FirestoreMessageRepository()
+    val userRepository: UserRepository by lazy {
+        UserRepository()
     }
 
     /**
@@ -79,6 +65,29 @@ object AppContainer {
             Database.Reservations.readEngine(),
             Database.Reservations.writeEngine(),
             Database.BookedDates.writeEngine()
+        )
+    }
+
+    /**
+     * Creates the message repository once, when first needed.
+     */
+    val messageRepository: MessageRepository by lazy {
+        FirestoreMessageRepository()
+    }
+
+    val campsiteRepository: CampsiteRepository by lazy {
+        CampsiteRepository()
+    }
+
+    /**
+     * Creates the notification controller once, when first needed.
+     * The UserController is the opt-out check: users who turned notifications off still get the
+     * in-app record but no banner (US 01.10.01).
+     */
+    val notificationController: NotificationController by lazy {
+        NotificationController(
+            notificationRepository,
+            UserController(UserModel(), UserRepository())
         )
     }
 
@@ -103,5 +112,17 @@ object AppContainer {
                 }
             }
         )
+    }
+
+    val userController: UserController by lazy {
+        UserController(userModel, userRepository)
+    }
+
+    val userModel: UserModel by lazy {
+        UserModel()
+    }
+
+    val messageNotificationAdapter: MessageNotificationAdapter by lazy {
+        MessageNotificationAdapter(notificationController)
     }
 }
