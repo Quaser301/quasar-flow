@@ -12,14 +12,12 @@ import com.example.campbnb.data.FirestoreMessageRepository
 import com.example.campbnb.data.FirestoreNotificationRepository
 import com.example.campbnb.data.MessageRepository
 import com.example.campbnb.data.NotificationRepository
-import com.example.campbnb.data.NotificationUpdate
 import com.example.campbnb.data.ReservationRepository
 import com.example.campbnb.data.UserRepository
 import com.example.campbnb.database.Database
-import com.example.campbnb.models.Notification
-import com.example.campbnb.models.NotificationStatus
 import com.example.campbnb.models.UserModel
-import kotlin.collections.forEach
+import com.example.campbnb.ui.shared.DeviceId
+import com.example.campbnb.viewModels.AppViewSettingController
 
 /**
  * Central place for creating and connecting app dependencies.
@@ -27,40 +25,46 @@ import kotlin.collections.forEach
  * The demo user IDs are temporary.
  * Replace them when the real UserController is integrated.
  */
-object AppContainer {
+object AppContainer: Dependencies {
 
     // Temporary demo users.
     const val DEMO_ENTRANT = "demo-entrant"
     const val DEMO_OWNER = "demo-owner"
 
+    override var deviceID by mutableStateOf("")
+
+    override val userModel: UserModel by lazy {
+        UserModel()
+    }
+
     /**
      * Current user.
      * Compose screens observing this value redraw when it changes.
      */
-    var currentUserId by mutableStateOf(DEMO_ENTRANT)
+    override var currentUserId by mutableStateOf(DEMO_ENTRANT)
 
     /**
      * Temporary owner-role check.
      * Replace this with the real UserController role check.
      */
-    val currentUserIsOwner: Boolean
+    override val currentUserIsOwner: Boolean
         get() = currentUserId == DEMO_OWNER
 
     /**
      * Creates the notification repository once, when first needed.
      */
-    val notificationRepository: NotificationRepository by lazy {
+    override val notificationRepository: NotificationRepository by lazy {
         FirestoreNotificationRepository()
     }
 
-    val userRepository: UserRepository by lazy {
+    override val userRepository: UserRepository by lazy {
         UserRepository()
     }
 
     /**
      * Creates the reservation repository once, when first needed.
      */
-    val reservationRepository: ReservationRepository by lazy {
+    override val reservationRepository: ReservationRepository by lazy {
         ReservationRepository(
             Database.Reservations.readEngine(),
             Database.Reservations.writeEngine(),
@@ -71,11 +75,11 @@ object AppContainer {
     /**
      * Creates the message repository once, when first needed.
      */
-    val messageRepository: MessageRepository by lazy {
+    override val messageRepository: MessageRepository by lazy {
         FirestoreMessageRepository()
     }
 
-    val campsiteRepository: CampsiteRepository by lazy {
+    override val campsiteRepository: CampsiteRepository by lazy {
         CampsiteRepository()
     }
 
@@ -84,10 +88,10 @@ object AppContainer {
      * The UserController is the opt-out check: users who turned notifications off still get the
      * in-app record but no banner (US 01.10.01).
      */
-    val notificationController: NotificationController by lazy {
+    override val notificationController: NotificationController by lazy {
         NotificationController(
             notificationRepository,
-            UserController(UserModel(), UserRepository())
+            userController
         )
     }
 
@@ -95,11 +99,11 @@ object AppContainer {
      * Creates the message controller once, when first needed.
      * Every sent message notifies the recipient through the notification controller.
      */
-    val messageController: MessageController by lazy {
+    override val messageController: MessageController by lazy {
         MessageController(
             repo = messageRepository,
             reservationRepository = reservationRepository,
-            notifier = MessageNotificationAdapter(notificationController),
+            notifier = messageNotificationAdapter,
             campsiteNameLookup = { campsiteId, onName ->
                 if (campsiteId.isBlank()) {
                     onName("")
@@ -114,15 +118,22 @@ object AppContainer {
         )
     }
 
-    val userController: UserController by lazy {
+    override val userController: UserController by lazy {
         UserController(userModel, userRepository)
     }
 
-    val userModel: UserModel by lazy {
-        UserModel()
+    override val messageNotificationAdapter: MessageNotificationAdapter by lazy {
+        MessageNotificationAdapter(notificationController)
     }
 
-    val messageNotificationAdapter: MessageNotificationAdapter by lazy {
-        MessageNotificationAdapter(notificationController)
+    override val appViewSettings by mutableStateOf(AppViewSettingController())
+
+    override var pendingRoute: String? by mutableStateOf(null)
+
+    override val onPendingRouteHandled: () -> Unit = { pendingRoute = null }
+
+    fun init(context: android.content.Context) {
+        deviceID = DeviceId.get(context)
+        currentUserId = deviceID
     }
 }
