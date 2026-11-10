@@ -23,6 +23,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.campbnb.ui.components.BackArrow
 import com.example.campbnb.ui.components.GradientBarButton
 import com.example.campbnb.ui.components.UserRole
+import com.example.campbnb.ui.shared.BarWithBackChevronAndHeaderCentered
 import com.example.campbnb.ui.theme.ButtonStart
 import com.example.campbnb.ui.theme.FieldGrey
 import com.example.campbnb.viewModels.AppView
@@ -99,10 +100,10 @@ fun SettingsScreen(
     val currentView = viewSettings.viewSetting.collectAsStateWithLifecycle()
 
     Column(
-        modifier = Modifier.padding(top = 24.dp),
+        modifier = Modifier.padding(top = 32.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        SettingsTopBar(display)
+        BarWithBackChevronAndHeaderCentered(back, "Settings")
         settingsGroupsFor(role, currentView.value).forEach { groupId ->
             SettingsDropdown(display, groupId) {
                 when (groupId) {
@@ -112,38 +113,6 @@ fun SettingsScreen(
                     SettingsGroupId.OWNER_SETTINGS -> OwnerSettingsItems(ownerSettings)
                 }
             }
-        }
-    }
-}
-
-/** The back button in the top left and the Settings header in the top center. */
-@Composable
-private fun SettingsTopBar(display: SettingsDisplayController) {
-    Row(
-        Modifier.fillMaxWidth()
-            .height(56.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Box(
-            Modifier
-                .clickable(onClick = { display.pressBack() })
-                .padding(12.dp)
-        ) {
-            BackArrow()
-        }
-        Box(
-            modifier = Modifier.weight(1f),
-            contentAlignment = Alignment.Center
-        ) {
-            Text("Settings", fontSize = 26.sp)
-        }
-
-        // secret spacer to move it back
-        Box(
-            modifier = Modifier
-                .padding(12.dp)
-        ) {
-            Text("<", fontSize = 26.sp, color = Color.Transparent)
         }
     }
 }

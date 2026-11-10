@@ -31,6 +31,7 @@ import com.example.campbnb.viewModels.LogViewState
 import com.example.campbnb.viewModels.NotificationLogViewModel
 import com.example.campbnb.ui.theme.FieldGrey
 import com.example.campbnb.ui.screens.ExploreScreen
+import com.example.campbnb.ui.shared.BarWithBackChevronAndHeaderCentered
 import com.example.campbnb.ui.theme.AdminDataColor1
 import com.example.campbnb.ui.theme.AdminDataColor2
 import com.example.campbnb.ui.theme.AdminDataColor3
@@ -74,7 +75,7 @@ fun NotificationLogScreen(
     Column(
         modifier = Modifier.padding(top = 32.dp, start = 12.dp, end = 12.dp)
     ) {
-        NotificationLogTopBar(display, returnFunc)
+        BarWithBackChevronAndHeaderCentered(returnFunc, "Notification Debugging")
         Box(
             modifier = Modifier
                 .clickable(onClick = {
@@ -112,37 +113,6 @@ fun NotificationLogScreen(
                     }
                 }
             }
-        }
-    }
-}
-
-/** The back button, the Notification Debugging header, and the button that reads the log again. */
-@Composable
-private fun NotificationLogTopBar(
-    display: NotificationLogViewModel,
-    returnFunc: () -> Unit,
-) {
-    Row(Modifier.fillMaxWidth()) {
-        Box(
-            modifier = Modifier
-                .clickable(onClick = returnFunc)
-                .padding(12.dp)
-        ) {
-            BackArrow()
-        }
-
-        Box(
-            Modifier.weight(1.0f),
-            contentAlignment = Alignment.Center
-        ) {
-            Text("Notification Debugging", fontSize = 26.sp, textAlign = TextAlign.Center)
-        }
-
-        Box(
-            modifier = Modifier
-                .padding(12.dp)
-        ) {
-            BackArrow(color = Color.Transparent)
         }
     }
 }
