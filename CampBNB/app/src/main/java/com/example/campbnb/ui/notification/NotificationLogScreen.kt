@@ -32,9 +32,9 @@ import com.example.campbnb.viewModels.NotificationLogViewModel
 import com.example.campbnb.ui.theme.FieldGrey
 import com.example.campbnb.ui.screens.ExploreScreen
 import com.example.campbnb.ui.shared.BarWithBackChevronAndHeaderCentered
-import com.example.campbnb.ui.theme.AdminDataColor1
-import com.example.campbnb.ui.theme.AdminDataColor2
-import com.example.campbnb.ui.theme.AdminDataColor3
+import com.example.campbnb.ui.theme.DataColor
+import com.example.campbnb.ui.theme.DataColorImportant
+import com.example.campbnb.ui.theme.DataColorUseful
 import com.example.campbnb.ui.theme.AdminInfoColor
 import com.example.campbnb.ui.theme.AdminInteractionColor
 
@@ -140,7 +140,7 @@ private fun NotificationLogLineDisplay(
                     .padding(6.dp),
                 contentAlignment = Alignment.CenterStart
             ) {
-                Text(line.text, fontSize = 18.sp, color = AdminDataColor1)
+                Text(line.text, fontSize = 18.sp, color = DataColor)
             }
         }
 
@@ -149,7 +149,7 @@ private fun NotificationLogLineDisplay(
             Text(
                 "Recipients: ${line.text}",
                 fontSize = 16.sp,
-                color = AdminDataColor2,
+                color = DataColorImportant,
                 modifier = Modifier.padding(start = 24.dp, bottom = 4.dp)
             )
         }
@@ -160,14 +160,14 @@ private fun NotificationLogLineDisplay(
                 fontSize = 18.sp,
                 modifier = Modifier
                     .padding(start = 24.dp),
-                color = AdminDataColor3)
+                color = DataColorUseful)
         }
 
         LogLineStyle.NOTICE_BODY -> {
             Text(
                 "Body: ${line.text}",
                 fontSize = 16.sp,
-                color = AdminDataColor1,
+                color = DataColor,
                 modifier = Modifier.padding(start = 24.dp, bottom = 12.dp)
             )
         }

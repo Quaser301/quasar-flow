@@ -7,7 +7,7 @@ package com.example.campbnb
  * The three tests follow the request made in that prompt: pressing the back button goes
  * back, tapping a dropdown element drops down that element, and switching the view
  * introduces the settings where they are supposed to be. The Settings screen keeps its
- * behaviour in the [SettingsDisplayController] state and the pure settingsGroupsFor
+ * behavior in the [SettingsDisplayController] state and the pure settingsGroupsFor
  * ordering model, which is what these tests drive.
  */
 

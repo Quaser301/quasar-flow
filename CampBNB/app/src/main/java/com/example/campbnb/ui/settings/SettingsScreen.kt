@@ -1,34 +1,36 @@
 package com.example.campbnb.ui.settings
 
-import android.graphics.fonts.Font
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.font.FontStyle
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.example.campbnb.ui.components.BackArrow
 import com.example.campbnb.ui.components.GradientBarButton
 import com.example.campbnb.ui.components.UserRole
+import com.example.campbnb.ui.shared.AppDropDownMenu
+import com.example.campbnb.ui.shared.AppSwitchMenu
 import com.example.campbnb.ui.shared.BarWithBackChevronAndHeaderCentered
-import com.example.campbnb.ui.theme.ButtonStart
+import com.example.campbnb.ui.theme.DataColor
+import com.example.campbnb.ui.theme.DataColorImportant
 import com.example.campbnb.ui.theme.FieldGrey
 import com.example.campbnb.viewModels.AppView
 import com.example.campbnb.viewModels.AppViewSettingController
 import com.example.campbnb.viewModels.EntrantSettingsController
+import com.example.campbnb.viewModels.NotificationSettings
 import com.example.campbnb.viewModels.OwnerSettingsController
 import com.example.campbnb.viewModels.SettingsDisplayController
 
@@ -142,7 +144,9 @@ private fun SettingsDropdown(
             GradientBarButton(
                 groupLabel(groupId) + if (expanded.value) "" else " - tap to open",
                 onClick = { display.toggleGroup(groupId.name) },
-                modifier = Modifier.fillMaxWidth().padding(6.dp)
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(6.dp)
             )
             if (expanded.value) content()
         }
@@ -163,21 +167,23 @@ private fun ViewSwitchMenu(
     display: SettingsDisplayController,
     viewSettings: AppViewSettingController,
 ) {
-    val expanded = display.expandedStateOf(SettingsGroupId.APP_VIEW_SWITCH.name).collectAsStateWithLifecycle()
+    val expanded = display.expandedStateOf(
+        SettingsGroupId.APP_VIEW_SWITCH.name
+    ).collectAsStateWithLifecycle()
     val currentView = viewSettings.viewSetting.collectAsStateWithLifecycle()
-
-    DropdownMenu(
-        expanded = expanded.value,
-        onDismissRequest = { display.toggleGroup(SettingsGroupId.APP_VIEW_SWITCH.name) }
-    ) {
-        listOf(AppView.AdminView, AppView.OwnerView, AppView.EntrantView).forEach { view ->
-            DropdownMenuItem(
-                text = { Text(view.name + if (view == currentView.value) " ←" else "") },
-
-                onClick = { viewSettings.changeViewTo(view) }
-            )
-        }
+    val entries = listOf(AppView.AdminView, AppView.OwnerView, AppView.EntrantView)
+    val textRenderer: @Composable (AppView) -> Unit = {
+        Text(it.name + if (it == currentView.value) " ←" else "")
     }
+
+    AppDropDownMenu(
+        entries,
+        { viewSettings.changeViewTo(it) },
+        {display.toggleGroup(SettingsGroupId.APP_VIEW_SWITCH.name )},
+        textRenderer,
+        expanded.value
+
+    )
 }
 
 /** The entrant settings group: the entrant's placeholder settings entries. */
@@ -187,10 +193,33 @@ private fun EntrantSettingsItems(settings: EntrantSettingsController) {
     val inboxAlerts = settings.inboxAlertsSetting.collectAsStateWithLifecycle()
     val messagesFilter = settings.messageFilterSetting.collectAsStateWithLifecycle()
 
+    // drop down systems for the notification settings:
+    val notificationSettings by settings.notificationSettings.collectAsStateWithLifecycle()
+    val options = listOf(NotificationSettings.PUSH, NotificationSettings.CSV)
+    val textRenderer: (NotificationSettings) -> String = { setting ->
+        when (setting) {
+            NotificationSettings.PUSH -> "Push"
+            NotificationSettings.CSV -> "CSV"
+        }
+    }
+
+
     Column {
         SettingsEntry("bookings order", bookingsOrder.value)
         SettingsEntry("inbox alerts", inboxAlerts.value)
         SettingsEntry("messages filter", messagesFilter.value)
+        Text(
+            "Notification Settings",
+            fontSize = 32.sp,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.padding(12.dp)
+        )
+        AppSwitchMenu(
+            options,
+            notificationSettings,
+            settings::toggleNotificationSetting,
+            textRenderer = textRenderer
+            )
     }
 }
 
@@ -242,3 +271,5 @@ private fun SettingsEntry(label: String, value: String) {
         }
     }
 }
+
+

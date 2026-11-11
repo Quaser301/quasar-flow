@@ -4,7 +4,7 @@ import androidx.lifecycle.ViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-
+import kotlinx.coroutines.flow.update
 
 
 // Same shape as AppViewSettingController: a ViewModel keeps these values alive across
@@ -17,6 +17,11 @@ import kotlinx.coroutines.flow.asStateFlow
 // owners losing visibility of admin-deleted content). The real settings entries are still
 // undecided; the structure is meant to hold replacements without redesign.
 
+enum class NotificationSettings {
+    PUSH,
+    CSV
+}
+
 /**
  * Provides a concrete [ViewModel] holding the Entrant-role settings edited from the
  * Settings modal while [AppView.EntrantView] is current.
@@ -27,6 +32,8 @@ import kotlinx.coroutines.flow.asStateFlow
  * @property bookingSortSetting The current bookings ordering placeholder.
  * @property inboxAlertsSetting The current inbox alerting placeholder.
  * @property messageFilterSetting The current message-list filtering placeholder.
+ * @property notificationSettings The current notification settings for this user. Defaults to
+ * PUSH notifications. Multiple notification types are allowed (IE: PUSH and Download)
  */
 class EntrantSettingsController: ViewModel() {
     private val _bookingSortSetting = MutableStateFlow("Newest first")
@@ -37,6 +44,9 @@ class EntrantSettingsController: ViewModel() {
 
     private val _messageFilterSetting = MutableStateFlow("Unread first")
     val messageFilterSetting = _messageFilterSetting.asStateFlow()
+
+    private val _notificationSettings = MutableStateFlow(listOf(NotificationSettings.PUSH))
+    val notificationSettings = _notificationSettings.asStateFlow()
 
     /**
      * Switches the bookings ordering placeholder.
@@ -50,7 +60,7 @@ class EntrantSettingsController: ViewModel() {
     /**
      * Switches the inbox alerting placeholder.
      *
-     * @param newAlerts The alerting behaviour to switch to.
+     * @param newAlerts The alerting behavior to switch to.
      */
     fun changeInboxAlertsTo(newAlerts: String) {
         _inboxAlertsSetting.value = newAlerts
@@ -63,6 +73,16 @@ class EntrantSettingsController: ViewModel() {
      */
     fun changeMessageFilterTo(newFilter: String) {
         _messageFilterSetting.value = newFilter
+    }
+
+    fun toggleNotificationSetting(setting: NotificationSettings, enabled: Boolean) {
+        _notificationSettings.update { currentList ->
+            if (enabled) {
+                if (setting !in currentList) currentList + setting else currentList
+            } else {
+                currentList - setting
+            }
+        }
     }
 }
 
@@ -122,8 +142,6 @@ class OwnerSettingsController: ViewModel() {
  * Each dropdown group has its expansion kept as an immutable `StateFlow`, so the
  * screen re-renders just that group when a tap opens or closes it.
  *
- * @param onBack Called whenever [pressBack] runs: the Settings screen hands this its
- * own back lambda, so leaving Settings returns to the screen just on.
  * @see expandedStateOf The readonly `StateFlow` for a named dropdown group.
  */
 class SettingsDisplayController: ViewModel() {
