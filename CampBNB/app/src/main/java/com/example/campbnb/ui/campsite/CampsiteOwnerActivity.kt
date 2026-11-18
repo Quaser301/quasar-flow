@@ -9,18 +9,17 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.example.campbnb.data.CampsiteRepository
 import com.example.campbnb.database.Database
 import com.example.campbnb.models.Campsite
-import com.example.campbnb.ui.shared.DeviceId
 
 @Composable
 fun CampsiteOwnerActivity(
     onEdit: (String) -> Unit,
     onRegister: () -> Unit,
     onBack: () -> Unit = {},
+    getDeviceID: () -> String,
     onOpenLotteries: () -> Unit = {}
 ) {
     var campsites by remember {
@@ -34,8 +33,7 @@ fun CampsiteOwnerActivity(
     var showDeleteConfirmation by remember { mutableStateOf(false) }
 
     val repository = remember { CampsiteRepository() }
-    val context = LocalContext.current
-    val ownerId = remember(context) { DeviceId.get(context) }
+    val ownerId = remember { getDeviceID() }
 
     LaunchedEffect(ownerId) {
         repository.getAll(

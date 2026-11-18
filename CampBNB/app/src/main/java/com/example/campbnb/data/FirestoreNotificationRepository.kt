@@ -38,6 +38,19 @@ class FirestoreNotificationRepository (
         }
     }
 
+    /**
+     * Reads every saved notification once, whichever user receives it. The debug log is a
+     * record of broadcasts that have already been sent, so it is read through the read engine
+     * the other repositories use rather than subscribed to: nothing is left open here that a
+     * later write could re-deliver.
+     */
+    override fun readAll(
+        onSuccess: (List<Notification>) -> Unit,
+        onFailure: (Exception) -> Unit
+    ) {
+        Database.Notifications.readEngine().query().execute(onSuccess, onFailure)
+    }
+
     override fun listenForUser(
         userId: String,
         onUpdate: (NotificationUpdate) -> Unit,

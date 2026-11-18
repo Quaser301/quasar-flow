@@ -26,9 +26,8 @@ import com.example.campbnb.ui.components.EyeGlyph
 import com.example.campbnb.ui.components.GradientButton
 import com.example.campbnb.ui.components.StarGlyph
 import com.example.campbnb.ui.components.UserRole
-import com.example.campbnb.ui.Screens.RoleBottomBar
-import com.example.campbnb.ui.Screens.tabsFor
-import com.example.campbnb.ui.campsite.lotteryButtonText
+import com.example.campbnb.ui.screens.RoleBottomBar
+import com.example.campbnb.ui.screens.tabsFor
 import com.example.campbnb.ui.theme.*
 import kotlin.math.roundToInt
 

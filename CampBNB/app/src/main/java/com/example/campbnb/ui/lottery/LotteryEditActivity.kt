@@ -33,7 +33,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -43,7 +42,6 @@ import com.example.campbnb.models.Lottery
 import com.example.campbnb.models.LotteryModel
 import com.example.campbnb.models.ViewObserver
 import com.example.campbnb.ui.shared.AppViewModificationIsValidForCurrentWindowChecker
-import com.example.campbnb.ui.shared.DeviceId
 import com.example.campbnb.viewModels.AppView
 import com.example.campbnb.viewModels.AppViewSetting
 import com.google.firebase.auth.FirebaseAuth
@@ -104,7 +102,8 @@ class LotteryEditActivity(
         model: LotteryModel,
         controller: LotteryController,
         initialLottery: Lottery? = null,
-        ownerId: String = ""
+        ownerId: String = "",
+        deviceID: String
     ) {
         AppViewModificationIsValidForCurrentWindowChecker(
             returnHome,
@@ -145,8 +144,10 @@ class LotteryEditActivity(
             }
         }
 
-        val context = LocalContext.current
-        val resolvedOwnerId = ownerId.ifBlank { FirebaseAuth.getInstance().currentUser?.uid ?: DeviceId.get(context) }
+        val resolvedOwnerId = ownerId.ifBlank {
+            FirebaseAuth
+                .getInstance()
+                .currentUser?.uid ?: deviceID }
 
         val lotteryToSave = Lottery(
             ownerId = resolvedOwnerId,

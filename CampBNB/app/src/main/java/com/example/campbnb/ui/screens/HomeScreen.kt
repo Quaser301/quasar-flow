@@ -1,4 +1,4 @@
-package com.example.campbnb.ui.Screens
+package com.example.campbnb.ui.screens
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
@@ -26,7 +26,16 @@ import com.example.campbnb.viewModels.AppViewSetting
 
 /** Every screen reachable from a bottom bar. */
 enum class HomeDestination {
-    EXPLORE, MESSAGES, BOOKINGS, INBOX, PROFILE, MY_CAMPSITES, REPORTS, FLAGGED, ADMIN_PROFILE_VIEW
+    EXPLORE,
+    MESSAGES,
+    BOOKINGS,
+    INBOX,
+    PROFILE,
+    MY_CAMPSITES,
+    REPORTS,
+    FLAGGED,
+    ADMIN_PROFILE_VIEW,
+    ADMIN_NOTIFICATION_VIEW
 }
 
 /** One circle in the bottom bar. */
@@ -53,7 +62,8 @@ fun tabsFor(role: UserRole): List<HomeTab> = when (role) {
         HomeTab("Messages", HomeDestination.MESSAGES),
         HomeTab("Reports", HomeDestination.REPORTS),
         HomeTab("Flagged", HomeDestination.FLAGGED),
-        HomeTab("Profiles", HomeDestination.ADMIN_PROFILE_VIEW)
+        HomeTab("Profiles", HomeDestination.ADMIN_PROFILE_VIEW),
+        HomeTab("Notifications", HomeDestination.ADMIN_NOTIFICATION_VIEW)
     )
 }
 

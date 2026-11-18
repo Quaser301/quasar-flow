@@ -74,7 +74,7 @@ class EntrantSettingsController: ViewModel() {
  * observe changes and re-render.
  *
  * @property listingVisibilitySetting The current listing visibility placeholder.
- * @property lotteryOpenSetting Whether the owner&apos;s lotteries are open to new entrants.
+ * @property lotteryOpenSetting Whether the owner's lotteries are open to new entrants.
  * @property availabilityNoticeSetting The current availability notice placeholder.
  */
 class OwnerSettingsController: ViewModel() {
@@ -97,7 +97,7 @@ class OwnerSettingsController: ViewModel() {
     }
 
     /**
-     * Switches whether the owner&apos;s lotteries accept new entrants.
+     * Switches whether the owner's lotteries accept new entrants.
      *
      * @param open Whether the lotteries should accept new entrants.
      */
@@ -124,9 +124,9 @@ class OwnerSettingsController: ViewModel() {
  *
  * @param onBack Called whenever [pressBack] runs: the Settings screen hands this its
  * own back lambda, so leaving Settings returns to the screen just on.
- * @property expandedStateOf The readonly `StateFlow` for a named dropdown group.
+ * @see expandedStateOf The readonly `StateFlow` for a named dropdown group.
  */
-class SettingsDisplayController(val onBack: () -> Unit): ViewModel() {
+class SettingsDisplayController: ViewModel() {
     // one state per known dropdown group from SettingsGroupId; groups start closed.
     private val appViewSwitchState = MutableStateFlow(false)
     private val adminSettingsState = MutableStateFlow(false)
@@ -162,13 +162,5 @@ class SettingsDisplayController(val onBack: () -> Unit): ViewModel() {
             "OWNER_SETTINGS" -> ownerSettingsState.value = !ownerSettingsState.value
             else -> unknownGroupState.value = !unknownGroupState.value
         }
-    }
-
-    /**
-     * Runs the back navigation: presses the Settings screen&apos;s back button by
-     * calling the back lambda it was handed.
-     */
-    fun pressBack() {
-        onBack()
     }
 }

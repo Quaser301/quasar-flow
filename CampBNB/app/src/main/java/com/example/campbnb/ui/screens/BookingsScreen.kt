@@ -1,4 +1,4 @@
-package com.example.campbnb.ui.Screens
+package com.example.campbnb.ui.screens
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -15,7 +15,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.campbnb.models.BookingCardData
-import com.example.campbnb.ui.components.UserRole
 
 private val BookingGreen = Color(0xFF64A83F)
 private val BookingGray = Color(0xFFD9D9D9)

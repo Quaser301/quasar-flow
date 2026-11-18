@@ -19,7 +19,7 @@ import java.util.Locale
 
 /**
  * Star rating widgets for campsites (US 01.01.04 shows the average, US 01.13.01 lets an
- * entrant rate). Screens pass in numbers from CampsiteModel and react to taps by calling
+ * entrant rate). screens pass in numbers from CampsiteModel and react to taps by calling
  * CampsiteController.saveRating.
  */
 

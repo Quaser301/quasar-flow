@@ -1,5 +1,5 @@
 
-package com.example.campbnb.ui.Screens
+package com.example.campbnb.ui.screens
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable

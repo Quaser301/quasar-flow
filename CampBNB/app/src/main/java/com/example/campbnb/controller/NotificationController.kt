@@ -75,6 +75,20 @@ class NotificationController (
         onError: (Exception) -> Unit
     ): () -> Unit = repo.listenForUser(userId, onUpdate, onError)
 
+    /**
+     * Reads every saved notification once, for the notification debug screen only.
+     *
+     * Read on demand rather than listened to: the log is a record of what has already been
+     * sent, and a whole-collection listener would re-deliver every record on every write.
+     *
+     * @param onSuccess called once with every saved notification
+     * @param onFailure called once when the read fails
+     */
+    fun readAll(
+        onSuccess: (List<Notification>) -> Unit,
+        onFailure: (Exception) -> Unit
+    ) = repo.readAll(onSuccess, onFailure)
+
     fun markRead(notificationId: String, onDone: (Result<Unit>) -> Unit = {}) =
         repo.markRead(notificationId, onDone)
 
@@ -246,9 +260,7 @@ class NotificationController (
             // Save the notification.
             repo.saveAll(listOf(notification)) { result ->
                 result.onFailure { error ->
-                    println(
-                        "Failed to save notification: ${error.message}"
-                    )
+                    // TODO: Handle this
                 }
             }
         }

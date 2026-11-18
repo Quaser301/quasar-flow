@@ -44,8 +44,10 @@ sealed interface Screen {
 
     @Serializable
     data object LotteryDetailsActivity: Screen
+
     @Serializable
     data object LotteryWaitlistActivity: Screen
+
     @Serializable
     data object Start: Screen
 
@@ -61,12 +63,17 @@ sealed interface Screen {
     @Serializable
     data class Settings(val role: UserRole): Screen
 
-
     @Serializable
-    data class Search(val role: UserRole, val query: String = "", val openFilter: Boolean = false) : Screen
+    data class Search(
+        val role: UserRole,
+        val query: String = "",
+        val openFilter: Boolean = false
+    ) : Screen
+
     // the screen where a Campsite Owner views reservations.
     @Serializable
     data object Reservations : Screen
+
     @Serializable
     data class CampsiteDetail(val role: UserRole, val campsiteId: String) : Screen
 
@@ -79,8 +86,4 @@ sealed interface Screen {
     // one campsite's details page.
     @Serializable
     data class CampsiteDetailsScreen(val role: UserRole, val campsiteId: String): Screen
-
-    @Serializable
-    data object AdminProfileView: Screen
-
 }
