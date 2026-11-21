@@ -8,7 +8,10 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -35,8 +38,11 @@ import com.example.campbnb.controller.ReservationFilter
 import com.example.campbnb.models.ReservationStatus
 import com.example.campbnb.models.BookingCardData
 import com.example.campbnb.ui.screens.BookingsScreen
+import com.example.campbnb.ui.screens.QrScannerScreen
 import com.example.campbnb.ui.screens.BookingTab
 import com.example.campbnb.data.LotteryRepository
+import com.example.campbnb.data.SentNotificationsRepository
+import com.example.campbnb.data.UserRepository
 import com.example.campbnb.database.Database
 import com.example.campbnb.models.Campsite
 import com.example.campbnb.models.CampsiteModel
@@ -66,6 +72,7 @@ import com.example.campbnb.ui.components.UserRole
 import com.example.campbnb.ui.details.CampsiteDetails
 import com.example.campbnb.ui.details.CampsiteDetailsScreen
 import com.example.campbnb.ui.inbox.CorrespondenceScreen
+import com.example.campbnb.ui.inbox.CorrespondenceTabs
 import com.example.campbnb.ui.inbox.MessagesScreen
 import com.example.campbnb.ui.inbox.NotificationInboxScreen
 import com.example.campbnb.ui.inbox.NotificationViewModel
@@ -290,7 +297,7 @@ fun CampBnbApp(
                         HomeDestination.MESSAGES -> {
                             CorrespondenceDestination(
                                 nav = nav,
-                                initialTab = 1,
+                                openTab = CorrespondenceTabs.MESSAGES_TAB,
                                 deps = deps
                             )
                         }
@@ -298,7 +305,7 @@ fun CampBnbApp(
                         HomeDestination.INBOX -> {
                             CorrespondenceDestination(
                                 nav = nav,
-                                initialTab = 0,
+                                openTab = CorrespondenceTabs.NOTIFICATIONS_TAB,
                                 deps = deps
                             )
                         }
@@ -315,7 +322,8 @@ fun CampBnbApp(
 
                         HomeDestination.ADMIN_NOTIFICATION_VIEW -> {
                             NotificationLogScreen(
-                                controller = deps.notificationController,
+                                title = "Notification Debugging",
+                                notificationSource = deps.notificationRepository,
                                 returnFunc = { nav.goHome(role) }
                             )
                         }
@@ -458,8 +466,33 @@ fun CampBnbApp(
                 onClose = {
                     nav.navigateUp()
                 },
+                // The QR circle opens the camera scanner.
+                onQrClick = {
+                    nav.navigate(Screen.QrScanner(route.role))
+                },
                 onCampsiteClick = {
                     nav.navigate(Screen.CampsiteDetailsScreen(route.role, it.id))
+                }
+            )
+        }
+
+        // Camera scanner: opened by the QR circle on Search. A working code opens the
+        // campsite it names; going back from that campsite returns here because the
+        // navigation stack keeps this screen under the details page (US 01.12.01).
+        composable<Screen.QrScanner> { entry ->
+            val route = entry.toRoute<Screen.QrScanner>()
+            val scannerModel = remember { CampsiteModel() }
+            val scannerController = remember {
+                CampsiteController(
+                    scannerModel,
+                    deps.campsiteRepository
+                )
+            }
+            observeModel(scannerModel)
+            QrScannerScreen(
+                controller = scannerController,
+                onOpenCampsite = { campsite ->
+                    nav.navigate(Screen.CampsiteDetailsScreen(route.role, campsite.id))
                 }
             )
         }
@@ -482,7 +515,7 @@ fun CampBnbApp(
             }
             val detailsLotteryModel = remember { LotteryModel() }
             val detailsLotteryController = remember {
-                LotteryController(detailsLotteryModel, LotteryRepository(), Database.Lotteries.readEngine()) {
+                LotteryController(detailsLotteryModel, LotteryRepository(), Database.Lotteries.readEngine(), deps.notificationController) {
                     System.currentTimeMillis()
                 }
             }
@@ -646,16 +679,21 @@ fun CampBnbApp(
             }
             val model = remember { LotteryModel() }
             val repo = remember { LotteryRepository() }
+            // The user repository gives the edit screen the owner candidates that
+            // invitations may be checked for (US 02.04.08).
+            val userRepo = remember { UserRepository() }
             val controller = remember {
                 LotteryController(
                     model,
                     repo,
-                    Database.Lotteries.readEngine()
+                    Database.Lotteries.readEngine(),
+                    deps.notificationController
                 ) { System.currentTimeMillis() }
             }
             activity.LotteryEdit(
                 model = model,
                 controller = controller,
+                userRepository = userRepo,
                 initialLottery = selectedLottery,
                 deviceID = deps.deviceID
             )
@@ -684,7 +722,8 @@ fun CampBnbApp(
                 LotteryController(
                     model,
                     repo,
-                    Database.Lotteries.readEngine()
+                    Database.Lotteries.readEngine(),
+                    deps.notificationController
                 ) {
                     System.currentTimeMillis()
                 }
@@ -716,6 +755,7 @@ fun CampBnbApp(
                     goToEditCampsite = { campsite ->
                         nav.navigate(Screen.EditCampsite(campsite.id))
                     },
+                    fileDownloadWriter = deps.fileDownloadWriter,
                     appViewSettings = deps.appViewSettings.toAppViewSetting(),
                     deviceID = deps.deviceID
                 )
@@ -744,7 +784,8 @@ fun CampBnbApp(
                 LotteryController(
                     model,
                     repo,
-                    Database.Lotteries.readEngine()
+                    Database.Lotteries.readEngine(),
+                    deps.notificationController
                 ) { System.currentTimeMillis() }
             }
             activity.LotteryWaitlist(
@@ -861,7 +902,10 @@ fun CampBnbApp(
                 },
                 onBack = {
                     nav.navigateUp()
-                }
+                },
+                csvPreferences = deps.notificationPreferencesService,
+                currentUserId = deps.currentUserId,
+                fileDownloadWriter = deps.fileDownloadWriter
             )
         }
 
@@ -870,9 +914,12 @@ fun CampBnbApp(
             // the relevant settings
             val role = entry.toRoute<Screen.Settings>().role
             SettingsScreen(
-                { nav.navigateUp() },
-                role,
-                deps.appViewSettings
+                back = { nav.navigateUp() },
+                role = role,
+                viewSettings = deps.appViewSettings,
+                entrantSettings = deps.entrantSettings,
+                notificationPreferences = deps.notificationPreferencesService,
+                userIdForSettings = deps.currentUserId
             )
         }
 
@@ -890,15 +937,24 @@ fun CampBnbApp(
             activity.LotteryDetails(model = model, selectedLottery = selectedLottery)
         }
 
-        // Notification and message destinations
+        // Notification and message destinations. Tapping a notification opens the notices a
+        // viewer received: an owner's own list is the sent one, so their received notices
+        // live under the Received tab, while every other viewer has a single notices tab.
         composable(NotificationRoutes.NOTIFICATIONS) {
-            CorrespondenceDestination(nav = nav, initialTab = 0, deps = deps)
+            CorrespondenceDestination(
+                nav = nav,
+                openTab = if (deps.currentUserIsOwner) CorrespondenceTabs.RECEIVED_TAB else CorrespondenceTabs.NOTIFICATIONS_TAB,
+                deps = deps
+            )
         }
         composable(NotificationRoutes.MESSAGES) {
-            CorrespondenceDestination(nav = nav, initialTab = 1, deps = deps)
+            CorrespondenceDestination(
+                nav = nav,
+                openTab = CorrespondenceTabs.MESSAGES_TAB,
+                deps = deps
+            )
         }
-        // Notification taps for reservations and lottery wins go to the reservations screen
-        // (there is no separate booking screen yet).
+        // Tapping a MESSAGE notification opens that reservation's chat.
         composable(NotificationRoutes.RESERVATIONS) {
             LaunchedEffect(Unit) {
                 nav.navigate(Screen.Reservations) {
@@ -906,18 +962,22 @@ fun CampBnbApp(
                 }
             }
         }
-        composable("${NotificationRoutes.BOOKING}/{lotteryId}") {
-            LaunchedEffect(Unit) {
-                nav.navigate(Screen.Reservations) {
-                    popUpTo("${NotificationRoutes.BOOKING}/{lotteryId}") { inclusive = true }
-                }
-            }
+        // Taps from WIN and INVITE notifications share the booking route. The
+        // destination below opens the invitation panel only while the invitation is
+        // still pending for the current viewer, and otherwise keeps navigating to the
+        // reservations screen (there is still no separate booking screen).
+        composable("${NotificationRoutes.BOOKING}/{lotteryId}") { entry ->
+            InvitationDestination(
+                nav = nav,
+                lotteryId = entry.arguments?.getString("lotteryId"),
+                deps = deps
+            )
         }
         // Tapping a MESSAGE notification opens that reservation's chat.
         composable("${NotificationRoutes.CHAT}/{reservationId}") { entry ->
             CorrespondenceDestination(
                 nav = nav,
-                initialTab = 1,
+                openTab = CorrespondenceTabs.MESSAGES_TAB,
                 openReservationId = entry.arguments?.getString("reservationId"),
                 deps
             )
@@ -947,30 +1007,69 @@ private fun NavController.goHome(role: UserRole, tab: Int = 0) {
 }
 
 /**
- * The Notifications / Messages screen, with its tabs.
+ * The Correspondence screen, with the tabs this viewer has.
+ *
+ * The tabs and their contents are chosen here, where the viewer's role is known: an owner
+ * is shown the notices they caused under "Notifications" and the notices they received
+ * under "Received", while every other viewer has the one notices tab they can see. The
+ * screen itself only draws what it is handed.
  *
  * @param nav The app's NavController, used when a notification is tapped.
- * @param initialTab 0 opens Notifications, 1 opens Messages.
+ * @param openTab Which tab opens, named in CorrespondenceTabs.
  * @param openReservationId If set, the Messages tab opens straight into this reservation's chat.
  */
 @Composable
 private fun CorrespondenceDestination(
     nav: NavController,
-    initialTab: Int,
+    openTab: String,
     openReservationId: String? = null,
     deps: Dependencies
 ) {
-    CorrespondenceScreen(
-        navController = nav,
-        initialTab = initialTab,
-        notificationsContent = { NotificationsTab(nav, deps) },
-        messagesContent = { MessagesTab(openReservationId, deps) }
+    if (deps.currentUserIsOwner) {
+        CorrespondenceScreen(
+            navController = nav,
+            tabLabels = listOf(
+                CorrespondenceTabs.NOTIFICATIONS_TAB,
+                CorrespondenceTabs.RECEIVED_TAB,
+                CorrespondenceTabs.MESSAGES_TAB
+            ),
+            openTab = openTab,
+            notificationsTabContent = { sentNoticesTab(deps) },
+            receivedTabContent = { receivedNoticesTab(nav, deps) },
+            messagesTabContent = { MessagesTab(openReservationId, deps) }
+        )
+    } else {
+        CorrespondenceScreen(
+            navController = nav,
+            tabLabels = listOf(
+                CorrespondenceTabs.NOTIFICATIONS_TAB,
+                CorrespondenceTabs.MESSAGES_TAB
+            ),
+            openTab = openTab,
+            notificationsTabContent = { receivedNoticesTab(nav, deps) },
+            messagesTabContent = { MessagesTab(openReservationId, deps) }
+        )
+    }
+}
+
+/**
+ * The "Sent Notifications" of the current viewer: the notices they caused, read through a
+ * repository scoped to their own id, drawn by the notification log.
+ */
+@Composable
+private fun sentNoticesTab(deps: Dependencies) {
+    NotificationLogScreen(
+        title = "Sent Notifications",
+        notificationSource = SentNotificationsRepository(deps.notificationRepository, deps.deviceID)
     )
 }
 
-/** The notification inbox. viewModel() keeps the same inbox (and its Firestore listener) across recompositions. */
+/**
+ * The notices the current viewer received. viewModel() keeps the same inbox (and its
+ * Firestore listener) across recompositions.
+ */
 @Composable
-private fun NotificationsTab(nav: NavController, deps: Dependencies) {
+private fun receivedNoticesTab(nav: NavController, deps: Dependencies) {
     val userId = deps.deviceID
     val inboxViewModel: NotificationViewModel = viewModel(
         key = "notification-inbox-$userId",
@@ -979,6 +1078,98 @@ private fun NotificationsTab(nav: NavController, deps: Dependencies) {
         }
     )
     NotificationInboxScreen(viewModel = inboxViewModel, navController = nav)
+}
+
+/**
+ * The invitation panel opened by a lottery INVITE notification: the invited owner reads
+ * what they were invited to and accepts with one tap, which stores the lottery as joined
+ * and then opens the owner lottery list, where it now shows. The panel only appears while
+ * the invitation is pending for the current viewer, so taps from WIN notifications keep
+ * navigating to the reservations screen as before.
+ *
+ * @param nav The app's NavController.
+ * @param lotteryId The route argument naming the invited lottery.
+ * @param deps The app-wide dependencies, which name the viewer by device id.
+ */
+@Composable
+private fun InvitationDestination(
+    nav: NavController,
+    lotteryId: String? = null,
+    deps: Dependencies
+) {
+    val viewerId = deps.deviceID
+    var invitedLottery by remember { mutableStateOf<Lottery?>(null) }
+    var invitationResolved by remember { mutableStateOf(false) }
+
+    LaunchedEffect(lotteryId) {
+        if (!lotteryId.isNullOrEmpty()) {
+            Database.Lotteries.readEngine().getById(
+                id = lotteryId,
+                onSuccess = { found ->
+                    invitedLottery = found
+                    invitationResolved = true
+                },
+                onFailure = {
+                    invitationResolved = true
+                }
+            )
+        } else {
+            invitationResolved = true
+        }
+    }
+
+    val invited = invitedLottery
+    if (invited != null && viewerId in invited.invitedOwnerIds && viewerId !in invited.joinedOwnerIds) {
+        val invitationModel = remember { LotteryModel() }
+        val invitationRepository = remember { LotteryRepository() }
+        val invitationController = remember {
+            LotteryController(
+                invitationModel,
+                invitationRepository,
+                Database.Lotteries.readEngine(),
+                deps.notificationController
+            ) { System.currentTimeMillis() }
+        }
+        Column(
+            modifier = Modifier.fillMaxSize().padding(24.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Text(
+                text = "Lottery Invitation",
+                fontWeight = FontWeight.Bold
+            )
+            Text(
+                text = "You were invited to join this lottery. Accept to see it in your list and add your own campsites."
+            )
+            Button(
+                onClick = {
+                    invitationController.acceptInvitation(
+                        lottery = invited,
+                        userId = viewerId,
+                        onSuccess = { nav.navigate(Screen.LotteryMonitorActivity) }
+                    )
+                }
+            ) {
+                Text("Accept invitation")
+            }
+            TextButton(onClick = { nav.navigate(Screen.Reservations) }) {
+                Text("Not now")
+            }
+        }
+    } else if (invitationResolved) {
+        LaunchedEffect(invitationResolved) {
+            nav.navigate(Screen.Reservations) {
+                popUpTo(Screen.Reservations) { inclusive = true }
+            }
+        }
+    } else {
+        Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center
+        ) {
+            CircularProgressIndicator()
+        }
+    }
 }
 
 /** The chat list and chat threads. [openReservationId] jumps straight into one chat. */

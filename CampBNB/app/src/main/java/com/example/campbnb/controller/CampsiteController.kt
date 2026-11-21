@@ -3,12 +3,15 @@ package com.example.campbnb.controller
 import com.example.campbnb.data.CampsiteRepository
 import com.example.campbnb.models.Campsite
 import com.example.campbnb.models.CampsiteModel
+import com.example.campbnb.models.QRCode
 import com.example.campbnb.models.Rating
 import com.example.campbnb.models.SearchFilters
+import com.example.campbnb.models.qrCodeOfScannedText
 
 /**
  * Controller for CampsiteModel, campsite search, details, and ratings for entrants.
- * Owner methods like register, update, QR.
+ * Owner methods like register, update, and QR code generation (US 01.12.01); scanning
+ * a code is here too, since a scan loads and selects a campsite.
  */
 class CampsiteController (
     private val model: CampsiteModel,
@@ -310,6 +313,93 @@ class CampsiteController (
             onFailure = { error -> model.setStatusMessage("Could not load campsites: " + error.message) }
         )
         loadRatings()
+    }
+
+    /**
+     * Makes the text of a QR code to print at a registered campsite (US 01.12.01): the
+     * code names [campsiteId] and stops working at [stopsAtMillis], where the reserved 0
+     * (January 1, 1970) keeps it working forever. The result is printable text, not a
+     * stored record: a code means what it says, so nothing has to remember it. Only a
+     * registered campsite gets a code, so the id is checked against the store first.
+     *
+     * @param campsiteId The campsite to make a code for.
+     * @param stopsAtMillis When the code should stop working; 0 means never.
+     * @param onPayload Called with the text to print, once the store confirms it.
+     */
+    fun makeQrCode(
+        campsiteId: String,
+        stopsAtMillis: Long = 0,
+        onPayload: (String) -> Unit = {}
+    ) {
+        if (campsiteId.isBlank()) {
+            model.setStatusMessage("Please pick a campsite to make a code for")
+            return
+        }
+        repo.getAll(
+            onSuccess = { campsites ->
+                val registered = campsites.filter { it.id == campsiteId }
+                if (registered.isEmpty()) {
+                    model.setStatusMessage("That campsite is not registered yet")
+                } else {
+                    model.setStatusMessage("QR code made for that campsite")
+                    onPayload(QRCode(campsiteId, stopsAtMillis).payload())
+                }
+            },
+            onFailure = { error ->
+                model.setStatusMessage("Could not make the QR code: " + error.message)
+            }
+        )
+    }
+
+    /**
+     * Opens the campsite a scanned QR code names, while the code still works (US 01.12.01).
+     * The code text carries its own campsite and stop-working moment, so the scan needs no
+     * lookup to decide whether it is stale: [onExpired] reports a code that stopped working,
+     * [onUnreadable] reports text that is not usable code text or names a campsite that is
+     * not registered, and [onOpened] receives the campsite a working code names, with the
+     * model selecting it so a details page can open right away. Exactly one of the three
+     * runs, except when the store fails and only the model's status message reports.
+     *
+     * @param payload The text read from the scanned code.
+     * @param onOpened Called with the campsite the working code names.
+     * @param onExpired Called with the code that stopped working.
+     * @param onUnreadable Called with the text that names nothing usable.
+     * @param clock The moment the code is read, injectable so scans test at any time.
+     */
+    fun scanQr(
+        payload: String,
+        onOpened: (Campsite) -> Unit,
+        onExpired: (QRCode) -> Unit,
+        onUnreadable: (String) -> Unit,
+        clock: () -> Long = { System.currentTimeMillis() }
+    ) {
+        val code = qrCodeOfScannedText(payload)
+        if (code == null) {
+            model.setStatusMessage("That text is not CampBNB code text")
+            onUnreadable(payload)
+            return
+        }
+        if (!code.isValidAt(clock())) {
+            model.setStatusMessage("That code stopped working")
+            onExpired(code)
+            return
+        }
+        repo.getAll(
+            onSuccess = { campsites ->
+                val named = campsites.filter { it.id == code.campsiteId }
+                if (named.isEmpty()) {
+                    model.setStatusMessage("No campsite matches that code")
+                    onUnreadable(payload)
+                } else {
+                    model.setCampsites(campsites)
+                    model.selectCampsite(named.first())
+                    onOpened(named.first())
+                }
+            },
+            onFailure = { error ->
+                model.setStatusMessage("Could not open that campsite: " + error.message)
+            }
+        )
     }
 
     /** Loads the campsites registered by [ownerId] for the owner's My Campsites list (US 02.03.01). */

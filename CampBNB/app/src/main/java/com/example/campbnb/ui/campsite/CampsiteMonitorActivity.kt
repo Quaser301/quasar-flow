@@ -36,6 +36,10 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import com.example.campbnb.data.CampsiteRepository
+import com.example.campbnb.data.NoFileDownloadWriter
+import com.example.campbnb.data.FileDownloadWriter
+import com.example.campbnb.models.QRCode
+import com.example.campbnb.models.qrImageFileBytes
 // Prompted Claude Sonnet 5.5 to build this screen the same way as LotteryMonitorActivity,
 // but listing the owner's campsites (US 02.03.01).
 
@@ -53,7 +57,10 @@ import com.example.campbnb.data.CampsiteRepository
  * @property goToRegisterCampsite Called when the Register Campsite button is tapped.
  * @property goToCampsiteDetails Called with the campsite when its Details button is tapped.
  * @property goToEditCampsite Called with the campsite when its Edit button is tapped.
+ * @property fileDownloadWriter The shared download-system provider that writes a campsite's
+ *   QR code file; a screen without one keeps the button inert-safe through the default.
  * @property appViewSettings The live app view setting.
+ * @property deviceID The device id, used as the owner id when none is given.
  */
 class CampsiteMonitorActivity(
     val goHome: () -> Unit,
@@ -61,6 +68,7 @@ class CampsiteMonitorActivity(
     val goToRegisterCampsite: () -> Unit,
     val goToCampsiteDetails: (Campsite) -> Unit,
     val goToEditCampsite: (Campsite) -> Unit,
+    val fileDownloadWriter: FileDownloadWriter = NoFileDownloadWriter(),
     val appViewSettings: AppViewSetting,
     val deviceID: String
 ) : ViewObserver<CampsiteModel> {
@@ -82,6 +90,10 @@ class CampsiteMonitorActivity(
         }
 
         var deleteError by remember {
+            mutableStateOf("")
+        }
+
+        var qrDownloadError by remember {
             mutableStateOf("")
         }
 
@@ -138,6 +150,11 @@ class CampsiteMonitorActivity(
             if (deleteError.isNotEmpty()) {
                 Text(
                 text = deleteError,
+                color = MaterialTheme.colorScheme.error)
+            }
+            if (qrDownloadError.isNotEmpty()) {
+                Text(
+                text = qrDownloadError,
                 color = MaterialTheme.colorScheme.error)
             }
 
@@ -203,6 +220,23 @@ class CampsiteMonitorActivity(
                                     campsiteToDelete = campsite
                                 }) {
                                     Text("Delete")
+                                }
+                                // A code for this campsite, keeping working forever (the
+                                // reserved default), written through the download system.
+                                Button(onClick = {
+                                    val code = QRCode(campsiteId = campsite.id)
+                                    fileDownloadWriter.downloadFile(
+                                        code.fileName(),
+                                        qrImageFileBytes(code)
+                                    ) { result ->
+                                        if (result.isSuccess) {
+                                            qrDownloadError = ""
+                                        } else {
+                                            qrDownloadError = "Could not save ${campsite.campName}'s QR code file"
+                                        }
+                                    }
+                                }) {
+                                    Text("Download QR Code File")
                                 }
                             }
                         }

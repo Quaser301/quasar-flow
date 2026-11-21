@@ -12,12 +12,17 @@ import com.example.campbnb.data.FirestoreMessageRepository
 import com.example.campbnb.data.FirestoreNotificationRepository
 import com.example.campbnb.data.MessageRepository
 import com.example.campbnb.data.NotificationRepository
+import com.example.campbnb.data.NotificationPreferencesService
+import com.example.campbnb.data.FileDownloadWriter
+import com.example.campbnb.data.InMemoryFileDownloadWriter
+import com.example.campbnb.data.FirestoreNotificationPreferencesService
 import com.example.campbnb.data.ReservationRepository
 import com.example.campbnb.data.UserRepository
 import com.example.campbnb.database.Database
 import com.example.campbnb.models.UserModel
 import com.example.campbnb.ui.shared.DeviceId
 import com.example.campbnb.viewModels.AppViewSettingController
+import com.example.campbnb.viewModels.EntrantSettingsController
 
 /**
  * Central place for creating and connecting app dependencies.
@@ -128,6 +133,19 @@ object AppContainer: Dependencies {
 
     override val appViewSettings by mutableStateOf(AppViewSettingController())
 
+    override val entrantSettings by lazy { EntrantSettingsController() }
+
+    override val notificationPreferencesService: NotificationPreferencesService by lazy {
+        FirestoreNotificationPreferencesService(
+            Database.NotificationPreferences.readEngine(),
+            Database.NotificationPreferences.writeEngine()
+        )
+    }
+
+    override val fileDownloadWriter: FileDownloadWriter by lazy {
+        InMemoryFileDownloadWriter()
+    }
+
     override var pendingRoute: String? by mutableStateOf(null)
 
     override val onPendingRouteHandled: () -> Unit = { pendingRoute = null }
@@ -135,5 +153,10 @@ object AppContainer: Dependencies {
     fun init(context: android.content.Context) {
         deviceID = DeviceId.get(context)
         currentUserId = deviceID
+        notificationPreferencesService.loadNotificationSettings(
+            deviceID,
+            { _ -> },
+            { _ -> }
+        )
     }
 }

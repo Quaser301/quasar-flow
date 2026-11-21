@@ -16,7 +16,9 @@ object NotificationRoutes {
     const val CHAT = "chat"
 
     fun routeFor(n: Notification): String = when (n.type) {
-        NotificationType.WIN ->
+        NotificationType.WIN,
+        // An invitation opens the lottery the invited owner was asked to join.
+        NotificationType.INVITE ->
             if (n.lotteryId.isNotBlank()) "$BOOKING/${n.lotteryId}" else NOTIFICATIONS
 
         NotificationType.LOSE,

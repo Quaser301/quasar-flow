@@ -6,6 +6,7 @@ import com.example.campbnb.models.Campsite
 import com.example.campbnb.models.Lottery
 import com.example.campbnb.models.LotteryModel
 import com.example.campbnb.models.LotteryStatus
+import com.example.campbnb.models.NotificationIntent
 import com.example.campbnb.models.WaitingListEntry
 
 /**
@@ -14,12 +15,14 @@ import com.example.campbnb.models.WaitingListEntry
  * @property model The lottery state shown by the views.
  * @property repo The lottery repository.
  * @property lotteries Read access to lotteries, including their winners and booking windows.
+ * @property notifications Reports invitations to join a lottery, to whoever is concerned.
  * @property clock Source of the current time in epoch milliseconds.
  */
 class LotteryController(
     private val model: LotteryModel,
     private val repo: LotteryRepository,
     private val lotteries: QueryEngine<Lottery>,
+    private val notifications: NotificationController,
     private val clock: () -> Long = System::currentTimeMillis
 ) {
     // E, D, A, F
@@ -212,15 +215,135 @@ class LotteryController(
             onFailure = { onResult(emptyList()) }
         )
     }
-    fun saveLottery(lottery: Lottery, onSuccess: () -> Unit, onFailure: (Exception) -> Unit) {
-        repo.save(lottery, onSuccess, onFailure)
+    /**
+     * Puts the lotteries an owner may see into the model: the ones they created plus the
+     * ones they joined by accepting an invitation (US 02.04.08). The boundary reads every
+     * lottery and this filters by [Lottery.visibleTo], because Firestore cannot express
+     * "created by or joined by" in one query through [QueryEngine].
+     *
+     * @param ownerId The owner whose lotteries view is loaded.
+     */
+    fun loadOwnerLotteries(ownerId: String) {
+        repo.getAllLotteries(
+            onSuccess = { all -> model.setLotteries(all.filter { it.visibleTo(ownerId) }) },
+            onFailure = { error -> model.setStatusMessage("Could not load lotteries: " + error.message) }
+        )
     }
 
-    fun loadOwnerLotteries(ownerId: String) {
-        repo.getLotteriesForOwner(
-            ownerId,
-            onSuccess = { lotteries -> model.setLotteries(lotteries) },
-            onFailure = { error -> model.setStatusMessage("Could not load lotteries: " + error.message) }
+    /**
+     * Saves a lottery the owner created or updated, and when it names owners to invite,
+     * reports one invitation event once the save succeeded (US 02.04.08): an invitation is
+     * only for a lottery that exists, so a failed save reports nothing. Updating a lottery
+     * reports its pending invitations again; the records carry ids naming the lottery and
+     * the invited owner, so re-reporting stores one record per invited owner rather than
+     * copies.
+     *
+     * @param lottery The lottery to save, with its invited owners listed.
+     * @param onSuccess Called once the lottery is stored.
+     * @param onFailure Receives the store's error.
+     */
+    fun saveLottery(lottery: Lottery, onSuccess: () -> Unit, onFailure: (Exception) -> Unit) {
+        repo.save(
+            lottery,
+            onSuccess = {
+                notifications.notify(NotificationIntent.LotteryInvited(lottery))
+                onSuccess()
+            },
+            onFailure = onFailure
+        )
+    }
+
+    /**
+     * An invited owner accepts and joins the lottery (US 02.04.08): they move from invited
+     * to joining, and the lottery's parameters are not touched, so dates, winner count, and
+     * waiting list capacity stay as the owner set them. The result is reported through the
+     * model's status message, as joining a waiting list is, and handed to the optional
+     * completion callbacks (US 02.04.08): exactly one of [onSuccess] and [onFailure] runs,
+     * including on the refusals below, so a caller's next step waits for the store and
+     * never races it.
+     *
+     * @param lottery The lottery the invitation belongs to.
+     * @param userId The invited owner accepting.
+     * @param onSuccess Called once the joined lottery is stored.
+     * @param onFailure Receives the store's error, or the reason for a refusal.
+     */
+    fun acceptInvitation(
+        lottery: Lottery,
+        userId: String,
+        onSuccess: () -> Unit = {},
+        onFailure: (Exception) -> Unit = {}
+    ) {
+        if (userId.isBlank()) {
+            val reason = "Please sign in before accepting an invitation"
+            model.setStatusMessage(reason)
+            onFailure(IllegalArgumentException(reason))
+            return
+        }
+        if (userId !in lottery.invitedOwnerIds) {
+            val reason = "This lottery does not invite you"
+            model.setStatusMessage(reason)
+            onFailure(IllegalArgumentException(reason))
+            return
+        }
+        repo.save(
+            lottery.withInvitationAcceptedBy(userId),
+            onSuccess = {
+                model.setStatusMessage("You joined this lottery")
+                onSuccess()
+            },
+            onFailure = { error ->
+                model.setStatusMessage("Could not join the lottery: " + error.message)
+                onFailure(error)
+            }
+        )
+    }
+
+    /**
+     * Saves the campsite list as a joining owner edited it (US 02.04.08): the campsites of
+     * other owners are kept, the campsites of [editorId] become exactly
+     * [selectedCampsiteIds], and everything else about the lottery, its dates, winner
+     * settings, invited and joining owners, is copied unchanged, which is what keeps a
+     * joining owner from changing the parameters. A campsite the editor does not own is
+     * refused, and so is an edit that would leave the lottery with no campsite.
+     *
+     * @param editorId The joining owner whose selection is saved.
+     * @param lottery The lottery as it is now.
+     * @param selectedCampsiteIds The editor's campsites the edited lottery will cover.
+     * @param onSuccess Called once the edited lottery is stored.
+     * @param onFailure Receives the store's error or a refusal.
+     */
+    fun saveCampsitesEditedBy(
+        editorId: String,
+        lottery: Lottery,
+        selectedCampsiteIds: List<String>,
+        onSuccess: () -> Unit,
+        onFailure: (Exception) -> Unit
+    ) {
+        repo.loadCampsitesByOwner(
+            ownerId = editorId,
+            onSuccess = { ownedCampsites ->
+                val ownedIds = ownedCampsites.map { it.id }.toSet()
+                if (!selectedCampsiteIds.all { it in ownedIds }) {
+                    onFailure(
+                        IllegalArgumentException("Only your own campsites can be added to a lottery")
+                    )
+                } else {
+                    val keptByOthers = lottery.campsiteIds.filterNot { it in ownedIds }
+                    val editedCampsiteIds = (keptByOthers + selectedCampsiteIds).distinct()
+                    if (editedCampsiteIds.isEmpty()) {
+                        onFailure(
+                            IllegalArgumentException("A lottery must cover at least one campsite")
+                        )
+                    } else {
+                        repo.save(
+                            lottery.withCampsiteIds(editedCampsiteIds),
+                            onSuccess = { onSuccess() },
+                            onFailure = onFailure
+                        )
+                    }
+                }
+            },
+            onFailure = onFailure
         )
     }
 

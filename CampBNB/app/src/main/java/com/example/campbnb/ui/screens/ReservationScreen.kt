@@ -31,8 +31,15 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.campbnb.controller.ReservationFilter
+import com.example.campbnb.data.NoFileDownloadWriter
+import com.example.campbnb.data.FileDownloadWriter
+import com.example.campbnb.data.NoNotificationPreferencesService
+import com.example.campbnb.data.NotificationPreferencesService
 import com.example.campbnb.models.Campsite
+import com.example.campbnb.models.NotificationSettings
 import com.example.campbnb.models.ReservationModel
+import com.example.campbnb.models.reservationCsvBytesOf
+import com.example.campbnb.models.reservationCsvFileName
 
 private val CampGreen = Color(0xFF64A83F)
 private val CampDarkGreen = Color(0xFF397C28)
@@ -47,7 +54,10 @@ fun ReservationScreen(
     reservations: List<ReservationModel>,
     onCampsiteSelected: (String) -> Unit,
     onFilterSelected: (ReservationFilter) -> Unit,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    csvPreferences: NotificationPreferencesService = NoNotificationPreferencesService(),
+    currentUserId: String = "",
+    fileDownloadWriter: FileDownloadWriter = NoFileDownloadWriter(),
 ) {
     Column(
         modifier = Modifier
@@ -100,6 +110,10 @@ fun ReservationScreen(
         ReservationList(
             reservations = reservations,
             filter = selectedFilter,
+            campsitesById = campsites.groupBy { campsite -> campsite.id },
+            csvPreferences = csvPreferences,
+            currentUserId = currentUserId,
+            fileDownloadWriter = fileDownloadWriter,
             modifier = Modifier.weight(1f)
         )
     }
@@ -241,6 +255,10 @@ private fun ReservationTab(
 private fun ReservationList(
     reservations: List<ReservationModel>,
     filter: ReservationFilter,
+    campsitesById: Map<String, List<Campsite>> = emptyMap(),
+    csvPreferences: NotificationPreferencesService = NoNotificationPreferencesService(),
+    currentUserId: String = "",
+    fileDownloadWriter: FileDownloadWriter = NoFileDownloadWriter(),
     modifier: Modifier = Modifier
 ) {
     if (reservations.isEmpty()) {
@@ -282,14 +300,25 @@ private fun ReservationList(
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
         items(reservations) { reservation ->
-            ReservationCard(reservation)
+            val campsite = campsitesById[reservation.campsiteId]?.firstOrNull()
+            val csvAllowed = csvPreferences.notificationSettingsFor(currentUserId).contains(NotificationSettings.CSV)
+
+            ReservationCard(
+                reservation = reservation,
+                campsite = campsite,
+                csvAllowed = csvAllowed,
+                fileDownloadWriter = fileDownloadWriter
+            )
         }
     }
 }
 
 @Composable
 private fun ReservationCard(
-    reservation: ReservationModel
+    reservation: ReservationModel,
+    campsite: Campsite? = null,
+    csvAllowed: Boolean = false,
+    fileDownloadWriter: FileDownloadWriter = NoFileDownloadWriter(),
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -363,6 +392,29 @@ private fun ReservationCard(
                     "Refund Status: N/A",
                 fontSize = 10.sp
             )
+
+            if (csvAllowed) {
+                Surface(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 6.dp)
+                        .clickable {
+                            fileDownloadWriter.downloadFile(
+                                reservationCsvFileName(reservation),
+                                reservationCsvBytesOf(reservation, campsite)
+                            ) { _ -> }
+                        },
+                    shape = RoundedCornerShape(10.dp),
+                    color = CampDarkGreen
+                ) {
+                    Text(
+                        text = "Download CSV",
+                        color = Color.White,
+                        fontSize = 12.sp,
+                        modifier = Modifier.padding(vertical = 8.dp, horizontal = 12.dp)
+                    )
+                }
+            }
         }
     }
 }

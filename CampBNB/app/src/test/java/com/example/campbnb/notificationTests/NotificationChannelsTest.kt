@@ -55,4 +55,12 @@ class NotificationChannelsTest {
         )
     }
 
+    @Test
+    fun invitations_use_their_own_channel() {
+        Assert.assertEquals(
+            NotificationChannels.LOTTERY_INVITES,
+            NotificationChannels.channelFor(NotificationType.INVITE)
+        )
+    }
+
 }

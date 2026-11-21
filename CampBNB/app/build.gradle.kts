@@ -40,7 +40,6 @@ android {
 dependencies {
     implementation(platform(libs.firebase.bom))
     implementation(libs.androidx.compose.runtime)
-    implementation(libs.androidx.material3)
     implementation(libs.androidx.ui.test.junit4)
     implementation(libs.firebase.firestore)
     implementation(libs.kotlinx.serialization.json)
@@ -60,6 +59,7 @@ dependencies {
     implementation(libs.androidx.navigation.runtime.ktx)
     testImplementation(libs.junit)
     testImplementation(libs.mockk)
+    implementation("io.github.kamilkrzywanski:barleader:0.3.0")
     testImplementation(libs.kotlinx.coroutines.test)
     androidTestImplementation(platform(libs.androidx.compose.bom))
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)

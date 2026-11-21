@@ -16,10 +16,13 @@ object NotificationChannels {
     const val RESERVATIONS = "reservations"
     const val MESSAGES = "messages"
     const val GENERAL = "general"
+    const val LOTTERY_INVITES = "lottery_invites"
 
     /** which channel a notification of [type] is posted on */
     fun channelFor(type: NotificationType): String = when (type) {
         NotificationType.WIN, NotificationType.LOSE -> LOTTERY_RESULTS
+
+        NotificationType.INVITE -> LOTTERY_INVITES
 
         NotificationType.CONFIRMATION,
         NotificationType.CANCELLATION,
@@ -52,7 +55,13 @@ object NotificationChannels {
                 NotificationChannel(MESSAGES, "Messages", NotificationManager.IMPORTANCE_HIGH)
                     .apply { description = "New messages from campsite owners and entrants" },
                 NotificationChannel(GENERAL, "General", NotificationManager.IMPORTANCE_DEFAULT)
-                    .apply { description = "Other notices from campsite owners" }
+                    .apply { description = "Other notices from campsite owners" },
+                NotificationChannel(
+                    LOTTERY_INVITES,
+                    "Lottery invitations",
+                    NotificationManager.IMPORTANCE_DEFAULT
+                )
+                    .apply { description = "Invitations to join another owner's lottery" }
             )
         )
     }

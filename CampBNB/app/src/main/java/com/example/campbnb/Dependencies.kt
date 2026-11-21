@@ -5,6 +5,9 @@ import com.example.campbnb.controller.MessageNotificationAdapter
 import com.example.campbnb.controller.NotificationController
 import com.example.campbnb.controller.UserController
 import com.example.campbnb.data.CampsiteRepository
+import com.example.campbnb.data.NotificationPreferencesService
+import com.example.campbnb.data.FileDownloadWriter
+import com.example.campbnb.viewModels.EntrantSettingsController
 import com.example.campbnb.data.MessageRepository
 import com.example.campbnb.data.NotificationRepository
 import com.example.campbnb.data.ReservationRepository
@@ -68,4 +71,13 @@ interface Dependencies {
 
     /** Shared current app view setting. */
     val appViewSettings: AppViewSettingController
+
+    /** Shared settings state shown by the entrant settings panel. */
+    val entrantSettings: EntrantSettingsController
+
+    /** Shared storage boundary for user notification settings. */
+    val notificationPreferencesService: NotificationPreferencesService
+
+    /** Shared boundary for writing files the user downloads (reservation CSVs, QR code files). */
+    val fileDownloadWriter: FileDownloadWriter
 }

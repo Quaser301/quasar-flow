@@ -11,6 +11,7 @@ import com.example.campbnb.models.User
 import com.example.campbnb.models.ReservationModel
 import com.example.campbnb.models.BookedDate
 import com.example.campbnb.models.WaitingListEntry
+import com.example.campbnb.models.NotificationPreferenceModel
 import com.google.firebase.firestore.FirebaseFirestore
 
 /**
@@ -122,6 +123,21 @@ object Database {
 
         fun writeEngine(): WriteEngine<ReservationModel> {
             return db.writeEngineFor<ReservationModel>(COLLECTION_NAME)
+        }
+    }
+
+    /**
+     * The user settings collection. Each user has one [NotificationPreferenceModel] record.
+     */
+    object NotificationPreferences {
+        const val COLLECTION_NAME = "notificationPreferences"
+
+        fun readEngine(): QueryEngine<NotificationPreferenceModel> {
+            return db.readEngineFor<NotificationPreferenceModel>(COLLECTION_NAME)
+        }
+
+        fun writeEngine(): WriteEngine<NotificationPreferenceModel> {
+            return db.writeEngineFor<NotificationPreferenceModel>(COLLECTION_NAME)
         }
     }
 

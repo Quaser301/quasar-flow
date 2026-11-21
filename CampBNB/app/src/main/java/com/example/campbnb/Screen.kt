@@ -70,6 +70,10 @@ sealed interface Screen {
         val openFilter: Boolean = false
     ) : Screen
 
+    // the screen that scans a campsite QR code and opens its campsite (US 01.12.01).
+    @Serializable
+    data class QrScanner(val role: UserRole) : Screen
+
     // the screen where a Campsite Owner views reservations.
     @Serializable
     data object Reservations : Screen

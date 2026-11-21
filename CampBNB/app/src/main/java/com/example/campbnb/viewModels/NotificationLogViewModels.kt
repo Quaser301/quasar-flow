@@ -5,6 +5,8 @@ package com.example.campbnb.viewModels
 
 import androidx.lifecycle.ViewModel
 import com.example.campbnb.controller.NotificationController
+import com.example.campbnb.data.NotificationCommand
+import com.example.campbnb.data.NotificationRepository
 import com.example.campbnb.models.Notification
 import com.example.campbnb.models.NotificationLogGroup
 import com.example.campbnb.models.NotificationLogLine
@@ -31,7 +33,8 @@ sealed interface LogViewState {
 }
 
 /**
- * Owns the notification log for the debug screen.
+ * Owns the notification log: the entries it holds and the lines it draws, for whichever
+ * titled log screen is opened.
  *
  * The log reads every saved notification, across every user, once when the screen opens and
  * again only when the screen taps [readLog]. It is a record of broadcasts that have already
@@ -46,14 +49,16 @@ sealed interface LogViewState {
  * @memberproperty state The readonly [StateFlow] of what the log currently shows.
  * @memberproperty openLogs The readonly [StateFlow] of which log dropdowns are open.
  *
- * @param controller Where notifications are read from; the app hands its one instance.
+ * @param source Where notifications are read from; the app hands the one repository the
+ *     viewer is allowed to list, so an owner's view is handed a repository that serves only
+ *     the notices that owner caused and nothing here knows about permissions.
  * @param profileLabel How a profile reference is drawn; the screen hands a stable resolver, so a
  *     caller that can resolve references against the saved users gets real names and one that
  *     cannot gets references labeled unknown. Resolved once per receiver while the lines are
  *     built.
  */
 class NotificationLogViewModel(
-    private val controller: NotificationController,
+    private val source: NotificationRepository,
     private val profileLabel: (String) -> String,
 ) : ViewModel() {
     private val _state = MutableStateFlow<LogViewState>(LogViewState.Loading)
@@ -76,13 +81,15 @@ class NotificationLogViewModel(
      */
     fun readLog() {
         _state.value = LogViewState.Loading
-        controller.readAll(
-            onSuccess = { records ->
-                showNotificationLog(notificationLogGroupsFor(NotificationController.sortNewestFirst(records)))
-            },
-            onFailure = { error ->
-                _state.value = LogViewState.Error(error.message ?: "Could not read the notification log.")
-            }
+        source.run(
+            NotificationCommand.Read(
+                onSuccess = { records ->
+                    showNotificationLog(notificationLogGroupsFor(NotificationController.sortNewestFirst(records)))
+                },
+                onFailure = { error ->
+                    _state.value = LogViewState.Error(error.message ?: "Could not read the notification log.")
+                }
+            )
         )
     }
 

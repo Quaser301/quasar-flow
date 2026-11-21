@@ -28,9 +28,11 @@ import com.example.campbnb.ui.theme.DataColor
 import com.example.campbnb.ui.theme.DataColorImportant
 import com.example.campbnb.ui.theme.FieldGrey
 import com.example.campbnb.viewModels.AppView
+import com.example.campbnb.data.NoNotificationPreferencesService
+import com.example.campbnb.data.NotificationPreferencesService
+import com.example.campbnb.models.NotificationSettings
 import com.example.campbnb.viewModels.AppViewSettingController
 import com.example.campbnb.viewModels.EntrantSettingsController
-import com.example.campbnb.viewModels.NotificationSettings
 import com.example.campbnb.viewModels.OwnerSettingsController
 import com.example.campbnb.viewModels.SettingsDisplayController
 
@@ -97,6 +99,8 @@ fun SettingsScreen(
     entrantSettings: EntrantSettingsController = EntrantSettingsController(),
     ownerSettings: OwnerSettingsController = OwnerSettingsController(),
     adminSettingsContent: @Composable () -> Unit = { AdminSettingsPlaceholder() },
+    notificationPreferences: NotificationPreferencesService = NoNotificationPreferencesService(),
+    userIdForSettings: String = "",
 ) {
     val display = remember { SettingsDisplayController() }
     val currentView = viewSettings.viewSetting.collectAsStateWithLifecycle()
@@ -111,7 +115,11 @@ fun SettingsScreen(
                 when (groupId) {
                     SettingsGroupId.APP_VIEW_SWITCH -> ViewSwitchMenu(display, viewSettings)
                     SettingsGroupId.ADMIN_SETTINGS -> adminSettingsContent()
-                    SettingsGroupId.ENTRANT_SETTINGS -> EntrantSettingsItems(entrantSettings)
+                    SettingsGroupId.ENTRANT_SETTINGS -> EntrantSettingsItems(
+                        settings = entrantSettings,
+                        notificationPreferences = notificationPreferences,
+                        userId = userIdForSettings
+                    )
                     SettingsGroupId.OWNER_SETTINGS -> OwnerSettingsItems(ownerSettings)
                 }
             }
@@ -186,9 +194,13 @@ private fun ViewSwitchMenu(
     )
 }
 
-/** The entrant settings group: the entrant's placeholder settings entries. */
+/** The entrant settings group: the entrant's settings entries. */
 @Composable
-private fun EntrantSettingsItems(settings: EntrantSettingsController) {
+private fun EntrantSettingsItems(
+    settings: EntrantSettingsController,
+    notificationPreferences: NotificationPreferencesService,
+    userId: String,
+) {
     val bookingsOrder = settings.bookingSortSetting.collectAsStateWithLifecycle()
     val inboxAlerts = settings.inboxAlertsSetting.collectAsStateWithLifecycle()
     val messagesFilter = settings.messageFilterSetting.collectAsStateWithLifecycle()
@@ -217,7 +229,13 @@ private fun EntrantSettingsItems(settings: EntrantSettingsController) {
         AppSwitchMenu(
             options,
             notificationSettings,
-            settings::toggleNotificationSetting,
+            { setting: NotificationSettings, enabled: Boolean ->
+                settings.toggleNotificationSetting(setting, enabled)
+                notificationPreferences.setNotificationSettings(
+                    userId,
+                    settings.notificationSettings.value
+                ) { _ -> }
+            },
             textRenderer = textRenderer
             )
     }

@@ -50,4 +50,21 @@ class NotificationRoutesTest {
             NotificationRoutes.routeFor(Notification(type = NotificationType.CONFIRMATION))
         )
     }
+
+    @Test
+    fun invite_opens_that_lottery() {
+        val n = Notification(
+            type = NotificationType.INVITE,
+            lotteryId = "lot-may-2027"
+        )
+        assertEquals("booking/lot-may-2027", NotificationRoutes.routeFor(n))
+    }
+
+    @Test
+    fun invite_without_lottery_id_falls_back_to_inbox() {
+        assertEquals(
+            "notifications",
+            NotificationRoutes.routeFor(Notification(type = NotificationType.INVITE))
+        )
+    }
 }

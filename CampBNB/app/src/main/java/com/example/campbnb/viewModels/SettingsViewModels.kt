@@ -1,6 +1,7 @@
 package com.example.campbnb.viewModels
 
 import androidx.lifecycle.ViewModel
+import com.example.campbnb.models.NotificationSettings
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -16,11 +17,6 @@ import kotlinx.coroutines.flow.update
 // owners get Messages, My Campsites and Inbox; US 03.01.01/03.03.01 show entrants and
 // owners losing visibility of admin-deleted content). The real settings entries are still
 // undecided; the structure is meant to hold replacements without redesign.
-
-enum class NotificationSettings {
-    PUSH,
-    CSV
-}
 
 /**
  * Provides a concrete [ViewModel] holding the Entrant-role settings edited from the

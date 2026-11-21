@@ -1,7 +1,9 @@
 package com.example.campbnb.ui.inbox
 /**
- * the screen that holds the "Notifications" and "Messages" tabs (US 02.12.01 calls it "Correspondence").
- * The tab contents are passed in, so this file only does layout.
+ * the screen that holds the correspondence tabs (US 02.12.01 and US 02.10.02 call it
+ * "Correspondence"): the notices a viewer is shown, the notices they received, and their
+ * messages. Which tabs a viewer has and what each one lists are decided by the caller,
+ * where the viewer's permissions are known; this file only does layout.
  */
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -26,17 +28,44 @@ import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 
 /**
- * Shared screen shell for the Notifications and Messages tabs.
+ * The names the correspondence tabs are drawn under. A caller picks tabs and names an
+ * opening one from here, so it cannot ask for a tab this screen has no content for.
+ */
+object CorrespondenceTabs {
+    const val NOTIFICATIONS_TAB = "Notifications"
+    const val RECEIVED_TAB = "Received"
+    const val MESSAGES_TAB = "Messages"
+}
+
+/**
+ * Shared screen shell for the correspondence tabs: a Back control, the Correspondence
+ * header, the tab bars, and one tab's content below them.
+ *
+ * The tab names and the content of each are handed in, so this screen holds no idea
+ * about roles or permissions: a caller that may show a viewer only their own notices
+ * asks for the tabs they have and hands the content those tabs list.
+ *
+ * @param navController The app's navigation, used by the Back control.
+ * @param tabLabels Which tabs this viewer has, in the order they are drawn, taken from
+ *     [CorrespondenceTabs].
+ * @param openTab Which tab opens, named rather than counted, so a caller that asks for a
+ *     tab this viewer does not have still opens a tab instead of the wrong one.
+ * @param notificationsTabContent What the "Notifications" tab lists for this viewer.
+ * @param receivedTabContent What the "Received" tab lists; only drawn when that tab was
+ *     asked for.
+ * @param messagesTabContent What the "Messages" tab lists.
  */
 @Composable
 fun CorrespondenceScreen(
     navController: NavController,
-    initialTab: Int,
-    notificationsContent: @Composable () -> Unit,
-    messagesContent: @Composable () -> Unit
+    tabLabels: List<String>,
+    openTab: String,
+    notificationsTabContent: @Composable () -> Unit,
+    receivedTabContent: @Composable () -> Unit = {},
+    messagesTabContent: @Composable () -> Unit,
 ) {
     var selectedTab by rememberSaveable {
-        mutableIntStateOf(initialTab.coerceIn(0, 1))
+        mutableIntStateOf(tabLabels.indexOf(openTab).coerceAtLeast(0))
     }
 
     Column(modifier = Modifier.fillMaxSize()) {
@@ -55,7 +84,7 @@ fun CorrespondenceScreen(
         }
 
         Row(modifier = Modifier.fillMaxWidth()) {
-            listOf("Notifications", "Messages").forEachIndexed { index, label ->
+            tabLabels.forEachIndexed { index, label ->
                 Column(
                     modifier = Modifier
                         .weight(1f)
@@ -92,10 +121,12 @@ fun CorrespondenceScreen(
             }
         }
 
-        if (selectedTab == 0) {
-            notificationsContent()
-        } else {
-            messagesContent()
+        if (selectedTab >= 0 && selectedTab < tabLabels.count()) {
+            when (tabLabels[selectedTab]) {
+                CorrespondenceTabs.MESSAGES_TAB -> messagesTabContent()
+                CorrespondenceTabs.RECEIVED_TAB -> receivedTabContent()
+                else -> notificationsTabContent()
+            }
         }
     }
 }

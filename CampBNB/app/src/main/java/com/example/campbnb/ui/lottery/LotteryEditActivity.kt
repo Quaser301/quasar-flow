@@ -37,9 +37,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.example.campbnb.controller.LotteryController
+import com.example.campbnb.data.UserRepository
 import com.example.campbnb.models.Campsite
 import com.example.campbnb.models.Lottery
 import com.example.campbnb.models.LotteryModel
+import com.example.campbnb.models.Role
+import com.example.campbnb.models.User
 import com.example.campbnb.models.ViewObserver
 import com.example.campbnb.ui.shared.AppViewModificationIsValidForCurrentWindowChecker
 import com.example.campbnb.viewModels.AppView
@@ -61,6 +64,9 @@ import java.util.Locale
  * 06-11-26: Prompted gemini 3.6 to modify the campsite dropdown into a checkbox(toggle) dropdown
  * to allow for multiple campsite selection.
  * 06-11-26: Prompted gemini 3.6 to fill out kdocs
+ * 20-11-26: Added the invitation picker for US 02.04.08: a name search over the other
+ * owners, any number of them checked to receive invitations, and a joining-owner save
+ * that keeps other owners' campsites instead of rebuilding the list from my own.
  *
  * @property returnHome Callback function to navigate back to the home screen.
  * @property navigateBackwards Callback function to navigate backwards in the navigation stack.
@@ -92,6 +98,8 @@ class LotteryEditActivity(
      *
      * @param model The lottery state model shown by views.
      * @param controller The controller managing lottery database actions.
+     * @param userRepository The user repository providing the owner candidates that
+     * invitations may be checked for (US 02.04.08).
      * @param initialLottery Optional existing [Lottery] instance to edit; null if creating a new lottery.
      * @param ownerId Unique identifier of the campsite owner creating or editing the lottery.
      */
@@ -101,6 +109,7 @@ class LotteryEditActivity(
     fun LotteryEdit(
         model: LotteryModel,
         controller: LotteryController,
+        userRepository: UserRepository,
         initialLottery: Lottery? = null,
         ownerId: String = "",
         deviceID: String
@@ -133,6 +142,13 @@ class LotteryEditActivity(
 
         var ownerCampsitesList by remember { mutableStateOf<List<Campsite>>(emptyList()) }
 
+        // Invitation selection state (US 02.04.08): the other owners the name search
+        // offers, and any number of them checked to be invited.
+        var invitedOwnerCandidates by remember { mutableStateOf<List<User>>(emptyList()) }
+        var checkedInvitees by remember { mutableStateOf<Set<User>>(emptySet()) }
+        var ownerNameSearch by remember { mutableStateOf("") }
+        var inviteDropdownExpanded by remember { mutableStateOf(false) }
+
         LaunchedEffect(initialLottery) {
             if (initialLottery != null) {
                 numberOfWinners = initialLottery.numberOfWinners.toString()
@@ -152,6 +168,10 @@ class LotteryEditActivity(
         val lotteryToSave = Lottery(
             ownerId = resolvedOwnerId,
             campsiteIds = selectedCampsites.map { it.id },
+            // The owners checked in the invitation picker are invited with this lottery;
+            // the model refuses self-invites and repeats, so the save stays honest even
+            // if the picker was left checked oddly.
+            invitedOwnerIds = checkedInvitees.map { it.id },
             numberOfWinners = numberOfWinners.toIntOrNull() ?: 0,
             waitlistCapacity = waitlistCapacity.toIntOrNull(), // null if blank
             registrationStart = regStartMillis ?: 0L,
@@ -175,6 +195,24 @@ class LotteryEditActivity(
             }
         }
 
+        // Invitations are only for other owners, so the current viewer is never offered
+        // as a candidate; editing keeps the lottery's pending invitations checked.
+        LaunchedEffect(resolvedOwnerId, initialLottery) {
+            if (resolvedOwnerId.isNotBlank()) {
+                userRepository.getAll(
+                    onSuccess = { users ->
+                        invitedOwnerCandidates = users.filter {
+                            it.hasRole(Role.OWNER) && it.id != resolvedOwnerId && it.id != deviceID
+                        }
+                        if (initialLottery != null) {
+                            checkedInvitees = users.filter { it.id in initialLottery.invitedOwnerIds }.toSet()
+                        }
+                    },
+                    onFailure = { }
+                )
+            }
+        }
+
         fun formatDateRange(start: Long?, end: Long?): String {
             if (start == null || end == null) return ""
             val formatter = SimpleDateFormat("MMM dd, yyyy", Locale.getDefault())
@@ -182,6 +220,10 @@ class LotteryEditActivity(
         }
 
         val isEditMode = initialLottery != null
+        // A joining owner edits a lottery owned by someone else: they may only change
+        // their own campsites, so the parameter fields stay read-only below and the
+        // save takes the joining-owner path that keeps the other owners' campsites.
+        val isJoiningOwnerEdit = initialLottery != null && initialLottery.ownerId != resolvedOwnerId
 
         Column(
             modifier = Modifier
@@ -280,59 +322,152 @@ class LotteryEditActivity(
                 }
             }
 
+            // Invite Owners: an optional name search narrows the list of the app's
+            // other owners, and any number of them may be checked to receive an
+            // invitation to join this lottery (US 02.04.08).
             OutlinedTextField(
-                value = numberOfWinners,
-                onValueChange = { numberOfWinners = it },
-                label = { Text("Number of Winners") },
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                value = ownerNameSearch,
+                onValueChange = { ownerNameSearch = it },
+                label = { Text("Search Owners by Name (optional)") },
                 modifier = Modifier.fillMaxWidth()
             )
 
-            OutlinedTextField(
-                value = waitlistCapacity,
-                onValueChange = { waitlistCapacity = it },
-                label = { Text("Waitlist Capacity (leave blank for unlimited)") },
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+            val inviteeChoices = invitedOwnerCandidates.filter {
+                ownerNameSearch.isBlank() ||
+                    it.name.contains(ownerNameSearch, ignoreCase = true) ||
+                    it.id.contains(ownerNameSearch, ignoreCase = true)
+            }
+
+            ExposedDropdownMenuBox(
+                expanded = inviteDropdownExpanded,
+                onExpandedChange = { inviteDropdownExpanded = !inviteDropdownExpanded },
                 modifier = Modifier.fillMaxWidth()
-            )
+            ) {
+                OutlinedTextField(
+                    value = if (checkedInvitees.isEmpty()) "" else checkedInvitees.joinToString(", ") { it.name.ifBlank { it.id } },
+                    onValueChange = {},
+                    readOnly = true,
+                    label = { Text("Invite Owners") },
+                    trailingIcon = {
+                        ExposedDropdownMenuDefaults.TrailingIcon(expanded = inviteDropdownExpanded)
+                    },
+                    colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors(),
+                    modifier = Modifier
+                        .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable)
+                        .fillMaxWidth()
+                )
 
-            // Registration Date Range Picker
-            OutlinedTextField(
-                value = formatDateRange(regStartMillis, regEndMillis),
-                onValueChange = {},
-                readOnly = true,
-                label = { Text("Registration Period") },
-                trailingIcon = {
-                    TextButton(onClick = { showRegDatePicker = true }) {
-                        Text("Select")
+                ExposedDropdownMenu(
+                    expanded = inviteDropdownExpanded,
+                    onDismissRequest = { inviteDropdownExpanded = false }
+                ) {
+                    if (inviteeChoices.isEmpty()) {
+                        DropdownMenuItem(
+                            text = { Text("No other owners to invite") },
+                            onClick = { inviteDropdownExpanded = false }
+                        )
+                    } else {
+                        inviteeChoices.forEach { candidate ->
+                            val isSelected = candidate in checkedInvitees
+                            DropdownMenuItem(
+                                text = {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Checkbox(
+                                            checked = isSelected,
+                                            onCheckedChange = null
+                                        )
+                                        Column {
+                                            Text(
+                                                text = candidate.name.ifBlank { candidate.id },
+                                                style = MaterialTheme.typography.bodyLarge,
+                                                fontWeight = FontWeight.Medium
+                                            )
+                                            if (candidate.name.isNotBlank()) {
+                                                Text(
+                                                    text = candidate.id,
+                                                    style = MaterialTheme.typography.bodySmall
+                                                )
+                                            }
+                                        }
+                                    }
+                                },
+                                onClick = {
+                                    checkedInvitees = if (isSelected) {
+                                        checkedInvitees - candidate
+                                    } else {
+                                        checkedInvitees + candidate
+                                    }
+                                }
+                            )
+                        }
                     }
-                },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable(
-                        interactionSource = remember { MutableInteractionSource() },
-                        indication = null
-                    ) { showRegDatePicker = true }
-            )
+                }
+            }
 
-            // Booking Date Range Picker
-            OutlinedTextField(
-                value = formatDateRange(bookingStartMillis, bookingEndMillis),
-                onValueChange = {},
-                readOnly = true,
-                label = { Text("Booking Period") },
-                trailingIcon = {
-                    TextButton(onClick = { showBookingDatePicker = true }) {
-                        Text("Select")
-                    }
-                },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable(
-                        interactionSource = remember { MutableInteractionSource() },
-                        indication = null
-                    ) { showBookingDatePicker = true }
-            )
+            if (!isJoiningOwnerEdit) {
+                OutlinedTextField(
+                    value = numberOfWinners,
+                    onValueChange = { numberOfWinners = it },
+                    label = { Text("Number of Winners") },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                OutlinedTextField(
+                    value = waitlistCapacity,
+                    onValueChange = { waitlistCapacity = it },
+                    label = { Text("Waitlist Capacity (leave blank for unlimited)") },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                // Registration Date Range Picker
+                OutlinedTextField(
+                    value = formatDateRange(regStartMillis, regEndMillis),
+                    onValueChange = {},
+                    readOnly = true,
+                    label = { Text("Registration Period") },
+                    trailingIcon = {
+                        TextButton(onClick = { showRegDatePicker = true }) {
+                            Text("Select")
+                        }
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null
+                        ) { showRegDatePicker = true }
+                )
+
+                // Booking Date Range Picker
+                OutlinedTextField(
+                    value = formatDateRange(bookingStartMillis, bookingEndMillis),
+                    onValueChange = {},
+                    readOnly = true,
+                    label = { Text("Booking Period") },
+                    trailingIcon = {
+                        TextButton(onClick = { showBookingDatePicker = true }) {
+                            Text("Select")
+                        }
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null
+                        ) { showBookingDatePicker = true }
+                )
+            } else {
+                Text(
+                    text = "You joined this lottery, so only your own campsites can be changed.",
+                    style = MaterialTheme.typography.bodyMedium
+                )
+            }
 
             Row(
                 modifier = Modifier
@@ -349,16 +484,30 @@ class LotteryEditActivity(
                 Button(
                     enabled = lotteryToSave.isValid(System.currentTimeMillis()),
                     onClick = {
-
-                        //Call controller to save to Firestore
-                        controller.saveLottery(
-                            lottery = lotteryToSave,
-                            onSuccess = {
-                                navigateBackwards()
-                            },
-                            onFailure = { exception ->
-                            }
-                        )
+                        if (isJoiningOwnerEdit) {
+                            // Joining owners save through the controller path that keeps
+                            // the other owners' campsites and every parameter unchanged
+                            controller.saveCampsitesEditedBy(
+                                editorId = resolvedOwnerId,
+                                lottery = lotteryToSave,
+                                selectedCampsiteIds = selectedCampsites.map { it.id },
+                                onSuccess = {
+                                    navigateBackwards()
+                                },
+                                onFailure = { exception ->
+                                }
+                            )
+                        } else {
+                            //Call controller to save to Firestore
+                            controller.saveLottery(
+                                lottery = lotteryToSave,
+                                onSuccess = {
+                                    navigateBackwards()
+                                },
+                                onFailure = { exception ->
+                                }
+                            )
+                        }
                     },
                     modifier = Modifier.weight(1f)
                 ) {
