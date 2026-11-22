@@ -3,6 +3,7 @@ package com.example.campbnb
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import com.example.campbnb.controller.AdminController
 import com.example.campbnb.controller.MessageController
 import com.example.campbnb.controller.MessageNotificationAdapter
 import com.example.campbnb.controller.NotificationController
@@ -13,16 +14,20 @@ import com.example.campbnb.data.FirestoreNotificationRepository
 import com.example.campbnb.data.MessageRepository
 import com.example.campbnb.data.NotificationRepository
 import com.example.campbnb.data.NotificationPreferencesService
+import com.example.campbnb.data.AppSettingsService
+import com.example.campbnb.data.FirestoreAppSettingsService
 import com.example.campbnb.data.FileDownloadWriter
-import com.example.campbnb.data.InMemoryFileDownloadWriter
+import com.example.campbnb.data.PublicDownloadsFileDownloadWriter
 import com.example.campbnb.data.FirestoreNotificationPreferencesService
 import com.example.campbnb.data.ReservationRepository
 import com.example.campbnb.data.UserRepository
 import com.example.campbnb.database.Database
+import com.example.campbnb.models.Role
 import com.example.campbnb.models.UserModel
 import com.example.campbnb.ui.shared.DeviceId
 import com.example.campbnb.viewModels.AppViewSettingController
 import com.example.campbnb.viewModels.EntrantSettingsController
+import com.example.campbnb.viewModels.OwnerSettingsController
 
 /**
  * Central place for creating and connecting app dependencies.
@@ -49,11 +54,12 @@ object AppContainer: Dependencies {
     override var currentUserId by mutableStateOf(DEMO_ENTRANT)
 
     /**
-     * Temporary owner-role check.
-     * Replace this with the real UserController role check.
+     * Whether the signed-in user holds the owner role, as recorded on their saved profile.
+     * This is what decides the owner's own sent notices view, so an owner reaches it
+     * however they signed in, not only as one of the demo users.
      */
     override val currentUserIsOwner: Boolean
-        get() = currentUserId == DEMO_OWNER
+        get() = userModel.currentUser?.roles?.contains(Role.OWNER) ?: false
 
     /**
      * Creates the notification repository once, when first needed.
@@ -101,6 +107,15 @@ object AppContainer: Dependencies {
     }
 
     /**
+     * Creates the admin policy actions once, when first needed.
+     * Both actions act through the shared campsite and notification services so the site's
+     * creator is told what happened and why (US 02.10.02).
+     */
+    override val adminController: AdminController by lazy {
+        AdminController(campsiteRepository, notificationController)
+    }
+
+    /**
      * Creates the message controller once, when first needed.
      * Every sent message notifies the recipient through the notification controller.
      */
@@ -135,6 +150,8 @@ object AppContainer: Dependencies {
 
     override val entrantSettings by lazy { EntrantSettingsController() }
 
+    override val ownerSettings by lazy { OwnerSettingsController() }
+
     override val notificationPreferencesService: NotificationPreferencesService by lazy {
         FirestoreNotificationPreferencesService(
             Database.NotificationPreferences.readEngine(),
@@ -142,8 +159,15 @@ object AppContainer: Dependencies {
         )
     }
 
+    override val appSettingsService: AppSettingsService by lazy {
+        FirestoreAppSettingsService(
+            Database.AppSettings.readEngine(),
+            Database.AppSettings.writeEngine()
+        )
+    }
+
     override val fileDownloadWriter: FileDownloadWriter by lazy {
-        InMemoryFileDownloadWriter()
+        PublicDownloadsFileDownloadWriter()
     }
 
     override var pendingRoute: String? by mutableStateOf(null)
@@ -153,9 +177,22 @@ object AppContainer: Dependencies {
     fun init(context: android.content.Context) {
         deviceID = DeviceId.get(context)
         currentUserId = deviceID
+        // Notification settings are seeded here so the entrant's saved toggles are
+        // alive before the Settings screen first reads them.
         notificationPreferencesService.loadNotificationSettings(
             deviceID,
-            { _ -> },
+            { enabled -> entrantSettings.applyLoadedNotificationSettings(enabled) },
+            { _ -> }
+        )
+        // App settings are loaded here so a user's saved view and saved role settings
+        // are applied to their controllers before any screen reads them.
+        appSettingsService.loadAppSettings(
+            deviceID,
+            { record ->
+                appViewSettings.applyLoadedSettings(record)
+                entrantSettings.applyLoadedSettings(record)
+                ownerSettings.applyLoadedSettings(record)
+            },
             { _ -> }
         )
     }

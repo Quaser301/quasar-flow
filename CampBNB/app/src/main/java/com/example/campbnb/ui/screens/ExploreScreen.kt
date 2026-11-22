@@ -56,6 +56,8 @@ private val placeholderCards = List(6) {
  * @param onFilterClick Called when "Filter" is chosen from the hamburger menu. Opens the
  * Search page with its filter panel showing (US 01.01.02).
  * @param onSearch Called with the query when the user submits a search.
+ * @param onOpenQr Called when "QR Scanner" is chosen from the search bar's menu. Opens the
+ *     camera scanner, so a search-bar interaction reaches it (US 01.12.01).
  */
 @Composable
 fun ExploreScreen(
@@ -66,6 +68,7 @@ fun ExploreScreen(
     onSettingsClick: () -> Unit = {},
     onMenuClick: () -> Unit = {},
     onFilterClick: () -> Unit = {},
+    onOpenQr: () -> Unit = {},
     onSearch: (String) -> Unit = {}
 ) {
     var query by rememberSaveable { mutableStateOf("") }   // import androidx.compose.runtime.saveable.rememberSaveable
@@ -115,6 +118,14 @@ fun ExploreScreen(
                                 onClick = {
                                     menuOpen = false
                                     onFilterClick()
+                                }
+                            )
+
+                            DropdownMenuItem(
+                                text = { Text("QR Scanner") },
+                                onClick = {
+                                    menuOpen = false
+                                    onOpenQr()
                                 }
                             )
                         }

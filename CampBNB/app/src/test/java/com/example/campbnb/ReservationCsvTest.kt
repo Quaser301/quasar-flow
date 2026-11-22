@@ -151,4 +151,113 @@ class ReservationCsvTest {
             )
         }
     }
+
+    @Test
+    fun test_reservation_csv_names_the_raw_campsite_when_no_listing_is_given() {
+        val reservation = ReservationModel(
+            startDate = "2026-01-01",
+            endDate = "2026-01-02",
+            campsiteId = "camp-x"
+        )
+
+        val csv = reservationCsvText(reservation, null)
+
+        assertTrue(
+            "the location falls back to the raw id, the owner to nothing",
+            csv == """
+                Start,2026-01-01
+                End,2026-01-02
+                Campsite Name/Location,camp-x
+                Owner,
+            """.trimIndent()
+        )
+    }
+
+    @Test
+    fun test_reservation_csv_takes_the_owner_from_the_listing() {
+        val reservation = ReservationModel(
+            startDate = "2026-01-01",
+            endDate = "2026-01-02",
+            campsiteId = "camp-one"
+        )
+        val campsite = Campsite(
+            campName = "Test Camp",
+            campLoc = "Test Location",
+            ownerId = "owner-two"
+        )
+
+        val csv = reservationCsvText(reservation, campsite)
+
+        assertTrue(
+            "a reservation holding no owner borrows the listing's",
+            csv == """
+                Start,2026-01-01
+                End,2026-01-02
+                Campsite Name/Location,Test Camp / Test Location
+                Owner,owner-two
+            """.trimIndent()
+        )
+    }
+
+    @Test
+    fun test_reservation_csv_doubles_inner_quotes_and_wraps_them() {
+        val reservation = ReservationModel(
+            startDate = "2026-01-01",
+            endDate = "2026-01-02",
+            campsiteId = "camp-one",
+            ownerId = "owner-one"
+        )
+        val campsite = Campsite(
+            campName = "Quilt \"Ked\" Ridge",
+            campLoc = "X",
+            ownerId = "owner-one"
+        )
+
+        val csv = reservationCsvText(reservation, campsite)
+
+        assertTrue(
+            "the whole value is wrapped and every inner quote doubled",
+            csv == "Start,2026-01-01\nEnd,2026-01-02\n" +
+                    "Campsite Name/Location,\"Quilt \"\"Ked\"\" Ridge / X\"\n" +
+                    "Owner,owner-one"
+        )
+    }
+
+    @Test
+    fun test_reservation_csv_wraps_a_value_holding_a_newline() {
+        val reservation = ReservationModel(
+            startDate = "2026-01-01\n2026-01-02",
+            endDate = "2026-01-02",
+            campsiteId = "camp-one",
+            ownerId = "owner-one"
+        )
+
+        val csv = reservationCsvText(reservation, null)
+
+        assertEquals(
+            "Start,\"2026-01-01\n2026-01-02\"\nEnd,2026-01-02\n" +
+                    "Campsite Name/Location,camp-one\n" +
+                    "Owner,owner-one",
+            csv
+        )
+    }
+
+    @Test
+    fun test_reservation_csv_bytes_are_the_utf8_of_the_text() {
+        val reservation = ReservationModel(
+            startDate = "2026-01-01",
+            endDate = "2026-01-02",
+            campsiteId = "camp-one",
+            ownerId = "owner-one"
+        )
+        val campsite = Campsite(
+            campName = "Café Pines",
+            campLoc = "Test Location",
+            ownerId = "owner-one"
+        )
+
+        val text = reservationCsvText(reservation, campsite)
+
+        assertEquals(text, reservationCsvBytesOf(reservation, campsite).decodeToString())
+    }
 }

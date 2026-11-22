@@ -1,7 +1,9 @@
 package com.example.campbnb.models
 
+import com.example.campbnb.models.Campsite
 import com.example.campbnb.models.Lottery
 import com.example.campbnb.models.Message
+import com.example.campbnb.models.PolicyReason
 import com.example.campbnb.models.ReservationModel
 
 /**
@@ -24,6 +26,8 @@ import com.example.campbnb.models.ReservationModel
  * @memberproperty MessageArrived A message arrived for its recipient.
  * @memberproperty LotteryDrawn A lottery was drawn, and its entrants heard the result.
  * @memberproperty LotteryInvited Other owners were asked to join a lottery.
+ * @memberproperty CampsitePolicyRemoved An app policy action removed a whole listing.
+ * @memberproperty CampsiteTagRemoved An app policy action removed one tag from a listing.
  */
 sealed interface NotificationIntent {
     /**
@@ -86,4 +90,26 @@ sealed interface NotificationIntent {
      * owners listed.
      */
     data class LotteryInvited(val lottery: Lottery) : NotificationIntent
+
+    /**
+     * An admin applied the app's policy to a listing: it was removed whole. Only the
+     * listing's own creator hears, as the party affected; the admin is the cause and is
+     * never told about their own action, so the intent names the actor as data.
+     */
+    data class CampsitePolicyRemoved(
+        val campsite: Campsite,
+        val reason: PolicyReason,
+        val actorUserId: String
+    ) : NotificationIntent
+
+    /**
+     * An admin removed one tag from a listing. The listing itself stays bookable; only
+     * what it advertises changes, and the creator is told the same way.
+     */
+    data class CampsiteTagRemoved(
+        val campsite: Campsite,
+        val tag: String,
+        val reason: PolicyReason,
+        val actorUserId: String
+    ) : NotificationIntent
 }

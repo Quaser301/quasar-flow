@@ -67,4 +67,41 @@ class NotificationRoutesTest {
             NotificationRoutes.routeFor(Notification(type = NotificationType.INVITE))
         )
     }
+
+    @Test
+    fun lose_needs_no_lottery_id_and_opens_reservations() {
+        assertEquals(
+            "reservations",
+            NotificationRoutes.routeFor(
+                Notification(
+                    type = NotificationType.LOSE,
+                    lotteryId = "lot-may-2027"
+                )
+            )
+        )
+    }
+
+    @Test
+    fun owner_notice_and_cancellation_and_rejection_open_reservations() {
+        assertEquals(
+            "reservations",
+            NotificationRoutes.routeFor(Notification(type = NotificationType.OWNER_NOTICE))
+        )
+        assertEquals(
+            "reservations",
+            NotificationRoutes.routeFor(Notification(type = NotificationType.CANCELLATION))
+        )
+        assertEquals(
+            "reservations",
+            NotificationRoutes.routeFor(Notification(type = NotificationType.REJECTION))
+        )
+    }
+
+    @Test
+    fun message_without_a_reservation_opens_the_messages_tab() {
+        assertEquals(
+            "messages",
+            NotificationRoutes.routeFor(Notification(type = NotificationType.MESSAGE))
+        )
+    }
 }

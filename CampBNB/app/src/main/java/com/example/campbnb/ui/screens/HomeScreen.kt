@@ -29,6 +29,7 @@ enum class HomeDestination {
     EXPLORE,
     MESSAGES,
     BOOKINGS,
+    RESERVATIONS,
     INBOX,
     PROFILE,
     MY_CAMPSITES,
@@ -47,6 +48,7 @@ fun tabsFor(role: UserRole): List<HomeTab> = when (role) {
         HomeTab("Explore", HomeDestination.EXPLORE),
         HomeTab("Messages", HomeDestination.MESSAGES),
         HomeTab("Bookings", HomeDestination.BOOKINGS),
+        HomeTab("Reservations", HomeDestination.RESERVATIONS),
         HomeTab("Inbox", HomeDestination.INBOX),
         HomeTab("Profile", HomeDestination.PROFILE)
     )

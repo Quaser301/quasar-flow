@@ -8,6 +8,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -25,6 +27,8 @@ import androidx.compose.ui.unit.sp
 import com.example.campbnb.ui.components.EyeGlyph
 import com.example.campbnb.ui.components.GradientButton
 import com.example.campbnb.ui.components.StarGlyph
+import com.example.campbnb.models.PolicyReason
+import com.example.campbnb.models.policyReasonLabel
 import com.example.campbnb.ui.components.UserRole
 import com.example.campbnb.ui.screens.RoleBottomBar
 import com.example.campbnb.ui.screens.tabsFor
@@ -63,7 +67,8 @@ fun placeholderDetails(id: String) = CampsiteDetails(
  * The layout is the same for every role. Only the floating button differs:
  *  - Camper: "Enter Lottery".
  *  - Owner: no button.
- *  - Admin: "Delete Site", behind a confirmation dialog.
+ *  - Admin: "Delete Site" and "Remove Tag", both behind picking an app-policy reason first;
+ *    deleting also confirms through a dialog.
  *
  * The role's bottom bar stays visible, with Explore highlighted.
  *
@@ -72,7 +77,10 @@ fun placeholderDetails(id: String) = CampsiteDetails(
  * @param onBack Called when the back circle is tapped.
  * @param onTabSelected Called with the tab index when a bottom bar circle is tapped.
  * @param onEnterLottery Called when a camper taps "Enter Lottery".
- * @param onDeleteSite Called after an admin confirms deleting the site.
+ * @param onDeleteSite Called with the picked app-policy reason after an admin confirms
+ *     deleting the site (US 02.10.02).
+ * @param onRemoveTag Called with a tag and the app-policy reason when an admin removes one
+ *     tag from the listing (US 02.10.01).
  * @param onSeeReviews Called when "See all reviews" is tapped.
  */
 @Composable
@@ -85,13 +93,22 @@ fun CampsiteDetailsScreen(
     lotteryButtonText: String = "Enter Lottery",
     lotteryButtonEnabled: Boolean = true,
     lotteryButtonIsLeave: Boolean = false,
-    onDeleteSite: () -> Unit = {},
+    onDeleteSite: (PolicyReason) -> Unit = {},
+    onRemoveTag: (tag: String, reason: PolicyReason) -> Unit = { _, _ -> },
     onSeeReviews: () -> Unit = {},
     entrantContent: @Composable () -> Unit = {}
 ) {
     val tabs = remember(role) { tabsFor(role) }
     var showAllTags by remember { mutableStateOf(false) }
     var confirmDelete by remember { mutableStateOf(false) }
+
+    // The admin's policy actions (US 02.10.02, US 02.10.01): no action is offered until a
+    // policy reason has been picked, so the reason always accompanies the action.
+    var adminReasonPicked by remember { mutableStateOf<PolicyReason?>(null) }
+    var adminTagPicked by remember { mutableStateOf<String?>(null) }
+    var reasonMenuOpen by remember { mutableStateOf(false) }
+    var tagMenuOpen by remember { mutableStateOf(false) }
+
     val hasFloatingButton = role != UserRole.OWNER
 
     Scaffold(
@@ -205,13 +222,66 @@ fun CampsiteDetailsScreen(
                         .testTag(buttonTag)
                 )
             }
-                UserRole.ADMIN -> GradientButton(
-                    text = "Delete Site",
-                    onClick = { confirmDelete = true },
-                    brush = DeleteGradient,
-                    height = 52.dp,
-                    modifier = Modifier.align(Alignment.BottomCenter).padding(horizontal = 24.dp, vertical = 12.dp)
-                )
+                UserRole.ADMIN -> Column(
+                    Modifier.align(Alignment.BottomCenter).padding(horizontal = 24.dp, vertical = 12.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    // The admin picks the app-policy reason first: an action without a named
+                    // reason is never offered, and the reason is what the site's owner is
+                    // told alongside the action.
+                    DropdownMenu(
+                        expanded = reasonMenuOpen,
+                        onDismissRequest = { reasonMenuOpen = false }
+                    ) {
+                        PolicyReason.values().forEach { reason ->
+                            DropdownMenuItem(
+                                text = { Text(policyReasonLabel(reason)) },
+                                onClick = {
+                                    adminReasonPicked = reason
+                                    reasonMenuOpen = false
+                                }
+                            )
+                        }
+                    }
+
+                    GradientButton(
+                        text = "Delete Site",
+                        onClick = { confirmDelete = true },
+                        enabled = adminReasonPicked != null,
+                        brush = DeleteGradient,
+                        height = 52.dp
+                    )
+
+                    DropdownMenu(
+                        expanded = tagMenuOpen,
+                        onDismissRequest = { tagMenuOpen = false }
+                    ) {
+                        campsite.tags.forEach { tag ->
+                            DropdownMenuItem(
+                                text = { Text(tag) },
+                                onClick = {
+                                    adminTagPicked = tag
+                                    tagMenuOpen = false
+                                }
+                            )
+                        }
+                    }
+
+                    GradientButton(
+                        text = "Remove Tag",
+                        onClick = {
+                            val tag = adminTagPicked
+                            val reason = adminReasonPicked
+                            if (tag != null && reason != null) {
+                                adminTagPicked = null
+                                onRemoveTag(tag, reason)
+                            }
+                        },
+                        enabled = adminTagPicked != null && adminReasonPicked != null,
+                        brush = DeleteGradient,
+                        height = 52.dp
+                    )
+                }
                 UserRole.OWNER -> Unit
             }
         }
@@ -236,7 +306,15 @@ fun CampsiteDetailsScreen(
             title = { Text("Delete this site?") },
             text = { Text("${campsite.name} will be removed. This can't be undone.") },
             confirmButton = {
-                TextButton(onClick = { confirmDelete = false; onDeleteSite() }) { Text("Delete") }
+                TextButton(
+                    onClick = {
+                        confirmDelete = false
+                        val reason = adminReasonPicked
+                        if (reason != null) {
+                            onDeleteSite(reason)
+                        }
+                    }
+                ) { Text("Delete") }
             },
             dismissButton = { TextButton(onClick = { confirmDelete = false }) { Text("Cancel") } }
         )

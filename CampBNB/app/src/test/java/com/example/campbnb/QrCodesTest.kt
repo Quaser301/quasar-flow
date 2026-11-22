@@ -9,6 +9,9 @@ import com.example.campbnb.models.CampsiteModel
 import com.example.campbnb.models.QRCode
 import com.example.campbnb.models.qrCodeOfScannedText
 import com.example.campbnb.models.qrImageFileBytes
+import com.example.campbnb.models.qrLinkRoute
+import com.example.campbnb.models.qrOldCodeRoute
+import com.example.campbnb.models.qrRouteOfLinkPayload
 import com.example.campbnb.models.qrTextOfImageFile
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -23,9 +26,10 @@ import org.junit.Test
  * input names no readable code.
  */
 
-// US 01.12.01: a code carries a campsite id and the moment it stops working, the
-// reserved 0 (January 1, 1970) never stops working, and a scan opens the campsite
-// only while the code still works.
+// US 01.12.01: a code carries a campsite id and the moment it stops working; the
+// reserved 0 (January 1, 1970) carries no expiry at all and is an old, dead code
+// (US 01.05.02), and a scan or an opened link reaches a destination only while the
+// code still works.
 class QrCodesTest {
 
     /** A store handing back [kept] campsites, never touching Firebase. */
@@ -84,12 +88,41 @@ class QrCodesTest {
         }
     }
 
-    // TEST: a never-expiring code, the reserved 0, works at any time
+    // TEST: text with one segment too many is not code text either
     @Test
-    fun qrCode_neverExpiringCode_validAtAnyTime() {
-        val neverStops = QRCode(campsiteId = "target", stopsAtMillis = 0L)
-        assertTrue(neverStops.isValidAt(0L))
-        assertTrue(neverStops.isValidAt(999999999999999L))
+    fun scanned_text_with_an_extra_segment_is_not_a_code() {
+        assertEquals(null, qrCodeOfScannedText("CAMPBNB:c1:0:extra"))
+    }
+
+    // TEST: an already-expired code is still readable code text, and a negative
+    // stop moment round-trips unchanged.
+    @Test
+    fun expired_codes_still_decode_and_negative_stops_round_trip() {
+        val expired = qrCodeOfScannedText("CAMPBNB:c1:-1")
+        if (expired == null) {
+            assertTrue(false)
+        } else {
+            assertEquals("c1", expired.campsiteId)
+            assertEquals(-1L, expired.stopsAtMillis)
+        }
+
+        val stopped = QRCode(campsiteId = "target", stopsAtMillis = -5L)
+        val readBack = qrCodeOfScannedText(stopped.payload())
+        if (readBack == null) {
+            assertTrue(false)
+        } else {
+            assertEquals("target", readBack.campsiteId)
+            assertEquals(-5L, readBack.stopsAtMillis)
+        }
+    }
+
+    // TEST: a code with no expiry at all, the reserved 0, is an old code and works
+    // at no time
+    @Test
+    fun qrCode_codeWithoutExpiry_neverWorksAtAnyTime() {
+        val withoutExpiry = QRCode(campsiteId = "target", stopsAtMillis = 0L)
+        assertTrue(!withoutExpiry.isValidAt(0L))
+        assertTrue(!withoutExpiry.isValidAt(999999999999999L))
     }
 
     // TEST: an expiring code works up to and including its stop, not one moment later
@@ -104,6 +137,48 @@ class QrCodesTest {
         assertTrue(!longPast.isValidAt(0L))
     }
 
+    // TEST: a live code's link text resolves to the campsite link route, up to and
+    // including its stop moment
+    @Test
+    fun qrLink_liveCode_routesToTheCampsiteLink() {
+        assertEquals(
+            "$qrLinkRoute/target",
+            qrRouteOfLinkPayload(QRCode(campsiteId = "target", stopsAtMillis = 1000L).payload(), 999L)
+        )
+        assertEquals(
+            "$qrLinkRoute/target",
+            qrRouteOfLinkPayload(QRCode(campsiteId = "target", stopsAtMillis = 1000L).payload(), 1000L)
+        )
+    }
+
+    // TEST: a code whose stop has passed resolves to the old-code notice
+    @Test
+    fun qrLink_pastExpiry_routesToTheOldCodeNotice() {
+        assertEquals(
+            qrOldCodeRoute,
+            qrRouteOfLinkPayload(QRCode(campsiteId = "target", stopsAtMillis = 1000L).payload(), 1001L)
+        )
+    }
+
+    // TEST: a code carrying no expiry at all is an old code at any clock
+    @Test
+    fun qrLink_codeWithoutExpiry_routesToTheOldCodeNoticeAtAnyClock() {
+        assertEquals(
+            qrOldCodeRoute,
+            qrRouteOfLinkPayload(QRCode(campsiteId = "target").payload(), 0L)
+        )
+        assertEquals(
+            qrOldCodeRoute,
+            qrRouteOfLinkPayload(QRCode(campsiteId = "target").payload(), 999999999999999L)
+        )
+    }
+
+    // TEST: link text that is not code text names no route at all
+    @Test
+    fun qrLink_textThatIsNotCodeText_namesNoRoute() {
+        assertEquals(null, qrRouteOfLinkPayload("a note from the front desk", 0L))
+    }
+
     // TEST: a working code opens the campsite it names and the model selects it
     @Test
     fun scanQr_workingCode_opensNamedCampsite() {
@@ -115,30 +190,34 @@ class QrCodesTest {
         val controller = CampsiteController(model, FakeQrStore(store))
         val opened = mutableListOf<Campsite>()
         controller.scanQr(
-            QRCode(campsiteId = "target", stopsAtMillis = 0L).payload(),
+            QRCode(campsiteId = "target", stopsAtMillis = 1000L).payload(),
             onOpened = { camp -> opened.add(camp) },
             onExpired = { stopped -> },
-            onUnreadable = { text -> }
+            onUnreadable = { text -> },
+            clock = { 999L }
         )
         assertEquals(1, opened.size)
         assertEquals("target", opened[0].id)
         assertEquals("Target Camp", opened[0].campName)
     }
 
-    // TEST: a never-expiring code opens even at the latest clock
+    // TEST: a code with no expiry at all is an old code even at the latest clock:
+    // it reports itself expired and never opens
     @Test
-    fun scanQr_neverExpiringCode_opensAtAnyClock() {
+    fun scanQr_codeWithoutExpiry_reportsOldAtAnyClock() {
         val model = CampsiteModel()
         val controller = CampsiteController(model, FakeQrStore(listOf(targetCamp())))
         var openedCount = 0
+        var expiredCount = 0
         controller.scanQr(
             QRCode(campsiteId = "target", stopsAtMillis = 0L).payload(),
             onOpened = { camp -> openedCount += 1 },
-            onExpired = { stopped -> },
+            onExpired = { stopped -> expiredCount += 1 },
             onUnreadable = { text -> },
             clock = { 999999999999999L }
         )
-        assertEquals(1, openedCount)
+        assertEquals(0, openedCount)
+        assertEquals(1, expiredCount)
     }
 
     // TEST: a scan at exactly the stop moment still opens; one moment later does not
@@ -207,17 +286,19 @@ class QrCodesTest {
         assertEquals("That text is not CampBNB code text", model.statusMessage)
     }
 
-    // TEST: a code naming an unregistered campsite reports itself unreadable
+    // TEST: a code still working at the clock, naming an unregistered campsite,
+    // reports itself unreadable
     @Test
     fun scanQr_codeNamingUnregisteredCampsite_reportsUnreadable() {
         val model = CampsiteModel()
         val controller = CampsiteController(model, FakeQrStore(listOf(targetCamp())))
         var openedCount = 0
         controller.scanQr(
-            QRCode(campsiteId = "ghost", stopsAtMillis = 0L).payload(),
+            QRCode(campsiteId = "ghost", stopsAtMillis = 1000L).payload(),
             onOpened = { camp -> openedCount += 1 },
             onExpired = { stopped -> },
-            onUnreadable = { text -> }
+            onUnreadable = { text -> },
+            clock = { 999L }
         )
         assertEquals(0, openedCount)
         assertEquals("No campsite matches that code", model.statusMessage)
@@ -230,10 +311,11 @@ class QrCodesTest {
         val controller = CampsiteController(model, OfflineQrStore())
         var anyCallbackRan = false
         controller.scanQr(
-            QRCode(campsiteId = "target", stopsAtMillis = 0L).payload(),
+            QRCode(campsiteId = "target", stopsAtMillis = 1000L).payload(),
             onOpened = { camp -> anyCallbackRan = true },
             onExpired = { stopped -> anyCallbackRan = true },
-            onUnreadable = { text -> anyCallbackRan = true }
+            onUnreadable = { text -> anyCallbackRan = true },
+            clock = { 999L }
         )
         assertEquals(false, anyCallbackRan)
         assertEquals("Could not open that campsite: offline", model.statusMessage)
@@ -256,9 +338,10 @@ class QrCodesTest {
         }
     }
 
-    // TEST: no stop given means the reserved never-stops value
+    // TEST: no stop given means the reserved no-expiry value: such a code is an old,
+    // dead one
     @Test
-    fun makeQrCode_withoutAStop_keepsWorkingForever() {
+    fun makeQrCode_withoutAStop_recordsTheReservedNoExpiry() {
         val model = CampsiteModel()
         val controller = CampsiteController(model, FakeQrStore(listOf(targetCamp())))
         var madePayload = ""

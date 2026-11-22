@@ -195,14 +195,26 @@ class LotteryEditActivity(
             }
         }
 
-        // Invitations are only for other owners, so the current viewer is never offered
+        // Invitations are only for other accounts, so the current viewer is never offered
         // as a candidate; editing keeps the lottery's pending invitations checked.
+        // Co-owner candidates (US 02.04.08, extended for the admin-as-owner story): an
+        // account holding the owner setting is offered as an owner. Admin accounts are
+        // offered too when the creator is themselves an admin acting as an owner, so an
+        // admin creator can put other admins on the multi-owner list; an admin that also
+        // holds the owner setting is offered on the owner rule either way.
         LaunchedEffect(resolvedOwnerId, initialLottery) {
             if (resolvedOwnerId.isNotBlank()) {
                 userRepository.getAll(
                     onSuccess = { users ->
-                        invitedOwnerCandidates = users.filter {
-                            it.hasRole(Role.OWNER) && it.id != resolvedOwnerId && it.id != deviceID
+                        val creatorActsAsAdminOwner =
+                            users.any { it.id == deviceID && it.hasRole(Role.ADMIN) }
+                        invitedOwnerCandidates = users.filter { candidate ->
+                            candidate.id != resolvedOwnerId &&
+                                candidate.id != deviceID &&
+                                (
+                                    candidate.hasRole(Role.OWNER) ||
+                                    (candidate.hasRole(Role.ADMIN) && creatorActsAsAdminOwner)
+                                )
                         }
                         if (initialLottery != null) {
                             checkedInvitees = users.filter { it.id in initialLottery.invitedOwnerIds }.toSet()

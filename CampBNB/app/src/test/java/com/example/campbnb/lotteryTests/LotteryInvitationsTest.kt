@@ -332,4 +332,64 @@ class LotteryInvitationsTest {
             model.lotteryList.map { it.id }.toSet()
         )
     }
+
+    // Refusals both say who cannot go and fail the caller; nobody signed in cannot
+    // accept at all, and no store is reached.
+    @Test
+    fun accepting_while_signed_out_refuses_by_name() {
+        val model = LotteryModel()
+        val repository = mockk<LotteryRepository>()
+        val notifications = mockk<NotificationController>(relaxed = true)
+        val controller = LotteryController(
+            model,
+            repository,
+            mockk<QueryEngine<Lottery>>(),
+            notifications
+        )
+
+        controller.acceptInvitation(
+            shareableLottery("owner-1", listOf("co-1"), emptyList()),
+            ""
+        )
+
+        assertEquals("Please sign in before accepting an invitation", model.statusMessage)
+        verify(exactly = 0) { repository.save(any(), any(), any()) }
+    }
+
+    // An edit that empties the selection is refused by name: a lottery must still
+    // cover at least one campsite, and nothing is saved.
+    @Test
+    fun an_empty_campsite_edit_is_refused_by_name() {
+        val repository = mockk<LotteryRepository>()
+        val notifications = mockk<NotificationController>(relaxed = true)
+        val controller = controllerOn(repository, notifications)
+
+        val onOwned = slot<Function1<List<Campsite>, Unit>>()
+        every {
+            repository.loadCampsitesByOwner(capture(onOwned), any(), any())
+        } answers {
+            onOwned.captured.invoke(
+                listOf(
+                    Campsite(ownerId = "co-1").also { it.id = "own-one" },
+                    Campsite(ownerId = "co-1").also { it.id = "own-two" }
+                )
+            )
+        }
+
+        var failure: Exception? = null
+        controller.saveCampsitesEditedBy(
+            editorId = "co-1",
+            lottery = shareableLottery("owner-1", emptyList(), listOf("co-1"), campsiteIds = listOf("own-one")),
+            selectedCampsiteIds = emptyList(),
+            onSuccess = {},
+            onFailure = { error -> failure = error }
+        )
+
+        assertTrue(failure is IllegalArgumentException)
+        assertEquals(
+            "A lottery must cover at least one campsite",
+            failure?.message
+        )
+        verify(exactly = 0) { repository.save(any(), any(), any()) }
+    }
 }

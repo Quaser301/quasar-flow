@@ -52,3 +52,32 @@ class InMemoryFileDownloadWriter : FileDownloadWriter {
         onDone(Result.success(Unit))
     }
 }
+
+/**
+ * The real download provider: a named file with its bytes reaches the user's own
+ * Downloads folder. The write is asked for through the platform's public Downloads
+ * location, which is where a legacy path is allowed up to API 28 and which the
+ * manifest declares with WRITE_EXTERNAL_STORAGE capped at that API; a request
+ * arriving here already runs off the screen's draw path, so the write answers the
+ * feature through its continuation rather than blocking a frame. From API 29 the
+ * file would instead be inserted into the media library and written through the
+ * address it returns, but this world's platform carries no media-library classes
+ * to name that path, so the direct location is used wherever it is allowed.
+ */
+class PublicDownloadsFileDownloadWriter : FileDownloadWriter {
+    override fun downloadFile(
+        fileName: String,
+        content: ByteArray,
+        onDone: (Result<Unit>) -> Unit
+    ) {
+        try {
+            val downloads = android.os.Environment.getExternalStoragePublicDirectory(
+                android.os.Environment.DIRECTORY_DOWNLOADS
+            )
+            java.io.File(downloads, fileName).writeBytes(content)
+            onDone(Result.success(Unit))
+        } catch (failure: Exception) {
+            onDone(Result.failure(failure))
+        }
+    }
+}

@@ -115,4 +115,69 @@ class NotificationPreferencesServiceTest {
             settings.notificationSettingsFor("") == listOf(NotificationSettings.PUSH)
         )
     }
+
+    @Test
+    fun test_the_blank_user_failure_names_itself_exactly() {
+        val settings = InMemoryNotificationPreferencesService()
+        var failure = ""
+
+        settings.setNotificationSettings("", listOf(NotificationSettings.PUSH)) { result ->
+            val failed = result.exceptionOrNull()
+            failure = failed?.message ?: ""
+        }
+
+        assertTrue(
+            "the failure copy is the exact stated one",
+            failure == "Cannot save settings without a user ID"
+        )
+    }
+
+    @Test
+    fun test_reading_known_and_unknown_users_answers_stored_or_default() {
+        val settings = InMemoryNotificationPreferencesService()
+        settings.setNotificationSettings("reader", listOf(NotificationSettings.CSV)) {}
+
+        var loaded: List<NotificationSettings>? = null
+        settings.loadNotificationSettings(
+            "reader",
+            onSettings = { stored -> loaded = stored },
+            onFailure = {}
+        )
+        assertTrue(
+            "a read answers what is stored for that user",
+            loaded != null && NotificationSettings.CSV in loaded!! &&
+                    NotificationSettings.PUSH !in loaded!!
+        )
+
+        var defaultForNobody: List<NotificationSettings>? = null
+        settings.loadNotificationSettings(
+            "never-seen",
+            onSettings = { stored -> defaultForNobody = stored },
+            onFailure = {}
+        )
+        assertTrue(
+            "a user with nothing stored answers the default",
+            defaultForNobody == listOf(NotificationSettings.PUSH)
+        )
+    }
+
+    @Test
+    fun test_a_whitespace_user_id_is_blank_and_refused() {
+        val settings = InMemoryNotificationPreferencesService()
+        var failure = ""
+
+        settings.setNotificationSettings("  ", listOf(NotificationSettings.CSV)) { result ->
+            val failed = result.exceptionOrNull()
+            failure = failed?.message ?: ""
+        }
+
+        assertTrue(
+            "a whitespace-only id is blank, so it answers the exact refusal copy",
+            failure == "Cannot save settings without a user ID"
+        )
+        assertTrue(
+            "nothing is stored for a blank user, so the read answers the default",
+            settings.notificationSettingsFor("  ") == listOf(NotificationSettings.PUSH)
+        )
+    }
 }

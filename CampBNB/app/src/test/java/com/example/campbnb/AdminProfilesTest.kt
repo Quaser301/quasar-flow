@@ -83,4 +83,53 @@ class AdminProfilesTest {
             "(no role)" in line
         )
     }
+
+    @Test
+    fun test_PaddedNamesAndEmailsDrawTrimmedLabels() {
+        val rows = profileRowsFor(listOf(
+            User(deviceId = "d-padded", name = "  June  ", email = "  june@example  ")
+        ))
+
+        assertTrue("the name label carries no padding", rows[0].nameLabel == "June")
+        assertTrue("the email label carries no padding", rows[0].emailLabel == "june@example")
+    }
+
+    @Test
+    fun test_ASpacesOnlyEmailIsNotTreatedAsMissing() {
+        // The empty-email check is un-trimmed, so spaces-only passes the check
+        // and the label draws the trimmed (empty) value rather than the note.
+        val rows = profileRowsFor(listOf(
+            User(deviceId = "d-spaces", name = "Spacey", email = "   ")
+        ))
+
+        assertTrue("the email label is the trimmed value, which is empty", rows[0].emailLabel.isEmpty())
+    }
+
+    @Test
+    fun test_NamelessUsersOrderAmongThemselvesByTheirEmails() {
+        val rows = profileRowsFor(listOf(
+            User(deviceId = "d-beta", email = "b@x.com"),
+            User(deviceId = "d-alpha", email = "a@x.com")
+        ))
+
+        assertTrue(
+            "the sort marker uses the email, so the listing order follows it",
+            rows[0].emailLabel == "a@x.com" && rows[1].emailLabel == "b@x.com"
+        )
+    }
+
+    @Test
+    fun test_RepeatedRolesShowRepeatedlyInTheirGivenOrder() {
+        val rows = profileRowsFor(listOf(
+            User(
+                deviceId = "d-repeat",
+                roles = listOf(Role.OWNER, Role.ENTRANT, Role.OWNER)
+            )
+        ))
+
+        assertTrue(
+            "roles are not deduplicated or reordered",
+            rows[0].rolesLabel == "OWNER/ENTRANT/OWNER"
+        )
+    }
 }

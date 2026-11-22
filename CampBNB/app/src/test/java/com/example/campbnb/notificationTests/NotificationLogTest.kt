@@ -529,4 +529,81 @@ class NotificationLogTest {
     fun emptyReferenceDrawsNoProfileNote() {
         assertEquals("(no profile)", profileLabelOf("", listOf(User(deviceId = "camper-8"))))
     }
+
+    // The collapsed bar is stated word-for-word: an unnamed sender draws the system
+    // placeholder, an unstamped entry its no-timestamp wording, and the closed form
+    // appends only the tap note.
+    @Test
+    fun closed_bar_carries_the_exact_stated_copy() {
+        val entry = record(
+            id = "b1",
+            receiver = "camper-1",
+            type = NotificationType.WIN,
+            title = "You won!",
+            message = "Selected.",
+            seconds = -1
+        )
+
+        val bars = linesOf(openLog(listOf(entry)), LogLineStyle.DROPDOWN)
+
+        assertEquals(1, bars.count())
+        assertEquals(
+            "sent by the system  -  1 recipient(s)  -  no saved timestamp  -  " +
+                    "opens notifications - tap to open",
+            bars[0].text
+        )
+        assertEquals(notificationLogKeyOf(entry), bars[0].logId)
+    }
+
+    // A saved stamp labels its entry in the stated date shape; the exact moment is
+    // the device's, so only the shape of the label is asserted.
+    @Test
+    fun saved_stamp_is_labelled_in_the_stated_shape() {
+        val entry = record(
+            id = "s1",
+            receiver = "camper-1",
+            type = NotificationType.LOSE,
+            title = "Not chosen.",
+            message = "Sorry.",
+            seconds = 100L
+        )
+
+        val groups = openedLog(openLog(listOf(entry))).logs
+
+        assertEquals(1, groups.count())
+        assertTrue(
+            "the label is a date and a minute, whatever the device's moment was",
+            groups[0].sentAtLabel.matches(
+                    "\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}".toRegex())
+        )
+    }
+
+    // A name of only spaces is a valid dropdown key - only an empty one early-returns.
+    @Test
+    fun whitespace_dropdown_name_owns_a_key_of_its_own() {
+        val entry = record(
+            id = "w1",
+            receiver = "camper-1",
+            type = NotificationType.WIN,
+            title = "You won!",
+            message = "Selected.",
+            seconds = 100L,
+            lotteryId = "lot-l1"
+        )
+        val log = openLog(listOf(entry))
+
+        log.toggleLog("   ")
+        assertTrue(
+            "the spaces-only name joined the open set like any other key",
+            "   " in log.openLogs.value
+        )
+
+        log.readLog()
+        val shown = openedLog(log)
+        assertTrue(
+            "a key no entry carries changes no lines, so the bar stays closed",
+            shown.lines.count { it.style == LogLineStyle.DROPDOWN } == 1 &&
+                    shown.lines.count { it.style == LogLineStyle.RECIPIENT } == 0
+        )
+    }
 }

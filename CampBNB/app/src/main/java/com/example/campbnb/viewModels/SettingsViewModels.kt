@@ -2,6 +2,7 @@ package com.example.campbnb.viewModels
 
 import androidx.lifecycle.ViewModel
 import com.example.campbnb.models.NotificationSettings
+import com.example.campbnb.models.AppSettingsModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -80,6 +81,39 @@ class EntrantSettingsController: ViewModel() {
             }
         }
     }
+
+    /**
+     * Adopts the notification settings loaded for this user, so the Settings screen
+     * shows the saved toggles instead of the default when it first reads them. The
+     * list is applied as it was loaded: an empty list is a real choice (all
+     * notifications off), not an absent record.
+     *
+     * @param enabled The settings loaded for this user, from [NotificationPreferencesService.loadNotificationSettings].
+     */
+    fun applyLoadedNotificationSettings(enabled: List<NotificationSettings>) {
+        _notificationSettings.value = enabled
+    }
+
+    /**
+     * Applies a loaded [AppSettingsModel]: every recorded entrant choice that is not
+     * empty replaces that placeholder's default, so a user's saved settings are alive
+     * before the first screen renders. Empty choices leave the defaults untouched.
+     * The notification settings themselves live in [NotificationPreferencesService]
+     * and are not part of this record's entrant group.
+     *
+     * @param record The loaded settings record, from [AppSettingsService.loadAppSettings].
+     */
+    fun applyLoadedSettings(record: AppSettingsModel) {
+        if (record.entrantBookingsOrder.isNotEmpty()) {
+            changeBookingSortTo(record.entrantBookingsOrder)
+        }
+        if (record.entrantInboxAlerts.isNotEmpty()) {
+            changeInboxAlertsTo(record.entrantInboxAlerts)
+        }
+        if (record.entrantMessagesFilter.isNotEmpty()) {
+            changeMessageFilterTo(record.entrantMessagesFilter)
+        }
+    }
 }
 
 /**
@@ -128,6 +162,25 @@ class OwnerSettingsController: ViewModel() {
      */
     fun changeAvailabilityNoticeTo(newNotice: String) {
         _availabilityNoticeSetting.value = newNotice
+    }
+
+    /**
+     * Applies a loaded [AppSettingsModel]: every recorded owner choice that is not
+     * empty replaces that placeholder's default, so a user's saved settings are alive
+     * before the first screen renders. Empty choices leave the defaults untouched;
+     * the record's lottery boolean defaults to the same value as the controller's,
+     * so an absent choice changes nothing.
+     *
+     * @param record The loaded settings record, from [AppSettingsService.loadAppSettings].
+     */
+    fun applyLoadedSettings(record: AppSettingsModel) {
+        if (record.ownerListingVisibility.isNotEmpty()) {
+            changeListingVisibilityTo(record.ownerListingVisibility)
+        }
+        _lotteryOpenSetting.value = record.ownerLotteryAccepting
+        if (record.ownerAvailabilityNotice.isNotEmpty()) {
+            changeAvailabilityNoticeTo(record.ownerAvailabilityNotice)
+        }
     }
 }
 

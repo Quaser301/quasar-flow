@@ -12,6 +12,7 @@ package com.example.campbnb
  */
 
 import com.example.campbnb.ui.settings.SettingsGroupId
+import com.example.campbnb.ui.settings.groupLabel
 import com.example.campbnb.ui.settings.settingsGroupsFor
 import com.example.campbnb.ui.components.UserRole
 import com.example.campbnb.viewModels.AppView
@@ -36,6 +37,59 @@ class SettingsScreenTest {
             "the other dropdowns stay closed",
             !display.expandedStateOf(SettingsGroupId.ENTRANT_SETTINGS.name).value &&
                     !display.expandedStateOf(SettingsGroupId.ADMIN_SETTINGS.name).value
+        )
+    }
+
+    @Test
+    fun test_UnknownGroupNamesShareOneFallbackFlow() {
+        val display = SettingsDisplayController()
+
+        display.toggleGroup("NOT_A_GROUP")
+        assertTrue(
+            "an unknown name still owns a flow, the shared fallback one",
+            display.expandedStateOf("ALSO_NOT_A_GROUP").value
+        )
+
+        display.toggleGroup("ALSO_NOT_A_GROUP")
+        assertTrue(
+            "toggling through the other unknown name closes the shared flow",
+            !display.expandedStateOf("NOT_A_GROUP").value
+        )
+
+        assertTrue(
+            "the known groups keep their own flows",
+            !display.expandedStateOf(SettingsGroupId.OWNER_SETTINGS.name).value
+        )
+    }
+
+    @Test
+    fun test_GroupLabels_AreTheExactLowerCopyNames() {
+        assertTrue("app view switch", groupLabel(SettingsGroupId.APP_VIEW_SWITCH) == "app view switch")
+        assertTrue("admin settings", groupLabel(SettingsGroupId.ADMIN_SETTINGS) == "admin settings")
+        assertTrue("entrant settings", groupLabel(SettingsGroupId.ENTRANT_SETTINGS) == "entrant settings")
+        assertTrue("owner settings", groupLabel(SettingsGroupId.OWNER_SETTINGS) == "owner settings")
+    }
+
+    @Test
+    fun test_OwnerAndCamperRolesSee_OnlyTheirOwnGroup() {
+        assertTrue(
+            "an owner sees only their own group, whatever view is open",
+            settingsGroupsFor(UserRole.OWNER, AppView.AdminView) ==
+                    listOf(SettingsGroupId.OWNER_SETTINGS)
+        )
+        assertTrue(
+            "a camper sees only their own group",
+            settingsGroupsFor(UserRole.CAMPER, AppView.EntrantView) ==
+                    listOf(SettingsGroupId.ENTRANT_SETTINGS)
+        )
+        assertTrue(
+            "an admin viewing as owner gets the owner group below their own",
+            settingsGroupsFor(UserRole.ADMIN, AppView.OwnerView) ==
+                    listOf(
+                        SettingsGroupId.APP_VIEW_SWITCH,
+                        SettingsGroupId.ADMIN_SETTINGS,
+                        SettingsGroupId.OWNER_SETTINGS
+                    )
         )
     }
 

@@ -11,6 +11,8 @@ import com.example.campbnb.notifications.NotificationChannels
 import com.example.campbnb.notifications.NotificationRoutes
 import com.example.campbnb.notifications.NotificationWatcher
 import com.example.campbnb.notifications.SystemNotifier
+import com.example.campbnb.models.qrPayloadExtraKey
+import com.example.campbnb.models.qrRouteOfLinkPayload
 
 class MainActivity : ComponentActivity() {
     private val watcher by lazy {
@@ -33,6 +35,7 @@ class MainActivity : ComponentActivity() {
 
         if (savedInstanceState == null) {
             handleNotificationIntent(intent)
+            handleQrLinkIntent(intent)
         }
 
         setContent {
@@ -50,6 +53,7 @@ class MainActivity : ComponentActivity() {
         super.onNewIntent(intent)
         setIntent(intent)
         handleNotificationIntent(intent)
+        handleQrLinkIntent(intent)
     }
 
     private fun handleNotificationIntent(intent: Intent?) {
@@ -68,6 +72,22 @@ class MainActivity : ComponentActivity() {
         }
         // Open the screen the notification points to (for example "chat/{reservationId}").
         AppContainer.pendingRoute = route
+    }
+
+    /** A CampBNB code opened by the device's own camera arrives with the code's text in
+     * the [qrPayloadExtraKey] extra: resolve it into the route to open (the campsite the
+     * code names while it still works, the old-code notice when it is dead). The sign-in
+     * above has already run, so the user's data populates before the first screen
+     * renders (US 01.05.02). */
+    private fun handleQrLinkIntent(intent: Intent?) {
+        if (intent == null) return
+
+        val payload = intent.getStringExtra(qrPayloadExtraKey) ?: return
+
+        val route = qrRouteOfLinkPayload(payload)
+        if (!route.isNullOrBlank()) {
+            AppContainer.pendingRoute = route
+        }
     }
 
     override fun onDestroy() {

@@ -3,6 +3,9 @@ package com.example.campbnb.notificationTests
 import com.example.campbnb.controller.NotificationController
 import com.example.campbnb.controller.OptOutChecker
 import com.example.campbnb.models.Lottery
+import com.example.campbnb.models.Message
+import com.example.campbnb.models.Notification
+import com.google.firebase.Timestamp
 import com.example.campbnb.models.NotificationIntent
 import com.example.campbnb.models.NotificationType
 import com.example.campbnb.models.ReservationModel
@@ -252,5 +255,219 @@ class NotificationControllerTest {
         }
         Assert.assertEquals(0, r.getOrNull())
         Assert.assertEquals(0, repo.saveCalls)
+    }
+
+    // US 01.03.02: a message arrival is the fifth reporting family; its wording,
+    // preview cap, and fallback line are all stated by the spec and none of them
+    // is exercised above.
+    @Test
+    fun message_arrival_previews_the_message_and_names_the_place() {
+        val incoming = Message(
+            senderId = "owner-1",
+            recipientId = "camper-1",
+            reservationId = "entry1",
+            content = "The camp closes at dusk today."
+        )
+        controller.notify(NotificationIntent.MessageArrived(incoming, "Pine Hollow"))
+        val record = repo.saved.values.single()
+        Assert.assertTrue(record.type == NotificationType.MESSAGE)
+        Assert.assertEquals("camper-1", record.recipientId)
+        Assert.assertEquals("owner-1", record.senderId)
+        Assert.assertEquals("New message about Pine Hollow", record.title)
+        Assert.assertEquals(
+            "You received a new message: The camp closes at dusk today.",
+            record.message
+        )
+        Assert.assertEquals("entry1", record.reservationId)
+        Assert.assertEquals("Pine Hollow", record.campsiteName)
+    }
+
+    @Test
+    fun blank_place_draws_the_campsite_and_blank_content_the_fallback_line() {
+        val incoming = Message(
+            senderId = "owner-1",
+            recipientId = "camper-1",
+            reservationId = "entry1",
+            content = ""
+        )
+        controller.notify(NotificationIntent.MessageArrived(incoming, ""))
+        val record = repo.saved.values.single()
+        Assert.assertEquals("New message about the campsite", record.title)
+        Assert.assertEquals(
+            "You received a new message. Open CampBNB to read it.",
+            record.message
+        )
+        Assert.assertEquals("the campsite", record.campsiteName)
+    }
+
+    @Test
+    fun message_preview_cuts_at_a_hundred_characters_and_exactly_a_hundred_keeps_them() {
+        val longContent = "x".repeat(150)
+        controller.notify(
+            NotificationIntent.MessageArrived(
+                Message(
+                    senderId = "owner-1",
+                    recipientId = "camper-long",
+                    reservationId = "entry1",
+                    content = longContent
+                ),
+                "Pine Hollow"
+            )
+        )
+        Assert.assertEquals(
+            "You received a new message: " + "x".repeat(100),
+            repo.saved.values.single().message
+        )
+
+        repo.forgetSaved()
+        val exactContent = "y".repeat(100)
+        controller.notify(
+            NotificationIntent.MessageArrived(
+                Message(
+                    senderId = "owner-1",
+                    recipientId = "camper-exact",
+                    reservationId = "entry1",
+                    content = exactContent
+                ),
+                "Pine Hollow"
+            )
+        )
+        Assert.assertEquals(
+            "You received a new message: " + exactContent,
+            repo.saved.values.single().message
+        )
+    }
+
+    // The exact copy of every drawn record, including the unspaced lose literal and
+    // the forced deterministic record ids that keep one draw storing one record.
+    @Test
+    fun drawn_records_use_the_exact_copy_and_the_forced_ids() {
+        controller.notify(
+            NotificationIntent.LotteryDrawn("lot-x", "Pine Ridge", listOf("w1"), listOf("l1"))
+        )
+        val win = repo.saved.getValue("lot-x_w1_WIN")
+        val lose = repo.saved.getValue("lot-x_l1_LOSE")
+        Assert.assertEquals("You won the lottery for Pine Ridge!", win.title)
+        Assert.assertEquals(
+            "Congratulations! You were selected in the draw for Pine Ridge. " +
+                    "Action needed: open the app and choose your dates before the booking window closes.",
+            win.message
+        )
+        Assert.assertEquals("Lottery result for Pine Ridge", lose.title)
+        Assert.assertEquals(
+            "Unfortunately you were not selected in the draw this time.Thank you for entering",
+            lose.message
+        )
+        Assert.assertTrue(win.senderId.isEmpty())
+        Assert.assertTrue(lose.senderId.isEmpty())
+        Assert.assertEquals("Pine Ridge", win.campsiteName)
+        Assert.assertEquals("lot-x", win.lotteryId)
+    }
+
+    @Test
+    fun an_entrant_in_both_lists_is_told_only_they_won() {
+        controller.notify(
+            NotificationIntent.LotteryDrawn("lot-fold", "Banff", listOf("both"), listOf("both"))
+        )
+        Assert.assertEquals(1, repo.saved.size)
+        val record = repo.saved.values.single()
+        Assert.assertTrue(record.type == NotificationType.WIN)
+        Assert.assertEquals("lot-fold_both_WIN", record.id)
+    }
+
+    // The invitation record counts the campsites in words and carries its forced id.
+    @Test
+    fun invited_records_count_the_campsites_in_words() {
+        val three = Lottery(
+            ownerId = "owner-1",
+            campsiteIds = listOf("camp-a", "camp-b", "camp-c"),
+            invitedOwnerIds = listOf("co-three")
+        )
+        controller.notify(NotificationIntent.LotteryInvited(three))
+        val many = repo.saved.getValue(three.id + "_co-three_INVITE")
+        Assert.assertEquals("You were invited to a lottery for 3 campsites", many.title)
+        Assert.assertEquals(
+            "You have been invited to join a campsite lottery. Open CampBNB to see " +
+                    "the lottery and its campsites. If you accept, you can add your own campsites to it.",
+            many.message
+        )
+        Assert.assertEquals("owner-1", many.senderId)
+        Assert.assertEquals(three.id, many.lotteryId)
+
+        repo.forgetSaved()
+        val one = Lottery(
+            ownerId = "owner-1",
+            campsiteIds = listOf("camp-one"),
+            invitedOwnerIds = listOf("co-one")
+        )
+        controller.notify(NotificationIntent.LotteryInvited(one))
+        Assert.assertEquals(
+            "You were invited to a lottery for one campsite",
+            repo.saved.values.single().title
+        )
+
+        repo.forgetSaved()
+        val none = Lottery(
+            ownerId = "owner-1",
+            campsiteIds = emptyList(),
+            invitedOwnerIds = listOf("co-none")
+        )
+        controller.notify(NotificationIntent.LotteryInvited(none))
+        Assert.assertEquals(
+            "You were invited to a lottery for the campsite",
+            repo.saved.values.single().title
+        )
+    }
+
+    // The reservation records name "the campsite" only, never the id, with exact copy.
+    @Test
+    fun reservation_records_use_the_exact_family_copy() {
+        val reservation = reservedByentrant("owner1", "entrant1")
+
+        controller.notify(NotificationIntent.ReservationConfirmed(reservation))
+        repo.saved.values.forEach {
+            Assert.assertEquals("Reservation confirmed for the campsite", it.title)
+            Assert.assertEquals("Your reservation has been confirmed.", it.message)
+        }
+
+        repo.forgetSaved()
+        controller.notify(NotificationIntent.ReservationCancelled(reservation))
+        repo.saved.values.forEach {
+            Assert.assertEquals("Reservation cancelled for the campsite", it.title)
+            Assert.assertEquals("The reservation has been cancelled.", it.message)
+        }
+
+        repo.forgetSaved()
+        controller.notify(NotificationIntent.ReservationRejected(reservation))
+        repo.saved.values.forEach {
+            Assert.assertEquals("Reservation rejected for the campsite", it.title)
+            Assert.assertEquals("The reservation request has been rejected.", it.message)
+        }
+    }
+
+    // The ordering companion places unstamped (never-saved) records first.
+    @Test
+    fun unstamped_records_sort_before_stamped_ones() {
+        val older = Notification(
+            recipientId = "u1",
+            type = NotificationType.WIN,
+            sentAt = Timestamp(100L, 0)
+        ).also { it.id = "older" }
+        val newer = Notification(
+            recipientId = "u1",
+            type = NotificationType.WIN,
+            sentAt = Timestamp(200L, 0)
+        ).also { it.id = "newer" }
+        val neverSaved = Notification(
+            recipientId = "u1",
+            type = NotificationType.WIN
+        ).also { it.id = "unstamped" }
+
+        val ordered = NotificationController.sortNewestFirst(listOf(older, newer, neverSaved))
+
+        Assert.assertEquals(
+            listOf("unstamped", "newer", "older"),
+            ordered.map { it.id }
+        )
     }
 }

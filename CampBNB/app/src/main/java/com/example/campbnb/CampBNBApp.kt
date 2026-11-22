@@ -39,6 +39,7 @@ import com.example.campbnb.models.ReservationStatus
 import com.example.campbnb.models.BookingCardData
 import com.example.campbnb.ui.screens.BookingsScreen
 import com.example.campbnb.ui.screens.QrScannerScreen
+import com.example.campbnb.ui.screens.QrOldCodeNoticeScreen
 import com.example.campbnb.ui.screens.BookingTab
 import com.example.campbnb.data.LotteryRepository
 import com.example.campbnb.data.SentNotificationsRepository
@@ -50,6 +51,8 @@ import com.example.campbnb.models.Lottery
 import com.example.campbnb.models.LotteryModel
 import com.example.campbnb.models.Role
 import com.example.campbnb.models.User
+import com.example.campbnb.models.qrLinkRoute
+import com.example.campbnb.models.qrOldCodeRoute
 import com.example.campbnb.ui.screens.DeviceSignInScreen
 import com.example.campbnb.notifications.NotificationRoutes
 import com.example.campbnb.ui.screens.CampsiteCardData
@@ -68,6 +71,7 @@ import com.example.campbnb.ui.campsite.LotteryJoinSection
 import com.example.campbnb.ui.campsite.lotteryButtonText
 import com.example.campbnb.ui.campsite.toCardList
 import com.example.campbnb.ui.components.GradientButton
+import com.example.campbnb.ui.components.profileLabelOf
 import com.example.campbnb.ui.components.UserRole
 import com.example.campbnb.ui.details.CampsiteDetails
 import com.example.campbnb.ui.details.CampsiteDetailsScreen
@@ -179,6 +183,12 @@ fun CampBnbApp(
             var campsiteCards by remember {
                 mutableStateOf<List<CampsiteCardData>>(emptyList())
             }
+
+            // The cards are blank until the Firestore read answers, including after
+            // going back into Explore: until then the page shows a placeholder.
+            var campsiteCardsLoaded by remember {
+                mutableStateOf(false)
+            }
             var pendingBookings by remember {
                 mutableStateOf<List<BookingCardData>>(emptyList())
             }
@@ -249,6 +259,7 @@ fun CampBnbApp(
                                 maxOccupancy = campsite.maxOccupancy
                             )
                         }
+                        campsiteCardsLoaded = true
                     },
                     onFailure = { error ->
                         Toast.makeText(
@@ -256,6 +267,7 @@ fun CampBnbApp(
                             "Could not load campsites: ${error.message}",
                             Toast.LENGTH_LONG
                         ).show()
+                        campsiteCardsLoaded = true
                     }
                 )
             }
@@ -310,6 +322,14 @@ fun CampBnbApp(
                             )
                         }
 
+                        HomeDestination.RESERVATIONS -> {
+                            ReservationsTab(
+                                onOpenReservations = {
+                                    nav.navigate(Screen.Reservations)
+                                }
+                            )
+                        }
+
                         HomeDestination.ADMIN_PROFILE_VIEW -> {
                             LaunchedEffect(Unit) {
                                 deps.userController.loadAllUsers()
@@ -321,10 +341,19 @@ fun CampBnbApp(
                         }
 
                         HomeDestination.ADMIN_NOTIFICATION_VIEW -> {
+                            LaunchedEffect(Unit) {
+                                deps.userController.loadAllUsers()
+                            }
                             NotificationLogScreen(
                                 title = "Notification Debugging",
                                 notificationSource = deps.notificationRepository,
-                                returnFunc = { nav.goHome(role) }
+                                returnFunc = { nav.goHome(role) },
+                                // The debug log holds profile references, so it names the
+                                // users they stand for: the saved users are looked up once
+                                // above and every reference resolves against them.
+                                profileText = { userId ->
+                                    profileLabelOf(userId, deps.userModel.allUsers)
+                                }
                             )
                         }
 
@@ -334,11 +363,28 @@ fun CampBnbApp(
                     }
                 },
                 exploreContent = {
+                    if (!campsiteCardsLoaded) {
+                        Box(
+                            Modifier.fillMaxSize(),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            CircularProgressIndicator()
+                        }
+                    } else {
                     ExploreScreen(
                         recommended = campsiteCards,
                         newSites = campsiteCards,
                         onSettingsClick = {
-                            nav.navigate(Screen.Settings(role))
+                            // Settings is pushed OVER the live Home/Explore frame rather than
+                            // re-navigated to: popping with exclusive Home keeps the explored
+                            // subtree on the stack, so the matching navigateUp back affordance
+                            // pops Settings and returns to the SAME live view, selection and
+                            // cards intact (plain navigate would unmount Home and redraw
+                            // Explore through the loading placeholder).
+                            nav.navigate(Screen.Settings(role)) {
+                                popUpTo<Screen.Home> { inclusive = false }
+                                launchSingleTop = true
+                            }
                         },
                         onCampsiteClick = { campsite ->
                             nav.navigate(
@@ -350,8 +396,12 @@ fun CampBnbApp(
                         },
                         onFilterClick = {
                             nav.navigate(Screen.Search(role, "", true))
+                        },
+                        onOpenQr = {
+                            nav.navigate(Screen.QrScanner(role))
                         }
                     )
+                    }
                 },
                 appViewSettings = deps.appViewSettings.toAppViewSetting()
             )
@@ -533,6 +583,12 @@ fun CampBnbApp(
                 mutableStateOf<String?>(null)
             }
 
+            // The saved record behind these details: a policy action acts on the listing
+            // itself, not on what is drawn.
+            var policyCampsite by remember(route.campsiteId) {
+                mutableStateOf<Campsite?>(null)
+            }
+
             LaunchedEffect(route.campsiteId) {
                 isLoading = true
                 errorMessage = null
@@ -550,6 +606,7 @@ fun CampBnbApp(
                             errorMessage = "Campsite could not be found."
                             isLoading = false
                         } else {
+                            policyCampsite = campsite
 
                             // Then retrieve ratings for this campsite.
                             deps.campsiteRepository.getAllRatings(
@@ -644,8 +701,40 @@ fun CampBnbApp(
                         lotteryButtonText = lotteryButtonText(detailsLotteryModel),
                         lotteryButtonEnabled = detailsLotteryModel.entrantLottery != null,
                         lotteryButtonIsLeave = detailsLotteryModel.entrantIsOnWaitlist,
-                        onDeleteSite = {
-                            // TODO: connect to the campsite deletion workflow
+                        onDeleteSite = { reason ->
+                            val target = policyCampsite
+                            if (target != null) {
+                                deps.adminController.removeCampsite(
+                                    target,
+                                    reason,
+                                    deps.currentUserId
+                                ) { ok ->
+                                    Toast.makeText(
+                                        context,
+                                        if (ok) "Removed the site and told its owner."
+                                        else "Could not remove the site.",
+                                        Toast.LENGTH_LONG
+                                    ).show()
+                                }
+                            }
+                        },
+                        onRemoveTag = { tag, reason ->
+                            val target = policyCampsite
+                            if (target != null) {
+                                deps.adminController.removeTag(
+                                    target,
+                                    tag,
+                                    reason,
+                                    deps.currentUserId
+                                ) { ok ->
+                                    Toast.makeText(
+                                        context,
+                                        if (ok) "Removed the tag and told the site's owner."
+                                        else "Could not remove the tag.",
+                                        Toast.LENGTH_LONG
+                                    ).show()
+                                }
+                            }
                         },
                         entrantContent = {
                             CampsiteRatingSection(
@@ -795,118 +884,11 @@ fun CampBnbApp(
             )
         }
 
-        // Reservations
-        composable<Screen.Reservations> {
-            var campsites by remember {
-                mutableStateOf<List<Campsite>>(emptyList())
-            }
-
-            var selectedCampsiteId by remember {
-                mutableStateOf<String?>(null)
-            }
-
-            var selectedFilter by remember {
-                mutableStateOf(ReservationFilter.ACTIVE)
-            }
-
-            var reservations by remember {
-                mutableStateOf<List<com.example.campbnb.models.ReservationModel>>(emptyList())
-            }
-
-            // Load only this owner's campsites.
-            LaunchedEffect(deps.deviceID) {
-                deps.campsiteRepository.getAll(
-                    onSuccess = { allCampsites ->
-                        val ownedCampsites = allCampsites.filter {
-                            it.ownerId == deps.deviceID
-                        }
-
-                        campsites = ownedCampsites
-
-                        // Automatically select the first campsite.
-                        if (selectedCampsiteId == null ||
-                            ownedCampsites.none { it.id == selectedCampsiteId }
-                        ) {
-                            selectedCampsiteId = ownedCampsites.firstOrNull()?.id
-                        }
-                    },
-                    onFailure = { error ->
-                        Toast.makeText(
-                            context,
-                            "Could not load campsites: ${error.message}",
-                            Toast.LENGTH_LONG
-                        ).show()
-                    }
-                )
-            }
-
-            // Load reservations whenever the campsite or filter changes.
-            LaunchedEffect(selectedCampsiteId, selectedFilter) {
-                val campsiteId = selectedCampsiteId
-
-                if (campsiteId == null) {
-                    reservations = emptyList()
-                } else {
-                    deps.reservationRepository.run {
-                        when (selectedFilter) {
-                            ReservationFilter.ACTIVE -> getActive(
-                                campsiteId,
-                                onSuccess = { reservations = it },
-                                onFailure = { error ->
-                                    Toast.makeText(
-                                        context,
-                                        "Could not load reservations: ${error.message}",
-                                        Toast.LENGTH_LONG
-                                    ).show()
-                                }
-                            )
-
-                            ReservationFilter.PAST -> getPast(
-                                campsiteId,
-                                onSuccess = { reservations = it },
-                                onFailure = { error ->
-                                    Toast.makeText(
-                                        context,
-                                        "Could not load reservations: ${error.message}",
-                                        Toast.LENGTH_LONG
-                                    ).show()
-                                }
-                            )
-
-                            ReservationFilter.CANCELLED -> getCancelled(
-                                campsiteId,
-                                onSuccess = { reservations = it },
-                                onFailure = { error ->
-                                    Toast.makeText(
-                                        context,
-                                        "Could not load reservations: ${error.message}",
-                                        Toast.LENGTH_LONG
-                                    ).show()
-                                }
-                            )
-                        }
-                    }
-                }
-            }
-
-            ReservationScreen(
-                campsites = campsites,
-                selectedCampsiteId = selectedCampsiteId,
-                selectedFilter = selectedFilter,
-                reservations = reservations,
-                onCampsiteSelected = { campsiteId ->
-                    selectedCampsiteId = campsiteId
-                },
-                onFilterSelected = { filter ->
-                    selectedFilter = filter
-                },
-                onBack = {
-                    nav.navigateUp()
-                },
-                csvPreferences = deps.notificationPreferencesService,
-                currentUserId = deps.currentUserId,
-                fileDownloadWriter = deps.fileDownloadWriter
-            )
+        // Reservations: the view opened by a notification tap, the owner's My Campsites
+        // link and the camper's bottom tab. The private panel below owns the loading and
+        // drawing, so all three entries share one wiring.
+        composable<Screen.Reservations> { entry ->
+            ReservationsPanel(deps) { nav.navigateUp() }
         }
 
         composable<Screen.Settings> { entry ->
@@ -918,7 +900,9 @@ fun CampBnbApp(
                 role = role,
                 viewSettings = deps.appViewSettings,
                 entrantSettings = deps.entrantSettings,
+                ownerSettings = deps.ownerSettings,
                 notificationPreferences = deps.notificationPreferencesService,
+                appSettings = deps.appSettingsService,
                 userIdForSettings = deps.currentUserId
             )
         }
@@ -954,11 +938,15 @@ fun CampBnbApp(
                 deps = deps
             )
         }
-        // Tapping a MESSAGE notification opens that reservation's chat.
+        // Tapping a RESERVATION-type notification opens the reservations view. The pop-up
+        // names the Home frame, not this route's own: a string route left on the stack
+        // would otherwise keep this invisible frame under the reservations screen, and the
+        // first back press would land on it (the reported white screen) instead of Home.
         composable(NotificationRoutes.RESERVATIONS) {
             LaunchedEffect(Unit) {
                 nav.navigate(Screen.Reservations) {
-                    popUpTo(NotificationRoutes.RESERVATIONS) { inclusive = true }
+                    popUpTo<Screen.Home> { inclusive = false }
+                    launchSingleTop = true
                 }
             }
         }
@@ -981,6 +969,38 @@ fun CampBnbApp(
                 openReservationId = entry.arguments?.getString("reservationId"),
                 deps
             )
+        }
+        // The phone's own camera opens a CampBNB code's link here: MainActivity has
+        // already resolved the code's text into one of these routes and queued it on
+        // pendingRoute, the same bridge a notification tap uses, and the sign-in ran
+        // before this first render, so the user's data populates. A live code names
+        // its campsite: this invisible string frame opens the details page and pops
+        // itself out of the stack like the reservations bridge does, so the first
+        // back press goes to Home, not to this blank frame (the reported white
+        // screen). The role carried into the key is the signed-in user's own
+        // privileges, the same derivation the login flow uses.
+        composable("$qrLinkRoute/{campsiteId}") { entry ->
+            val campsiteId = entry.arguments?.getString("campsiteId") ?: ""
+            LaunchedEffect(campsiteId) {
+                if (campsiteId.isNotBlank()) {
+                    val privileges = deps.userModel.currentUser?.roles ?: emptyList()
+                    val role = when {
+                        Role.ADMIN in privileges -> Role.ADMIN
+                        Role.OWNER in privileges -> Role.OWNER
+                        else -> Role.ENTRANT
+                    }
+                    nav.navigate(Screen.CampsiteDetailsScreen(toUserRole(role), campsiteId)) {
+                        popUpTo<Screen.Home> { inclusive = false }
+                        launchSingleTop = true
+                    }
+                }
+            }
+        }
+        // A dead code's link — its stop already past, or no expiry at all — answers
+        // the old-code notice in place of any destination; back goes where the link
+        // would otherwise have been.
+        composable(qrOldCodeRoute) {
+            QrOldCodeNoticeScreen(back = { nav.navigateUp() })
         }
 
     }
@@ -1209,5 +1229,182 @@ private fun MyCampsitesTab(
         GradientButton("My Lotteries", onOpenLotteries)
         Spacer(Modifier.height(12.dp))
         GradientButton("Reservations", onOpenReservations)
+    }
+}
+
+
+/**
+ * The reservations view, opened by a notification tap, the owner's My Campsites link and
+ * the camper's bottom tab. Which reservations a viewer may list is decided by the read
+ * handed here: an owner browses their own campsites and sees every reservation at each,
+ * while every other viewer reads their own reservations and is offered only the sites
+ * that carry them - an entrant reaching this view gets their own bookings, not an empty
+ * campsite selector. The screen only draws what it is handed.
+ *
+ * @param deps The app-wide dependencies, naming the viewer and the storage boundaries.
+ * @param goBack The return function handed to the screen, owned by the caller that opened
+ *     this view.
+ */
+@Composable
+private fun ReservationsPanel(deps: Dependencies, goBack: () -> Unit) {
+    val context = LocalContext.current
+
+    var campsites by remember {
+        mutableStateOf<List<Campsite>>(emptyList())
+    }
+
+    var selectedCampsiteId by remember {
+        mutableStateOf<String?>(null)
+    }
+
+    var selectedFilter by remember {
+        mutableStateOf(ReservationFilter.ACTIVE)
+    }
+
+    var reservations by remember {
+        mutableStateOf<List<com.example.campbnb.models.ReservationModel>>(emptyList())
+    }
+
+    // Load the campsites this viewer browses: the owner's own sites, or for anyone else
+    // the sites that carry their own reservations.
+    LaunchedEffect(deps.deviceID) {
+        deps.campsiteRepository.getAll(
+            onSuccess = { allCampsites ->
+                if (deps.currentUserIsOwner) {
+                    val browsedCampsites = allCampsites.filter {
+                        it.ownerId == deps.deviceID
+                    }
+                    campsites = browsedCampsites
+                    if (selectedCampsiteId == null ||
+                        browsedCampsites.none { it.id == selectedCampsiteId }
+                    ) {
+                        selectedCampsiteId = browsedCampsites.firstOrNull()?.id
+                    }
+                } else {
+                    deps.reservationRepository.getForEntrant(
+                        entrantId = deps.deviceID,
+                        onSuccess = { ownReservations ->
+                            val browsedCampsites = allCampsites.filter { campsite ->
+                                ownReservations.any { it.campsiteId == campsite.id }
+                            }
+                            campsites = browsedCampsites
+                            if (selectedCampsiteId == null ||
+                                browsedCampsites.none { it.id == selectedCampsiteId }
+                            ) {
+                                selectedCampsiteId = browsedCampsites.firstOrNull()?.id
+                            }
+                        },
+                        onFailure = { error ->
+                            Toast.makeText(
+                                context,
+                                "Could not load your reservations: ${'$'}{error.message}",
+                                Toast.LENGTH_LONG
+                            ).show()
+                        }
+                    )
+                }
+            },
+            onFailure = { error ->
+                Toast.makeText(
+                    context,
+                    "Could not load campsites: ${'$'}{error.message}",
+                    Toast.LENGTH_LONG
+                ).show()
+            }
+        )
+    }
+
+    // Load reservations whenever the campsite or filter changes. An owner browsing their
+    // own sites sees every reservation at a site; anyone else only their own.
+    LaunchedEffect(selectedCampsiteId, selectedFilter) {
+        val campsiteId = selectedCampsiteId
+        val viewerIsOwner = deps.currentUserIsOwner
+
+        if (campsiteId == null) {
+            reservations = emptyList()
+        } else {
+            deps.reservationRepository.run {
+                when (selectedFilter) {
+                    ReservationFilter.ACTIVE -> getActive(
+                        campsiteId,
+                        onSuccess = { loaded ->
+                            reservations =
+                                if (viewerIsOwner) loaded
+                                else loaded.filter { it.entrantId == deps.deviceID }
+                        },
+                        onFailure = { error ->
+                            Toast.makeText(
+                                context,
+                                "Could not load reservations: ${'$'}{error.message}",
+                                Toast.LENGTH_LONG
+                            ).show()
+                        }
+                    )
+
+                    ReservationFilter.PAST -> getPast(
+                        campsiteId,
+                        onSuccess = { loaded ->
+                            reservations =
+                                if (viewerIsOwner) loaded
+                                else loaded.filter { it.entrantId == deps.deviceID }
+                        },
+                        onFailure = { error ->
+                            Toast.makeText(
+                                context,
+                                "Could not load reservations: ${'$'}{error.message}",
+                                Toast.LENGTH_LONG
+                            ).show()
+                        }
+                    )
+
+                    ReservationFilter.CANCELLED -> getCancelled(
+                        campsiteId,
+                        onSuccess = { loaded ->
+                            reservations =
+                                if (viewerIsOwner) loaded
+                                else loaded.filter { it.entrantId == deps.deviceID }
+                        },
+                        onFailure = { error ->
+                            Toast.makeText(
+                                context,
+                                "Could not load reservations: ${'$'}{error.message}",
+                                Toast.LENGTH_LONG
+                            ).show()
+                        }
+                    )
+                }
+            }
+        }
+    }
+
+    ReservationScreen(
+        campsites = campsites,
+        selectedCampsiteId = selectedCampsiteId,
+        selectedFilter = selectedFilter,
+        reservations = reservations,
+        onCampsiteSelected = { campsiteId ->
+            selectedCampsiteId = campsiteId
+        },
+        onFilterSelected = { filter ->
+            selectedFilter = filter
+        },
+        onBack = goBack,
+        csvPreferences = deps.notificationPreferencesService,
+        currentUserId = deps.currentUserId,
+        fileDownloadWriter = deps.fileDownloadWriter
+    )
+}
+
+/** Camper's Reservations tab: one link that opens the reservations view. */
+@Composable
+private fun ReservationsTab(onOpenReservations: () -> Unit) {
+    Column(
+        Modifier.fillMaxSize().padding(24.dp),
+        verticalArrangement = Arrangement.Center,
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text("Reservations", fontSize = 22.sp)
+        Spacer(Modifier.height(16.dp))
+        GradientButton("Open Reservations", onOpenReservations)
     }
 }

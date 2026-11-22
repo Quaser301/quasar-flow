@@ -5,6 +5,8 @@ import com.example.campbnb.data.CampsiteRepository
 import com.example.campbnb.models.Campsite
 import com.example.campbnb.models.CampsiteModel
 import com.example.campbnb.models.Rating
+import com.example.campbnb.ui.campsite.ratingSummary
+import com.example.campbnb.ui.campsite.starsFor
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
@@ -107,5 +109,44 @@ class CampsiteControllerRatingTest {
         CampsiteController(model, repo).loadRatings()
         assertEquals(1, model.ratingCount("c1"))
         assertEquals(5.0, model.averageRating("c1"), 0.001)
+    }
+
+    @Test
+    fun unrated_campsite_reads_zero_everywhere() {
+        val model = CampsiteModel()
+        assertEquals(0.0, model.averageRating("never-rated"), 0.001)
+        assertEquals(0, model.ratingCount("never-rated"))
+        assertEquals(0, model.myRating("never-rated", "u1"))
+    }
+
+    @Test
+    fun saveRating_at_the_one_and_five_boundaries_is_valid() {
+        val repo = FakeRatingRepository()
+        val model = CampsiteModel()
+        val controller = CampsiteController(model, repo)
+        controller.saveRating("c1", "u-one", 1)
+        controller.saveRating("c1", "u-five", 5)
+        assertEquals(2, repo.saved.size)
+        assertEquals(1, model.myRating("c1", "u-one"))
+        assertEquals(5, model.myRating("c1", "u-five"))
+    }
+
+    // The rating DISPLAY helpers are pure (ui.campsite): the star count uses Java's
+    // Math.round semantics (-0.5 rounds toward zero) and clamps to 0..5, and the
+    // summary copy is exact with the US decimal separator.
+    @Test
+    fun starsFor_rounds_and_clamps_like_java() {
+        assertEquals(0, starsFor(-0.5))
+        assertEquals(0, starsFor(-1.0))
+        assertEquals(4, starsFor(4.4))
+        assertEquals(5, starsFor(4.5))
+        assertEquals(5, starsFor(5.5))
+    }
+
+    @Test
+    fun ratingSummary_uses_the_exact_copies() {
+        assertEquals("No ratings yet", ratingSummary(0.0, 0))
+        assertEquals("4.0 (1 rating)", ratingSummary(4.0, 1))
+        assertEquals("2.0 (3 ratings)", ratingSummary(2.0, 3))
     }
 }

@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import com.example.campbnb.models.AppSettingsModel
 
 
 
@@ -35,6 +36,21 @@ class AppViewSettingController: ViewModel() {
      */
     fun changeViewTo(newView: AppView) {
         _viewSetting.value = newView
+    }
+
+    /**
+     * Applies a loaded [AppSettingsModel]: the recorded app view choice, when it names
+     * one of the views, becomes the current setting. An empty or unknown choice leaves
+     * the current setting untouched, so a user with nothing saved keeps the default.
+     *
+     * @param record The loaded settings record, from [AppSettingsService.loadAppSettings].
+     */
+    fun applyLoadedSettings(record: AppSettingsModel) {
+        for (view in AppView.values()) {
+            if (view.name == record.appViewChoice) {
+                changeViewTo(view)
+            }
+        }
     }
 
     // allows any superview to ask for a readonly wrapper of the live StateFlow rather than

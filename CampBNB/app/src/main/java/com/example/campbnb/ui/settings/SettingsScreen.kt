@@ -30,6 +30,8 @@ import com.example.campbnb.ui.theme.FieldGrey
 import com.example.campbnb.viewModels.AppView
 import com.example.campbnb.data.NoNotificationPreferencesService
 import com.example.campbnb.data.NotificationPreferencesService
+import com.example.campbnb.data.AppSettingsService
+import com.example.campbnb.data.NoAppSettingsService
 import com.example.campbnb.models.NotificationSettings
 import com.example.campbnb.viewModels.AppViewSettingController
 import com.example.campbnb.viewModels.EntrantSettingsController
@@ -100,6 +102,7 @@ fun SettingsScreen(
     ownerSettings: OwnerSettingsController = OwnerSettingsController(),
     adminSettingsContent: @Composable () -> Unit = { AdminSettingsPlaceholder() },
     notificationPreferences: NotificationPreferencesService = NoNotificationPreferencesService(),
+    appSettings: AppSettingsService = NoAppSettingsService(),
     userIdForSettings: String = "",
 ) {
     val display = remember { SettingsDisplayController() }
@@ -113,7 +116,12 @@ fun SettingsScreen(
         settingsGroupsFor(role, currentView.value).forEach { groupId ->
             SettingsDropdown(display, groupId) {
                 when (groupId) {
-                    SettingsGroupId.APP_VIEW_SWITCH -> ViewSwitchMenu(display, viewSettings)
+                    SettingsGroupId.APP_VIEW_SWITCH -> ViewSwitchMenu(
+                        display,
+                        viewSettings,
+                        appSettings,
+                        userIdForSettings
+                    )
                     SettingsGroupId.ADMIN_SETTINGS -> adminSettingsContent()
                     SettingsGroupId.ENTRANT_SETTINGS -> EntrantSettingsItems(
                         settings = entrantSettings,
@@ -169,11 +177,15 @@ private fun SettingsDropdown(
  *
  * @param display The holder of the dropdown expansion state.
  * @param viewSettings The app view setting controller to move.
+ * @param appSettings The storage that keeps the chosen view between app lifetimes.
+ * @param userId The user whose record the chosen view is saved under.
  */
 @Composable
 private fun ViewSwitchMenu(
     display: SettingsDisplayController,
     viewSettings: AppViewSettingController,
+    appSettings: AppSettingsService,
+    userId: String,
 ) {
     val expanded = display.expandedStateOf(
         SettingsGroupId.APP_VIEW_SWITCH.name
@@ -186,7 +198,12 @@ private fun ViewSwitchMenu(
 
     AppDropDownMenu(
         entries,
-        { viewSettings.changeViewTo(it) },
+        {
+            viewSettings.changeViewTo(it)
+            // the chosen view is saved so the user is in it again on the next
+            // app lifetime; the record keeps the other groups untouched
+            appSettings.setAppViewChoice(userId, it) { _ -> }
+        },
         {display.toggleGroup(SettingsGroupId.APP_VIEW_SWITCH.name )},
         textRenderer,
         expanded.value

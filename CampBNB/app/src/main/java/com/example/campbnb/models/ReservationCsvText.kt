@@ -61,10 +61,15 @@ fun reservationCsvText(reservation: ReservationModel, campsite: Campsite?): Stri
         ""
     }
 
-    return """
-        Start,${csvField(reservation.startDate)}
-        End,${csvField(reservation.endDate)}
-        Campsite Name/Location,${csvField(location)}
-        Owner,${csvField(owner)}
-    """.trimIndent()
+    // Rows are joined, not templated: trimIndent measures its minimum indent on the
+    // string AFTER interpolation, so a value carrying a physical newline contributes
+    // lines with no indent, collapses the minimum to zero, and leaves the template's
+    // own indentation in the file. Joining rows keeps every line unindented as the
+    // contract requires, whatever a quoted value holds.
+    return listOf(
+        "Start,${csvField(reservation.startDate)}",
+        "End,${csvField(reservation.endDate)}",
+        "Campsite Name/Location,${csvField(location)}",
+        "Owner,${csvField(owner)}"
+    ).joinToString("\n")
 }

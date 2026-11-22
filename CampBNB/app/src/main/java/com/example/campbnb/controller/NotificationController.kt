@@ -3,10 +3,13 @@ package com.example.campbnb.controller
 import com.example.campbnb.data.NotificationCommand
 import com.example.campbnb.data.NotificationRepository
 import com.example.campbnb.data.NotificationUpdate
+import com.example.campbnb.models.Campsite
 import com.example.campbnb.models.Lottery
 import com.example.campbnb.models.Message
 import com.example.campbnb.models.Notification
 import com.example.campbnb.models.NotificationIntent
+import com.example.campbnb.models.PolicyReason
+import com.example.campbnb.models.policyReasonText
 import com.example.campbnb.models.NotificationType
 import com.example.campbnb.models.ReservationModel
 
@@ -159,6 +162,11 @@ class NotificationController(
         // a cause is never told about their own action (US 02.04.08).
         is NotificationIntent.LotteryInvited ->
             intent.lottery.invitedOwnerIds.filterNot { it == intent.lottery.ownerId }
+
+        // A policy action over a listing is heard by the listing's own creator, who is the
+        // party affected; the admin who acted is the cause and never hears it (US 02.10.02).
+        is NotificationIntent.CampsitePolicyRemoved -> listOf(intent.campsite.ownerId)
+        is NotificationIntent.CampsiteTagRemoved -> listOf(intent.campsite.ownerId)
     }.filter { it.isNotBlank() }.distinct()
 
     private fun recordFor(
@@ -189,6 +197,14 @@ class NotificationController(
 
         is NotificationIntent.LotteryInvited ->
             inviteNotice(intent.lottery, recipientId, pushAllowed)
+
+        is NotificationIntent.CampsitePolicyRemoved ->
+            policyNotice(intent.campsite, "", intent.reason, intent.actorUserId, recipientId,
+                pushAllowed)
+
+        is NotificationIntent.CampsiteTagRemoved ->
+            policyNotice(intent.campsite, intent.tag, intent.reason, intent.actorUserId,
+                recipientId, pushAllowed)
     }
 
     /**
@@ -241,6 +257,48 @@ class NotificationController(
      * Only the start of the message is copied, so the notice stays short; the person who
      * wrote it is the cause.
      */
+    /**
+     * The notice the creator of a listing hears after an app policy action.
+     *
+     * With no tag named, the whole listing was removed; with one, only that tag was. Either
+     * way the notice says why in the app's own words (policyReasonText), and it names the
+     * campsite so it can be opened back at the listing. The cause is the admin who acted,
+     * so the notice appears in that admin's sent list (US 02.10.02).
+     */
+    private fun policyNotice(
+        campsite: Campsite,
+        removedTag: String,
+        reason: PolicyReason,
+        actorUserId: String,
+        recipientId: String,
+        pushAllowed: Boolean
+    ): Notification {
+        val place = campsite.campName.ifBlank { "the campsite" }
+        val title =
+            if (removedTag.isBlank()) {
+                "Your campsite was removed"
+            } else {
+                "A tag was removed from your campsite"
+            }
+        val body =
+            if (removedTag.isBlank()) {
+                "Your campsite $place was removed from the app because ${policyReasonText(reason)}."
+            } else {
+                "The tag $removedTag was removed from your campsite $place because " +
+                    "${policyReasonText(reason)}."
+            }
+
+        return Notification(
+            recipientId = recipientId,
+            senderId = actorUserId,
+            type = NotificationType.OWNER_NOTICE,
+            title = title,
+            message = body,
+            campsiteName = place,
+            pushAllowed = pushAllowed
+        )
+    }
+
     private fun messageNotice(
         message: Message,
         campsiteName: String,

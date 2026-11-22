@@ -172,6 +172,14 @@ fun SearchScreen(
                                 menuOpen = false
                             }
                         )
+
+                        DropdownMenuItem(
+                            text = { Text("QR Scanner") },
+                            onClick = {
+                                menuOpen = false
+                                onQrClick()
+                            }
+                        )
                     }
                 }
             )
