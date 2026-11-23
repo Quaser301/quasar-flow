@@ -17,9 +17,11 @@ enum class AppView { AdminView, EntrantView, OwnerView }   // declared HERE, thi
 
 class AppViewSettingController : ViewModel()      // plain class: construct, never subclass
     private val _viewSetting = MutableStateFlow(AppView.EntrantView)   // DEFAULT: EntrantView
+    private var viewChoiceWasMade = false                              // explicit-choice tracker
     val viewSetting: StateFlow<AppView>                                // readonly wrapper
-    fun changeViewTo(newView: AppView)                                // just sets the value
-    fun applyLoadedSettings(record: AppSettingsModel)                // names a view → changeViewTo; empty/unknown = no-op
+    fun changeViewTo(newView: AppView)                                // sets the value; counts as a choice made
+    fun applyViewDefaultIfNoneChosen(newView: AppView)               // role default: no-op once ANY view has been chosen
+    fun applyLoadedSettings(record: AppSettingsModel)                // names a view → changeViewTo (a saved choice counts as made); empty/unknown = no-op
     fun toAppViewSetting(): AppViewSetting                            // wraps the LIVE FLOW
 
 class AppViewSetting(val setting: StateFlow<AppView>) : ViewModel() {}
@@ -27,6 +29,11 @@ class AppViewSetting(val setting: StateFlow<AppView>) : ViewModel() {}
 
 - `AppViewSetting` holds the `StateFlow` itself, never a snapshot: anything latched on
   one re-renders as the controller changes the setting. The instance never changes.
+- Gate: a view from a real choice — a saved record that named one, or a switch — keeps
+  that choice across lifetimes: `applyViewDefaultIfNoneChosen` changes nothing once any
+  choice exists, so sign-in role defaults cannot clobber a saved or switched view
+  (the reported failure of the admin's settings view). Users who never chose a view
+  still get the role default at sign-in.
 - `AppView` is the app-wide view vocabulary (`app.md` routes branch on it;
   `ui.md` view-switching reads `viewSetting`).
 
@@ -125,6 +132,10 @@ Runs `readLog()` at construction (`init`).
   the next read draws it; until a read has succeeded no Ready state is invented.
   After a successful read, toggling REBUILDS the lines for the same entries with the
   new open set (only differing lines redraw — the Ready value changes).
+- `reflowLines()`: RE-DERIVES the lines for the last-read entries WITHOUT re-reading
+  (NOOP before a successful read; the open set is kept as-is). The screen calls it whenever a
+  passed `UserModel` reports users changing (the debug view watches the real model, app.md) —
+  profiles loaded after the log opened re-resolve receiver lines to names.
 - The log is read again ONLY on demand (`readLog()` re-run by the screen's refresh tap).
 
 This ViewModel IS JVM-reachable: fake the `NotificationRepository` (in-file fake of the

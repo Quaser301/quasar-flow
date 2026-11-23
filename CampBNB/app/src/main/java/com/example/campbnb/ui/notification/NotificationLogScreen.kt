@@ -25,6 +25,8 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.campbnb.data.NotificationRepository
 import com.example.campbnb.models.LogLineStyle
 import com.example.campbnb.models.NotificationLogLine
+import com.example.campbnb.models.UserModel
+import com.example.campbnb.models.ViewObserver
 import com.example.campbnb.ui.components.BackArrow
 import com.example.campbnb.ui.components.unresolvableProfileLabel
 import com.example.campbnb.viewModels.LogViewState
@@ -67,6 +69,9 @@ import com.example.campbnb.ui.theme.AdminInteractionColor
  * @param profileText How a profile reference is drawn. The default is the stable resolver for
  *     listings that cannot look up saved users, so it labels unknown references as such. A
  *     caller that can resolve references hands this its own stable lookup.
+ * @param savedUsers The saved-user model the log watches, so a late arrival of profiles
+ *     re-resolves the receiver lines of what was already read. The default is a private model
+ *     nothing ever notifies, which resolves only at the read time.
  */
 @Composable
 fun NotificationLogScreen(
@@ -74,11 +79,26 @@ fun NotificationLogScreen(
     notificationSource: NotificationRepository,
     returnFunc: (() -> Unit)? = null,
     profileText: (String) -> String = unresolvableProfileLabel,
+    savedUsers: UserModel = UserModel(),
 ) {
     val display = viewModel {
         NotificationLogViewModel(notificationSource, profileText)
     }
     val state by display.state.collectAsState()
+
+    // Profiles arriving after this log opened re-name the receivers already drawn: the view
+    // model keeps the entries, so only the lines are derived again.
+    DisposableEffect(savedUsers) {
+        val profileWatcher = object : ViewObserver<UserModel> {
+            override fun update(changedUsers: UserModel) {
+                display.reflowLines()
+            }
+        }
+        savedUsers.addView(profileWatcher)
+        onDispose {
+            savedUsers.removeView(profileWatcher)
+        }
+    }
 
     Column(
         modifier = Modifier.padding(top = 32.dp, start = 12.dp, end = 12.dp)

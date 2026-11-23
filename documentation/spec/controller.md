@@ -285,6 +285,19 @@ class LotteryController(private val model: LotteryModel, private val repo: Lotte
   empty result → `IllegalArgumentException("A lottery must cover at least one campsite")`;
   otherwise save `lottery.withCampsiteIds(that list)` (only the campsite field changes —
   `models.md`).
+- `forceCloseLottery(lottery, nameOfCampsite: (String) -> String = { id -> id }, onDone: (Boolean) -> Unit = {})`:
+  force-close and draw NOW (feature 1). Read the entrant list for the id (read failure →
+  status message + `onDone(false)`, nothing drawn); the draw = up to `numberOfWinners` of
+  the DISTINCT entrant userIds in arbitrary order; closed =
+  `lottery.copy(drawn = true, winnerIds = the draw, registrationStart = min(existing, now),
+  registrationEnd = now, bookingStart = now, bookingEnd = today's UTC-midnight + 86_399_999)`
+  with `now = clock()` (the windows a picker wrote are UTC-midnight based, so "today" is
+  taken on that basis too — ui.md). Save closed (failure → status message +
+  `onDone(false)`); ONLY on success notify one `LotteryDrawn(closed.id,
+  `closed.campsiteIds.map(nameOfCampsite).joinToString(", ")`, winnerIds,
+  loserIds = entrants minus winners)`, set the status message
+  `"The lottery was closed and drawn"`, and `onDone(true)`. The rewritten window is
+  exactly what makes `closed.statusAt(clock()) == BOOKING` at models.md's boundaries.
 - `toggleEntrantMembership(userId)`: reads `model.entrantLottery`; no open lottery → does
   NOTHING; on the list → `leave`, else `join`.
 - `loadOwnerCampsites(ownerId, onResult: (List<Campsite>) -> Unit)` and

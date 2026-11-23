@@ -3,11 +3,18 @@ package com.example.campbnb.controller
 import com.example.campbnb.data.LotteryRepository
 import com.example.campbnb.database.QueryEngine
 import com.example.campbnb.models.Campsite
+import com.example.campbnb.models.DateUtils
 import com.example.campbnb.models.Lottery
 import com.example.campbnb.models.LotteryModel
 import com.example.campbnb.models.LotteryStatus
 import com.example.campbnb.models.NotificationIntent
 import com.example.campbnb.models.WaitingListEntry
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+import java.util.TimeZone
+
+private val DAY_MILLIS = 24L * 60L * 60L * 1000L
 
 /**
  * Answers lottery questions for the rest of the app, reading data only through [QueryEngine].
@@ -346,6 +353,87 @@ class LotteryController(
             onFailure = onFailure
         )
     }
+
+    /**
+     * Force-closes and draws a lottery right now (feature 1: the admin of a lottery can
+     * force it to close so the whole lifecycle can be tested): the draw selects up to
+     * [numberOfWinners] of the current entrants in arbitrary order, and the booking
+     * window is moved onto today, so [LotteryStatus.BOOKING] is what the SAME clock
+     * reading yields at the boundaries of models.md. The entrants hear the result —
+     * winners and losers both, as one [NotificationIntent.LotteryDrawn] — only once the
+     * closed record is stored; [onDone] holds true only for a stored record, and a read
+     * or save failure reports false and draws nothing.
+     *
+     * @param lottery The lottery to force-close, as it is now.
+     * @param nameOfCampsite Resolves the campsite names the notices carry; the caller
+     *     knows the lotteried campsites.
+     * @param onDone Called with whether the closed lottery was stored.
+     */
+    fun forceCloseLottery(
+        lottery: Lottery,
+        nameOfCampsite: (String) -> String = { id -> id },
+        onDone: (Boolean) -> Unit = {}
+    ) {
+        repo.getEntries(
+            lotteryId = lottery.id,
+            onSuccess = { entries ->
+                val entrants = entries.map { entry -> entry.userId }.distinct()
+                val winners = entrants.shuffled().take(lottery.numberOfWinners)
+                val losers = entrants.filterNot { it in winners }
+                val now = clock()
+                val closed = lottery.copy(
+                    drawn = true,
+                    winnerIds = winners,
+                    // a window that has not started yet is pulled to now too, so the
+                    // force-closed lottery always reads BOOKING at its own clock
+                    registrationStart = if (lottery.registrationStart > now) now
+                        else lottery.registrationStart,
+                    registrationEnd = now,
+                    bookingStart = now,
+                    bookingEnd = startOfTodayUtc() + DAY_MILLIS - 1
+                )
+                repo.save(
+                    closed,
+                    onSuccess = {
+                        notifications.notify(
+                            NotificationIntent.LotteryDrawn(
+                                lotteryId = closed.id,
+                                campsiteName =
+                                    closed.campsiteIds.map(nameOfCampsite).joinToString(", "),
+                                winnerIds = winners,
+                                loserIds = losers
+                            )
+                        )
+                        model.setStatusMessage("The lottery was closed and drawn")
+                        onDone(true)
+                    },
+                    onFailure = { error ->
+                        model.setStatusMessage("Could not force-close the lottery: " + error.message)
+                        onDone(false)
+                    }
+                )
+            },
+            onFailure = { error ->
+                model.setStatusMessage("Could not read the waiting list: " + error.message)
+                onDone(false)
+            }
+        )
+    }
+
+    /**
+     * The first millisecond of today on the UTC basis — the basis every lottery date the
+     * picker writes and the lottery views display are kept on, so a force-closed
+     * lottery's window names today in those views.
+     */
+    private fun startOfTodayUtc(): Long =
+        try {
+            val formatter = SimpleDateFormat("yyyy-MM-dd", Locale.US)
+            formatter.timeZone = TimeZone.getTimeZone("UTC")
+            val parsed = formatter.parse(DateUtils.today())
+            if (parsed != null) parsed.time else clock()
+        } catch (e: Exception) {
+            clock()
+        }
 
     /**
      * Joins the open lottery's waiting list, or leaves it if the user is already on it

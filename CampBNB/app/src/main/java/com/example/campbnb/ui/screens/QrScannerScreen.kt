@@ -3,6 +3,11 @@ package com.example.campbnb.ui.screens
 // AI-assisted (US 01.12.01, scanner screen with the camera-frame affordance): written by Qwen 3.8 Flash
 // IQ1_M.
 
+import androidx.camera.compose.CameraXViewfinder
+import androidx.camera.core.CameraSelector
+import androidx.camera.core.SurfaceRequest
+import androidx.camera.lifecycle.ProcessCameraProvider
+import androidx.camera.viewfinder.core.ImplementationMode
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -13,12 +18,15 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.rememberLifecycleOwner
 import com.example.campbnb.controller.CampsiteController
 import com.example.campbnb.models.Campsite
 import com.example.campbnb.models.QRCode
@@ -29,8 +37,11 @@ import com.example.campbnb.ui.shared.NoCameraFrame
 import com.example.campbnb.ui.theme.FieldGrey
 
 /**
- * Camera scanner (US 01.12.01). The frame source is this device's camera: tapping the
- * camera button asks for one frame, and the app reads a code out of the picture it
+ * Camera scanner (US 01.12.01). When this device's camera can be opened, the frame
+ * area shows what the camera sees, live (US 01.05.02, live scanner); what the camera
+ * sees still never comes back here as byte frames, so the code itself arrives
+ * through the typed text or the picture-file paths. Tapping the camera button asks
+ * the frame source for one frame, and the app reads a code out of the picture it
  * gets back. A device with no camera, or a camera that cannot be opened, says so and
  * the screen keeps working on what the user typed. Text a scan produced can also be
  * typed into the field, and a picture on this device can be scanned straight from its
@@ -56,6 +67,31 @@ fun QrScannerScreen(
     var typedImagePath by remember { mutableStateOf("") }
     var scannedText by remember { mutableStateOf("") }
     var notice by remember { mutableStateOf("") }
+    var cameraSurface by remember { mutableStateOf<androidx.camera.core.SurfaceRequest?>(null) }
+
+    // One camera session per screen opening (US 01.05.02, live scanner): the preview
+    // surface arrives through the surface-request callback and is shown as it comes.
+    // This device's camera path hands no byte frames, so the frame-reading flow
+    // below is untouched and still reads typed text or picture files.
+    val context = LocalContext.current
+    val lifecycleOwner = rememberLifecycleOwner()
+
+    LaunchedEffect(lifecycleOwner) {
+        try {
+            val cameraProvider = androidx.camera.lifecycle.ProcessCameraProvider.getInstance(context).get()
+            cameraProvider.unbindAll()
+            val preview = androidx.camera.core.Preview.Builder().build()
+            preview.setSurfaceProvider(CameraSurfaceKeeper { surfaceRequest -> cameraSurface = surfaceRequest })
+            cameraProvider.bindToLifecycle(
+                lifecycleOwner,
+                androidx.camera.core.CameraSelector.DEFAULT_BACK_CAMERA,
+                preview
+            )
+        } catch (failure: Exception) {
+            // A camera that cannot be opened leaves the frame area on its placeholder;
+            // the typed and file paths keep the scanner working.
+        }
+    }
 
     // Text the user typed wins over the last picture this screen read.
     val scannedCode = if (typedCode.isNotBlank()) typedCode else scannedText
@@ -66,13 +102,22 @@ fun QrScannerScreen(
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        Box(
-            modifier = Modifier.fillMaxSize().background(FieldGrey),
-        ) {
-            Text(
-                text = "Camera view: hold a CampBNB code inside the frame",
-                modifier = Modifier.padding(top = 8.dp)
+        val liveSurface = cameraSurface
+        if (liveSurface != null) {
+            CameraXViewfinder(
+                surfaceRequest = liveSurface,
+                modifier = Modifier.fillMaxSize(),
+                implementationMode = androidx.camera.viewfinder.core.ImplementationMode.EMBEDDED
             )
+        } else {
+            Box(
+                modifier = Modifier.fillMaxSize().background(FieldGrey),
+            ) {
+                Text(
+                    text = "Camera view: hold a CampBNB code inside the frame",
+                    modifier = Modifier.padding(top = 8.dp)
+                )
+            }
         }
 
         TextField(
@@ -151,5 +196,14 @@ fun QrScannerScreen(
         if (notice.isNotBlank()) {
             Text(text = notice)
         }
+    }
+}
+
+/** Hands the preview surface to the screen: the camera calls back once with the
+ * surface request, and the screen shows that surface as it arrives. */
+private class CameraSurfaceKeeper(private val onSurfaceSeen: (androidx.camera.core.SurfaceRequest) -> Unit) :
+    androidx.camera.core.Preview.SurfaceProvider {
+    override fun onSurfaceRequested(surfaceRequest: androidx.camera.core.SurfaceRequest) {
+        onSurfaceSeen(surfaceRequest)
     }
 }

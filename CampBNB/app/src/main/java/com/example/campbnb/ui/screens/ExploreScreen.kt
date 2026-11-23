@@ -28,6 +28,8 @@ import com.example.campbnb.ui.components.MenuGlyph
 import com.example.campbnb.ui.components.SearchGlyph
 import com.example.campbnb.ui.theme.FieldGrey
 import com.example.campbnb.ui.theme.SearchBarBg
+import com.example.campbnb.ui.shared.SearchMenuItemOption
+import com.example.campbnb.ui.shared.searchBurgerMenu
 
 /** What a campsite card in a horizontal row needs to show. Add an image URL later. */
 data class CampsiteCardData(
@@ -55,6 +57,9 @@ private val placeholderCards = List(6) {
  * @param onMenuClick Called when the hamburger icon is tapped.
  * @param onFilterClick Called when "Filter" is chosen from the hamburger menu. Opens the
  * Search page with its filter panel showing (US 01.01.02).
+ * @param onOpenHistory Called when "Search History" is chosen from the hamburger menu.
+ *     Opens the search view with its recent searches showing; the item itself comes
+ *     from the shared menu source so both burgers list the same items (fix 11).
  * @param onSearch Called with the query when the user submits a search.
  * @param onOpenQr Called when "QR Scanner" is chosen from the search bar's menu. Opens the
  *     camera scanner, so a search-bar interaction reaches it (US 01.12.01).
@@ -68,6 +73,7 @@ fun ExploreScreen(
     onSettingsClick: () -> Unit = {},
     onMenuClick: () -> Unit = {},
     onFilterClick: () -> Unit = {},
+    onOpenHistory: () -> Unit = {},
     onOpenQr: () -> Unit = {},
     onSearch: (String) -> Unit = {}
 ) {
@@ -109,26 +115,17 @@ fun ExploreScreen(
                     },
 
                     menuContent = {
-                        DropdownMenu(
+                        searchBurgerMenu(
                             expanded = menuOpen,
-                            onDismissRequest = { menuOpen = false }
-                        ) {
-                            DropdownMenuItem(
-                                text = { Text("Filter") },
-                                onClick = {
-                                    menuOpen = false
-                                    onFilterClick()
+                            onSelect = { option ->
+                                when (option) {
+                                    SearchMenuItemOption.FILTER -> onFilterClick()
+                                    SearchMenuItemOption.SEARCH_HISTORY -> onOpenHistory()
+                                    SearchMenuItemOption.QR_SCANNER -> onOpenQr()
                                 }
-                            )
-
-                            DropdownMenuItem(
-                                text = { Text("QR Scanner") },
-                                onClick = {
-                                    menuOpen = false
-                                    onOpenQr()
-                                }
-                            )
-                        }
+                            },
+                            onDismiss = { menuOpen = false }
+                        )
                     }
                 )
 

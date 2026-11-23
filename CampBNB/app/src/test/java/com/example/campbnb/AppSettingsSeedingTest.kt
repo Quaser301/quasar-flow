@@ -41,6 +41,41 @@ class AppSettingsSeedingTest {
     }
 
     @Test
+    fun test_the_sign_in_default_applies_only_until_a_view_is_chosen() {
+        val viewController = AppViewSettingController()
+
+        viewController.applyViewDefaultIfNoneChosen(AppView.AdminView)
+
+        assertTrue(
+            "a user who never chose a view gets the role default at sign-in",
+            viewController.viewSetting.value == AppView.AdminView
+        )
+    }
+
+    @Test
+    fun test_a_saved_or_switched_view_wins_over_the_sign_in_default() {
+        val viewController = AppViewSettingController()
+
+        viewController.applyLoadedSettings(AppSettingsModel(appViewChoice = "AdminView"))
+        // The sign-in flow would next offer its own role default; it must not clobber
+        // the saved choice (the reported failure of the admin's settings view).
+        viewController.applyViewDefaultIfNoneChosen(AppView.OwnerView)
+
+        assertTrue(
+            "the saved view survives the sign-in default",
+            viewController.viewSetting.value == AppView.AdminView
+        )
+
+        viewController.changeViewTo(AppView.EntrantView)
+        viewController.applyViewDefaultIfNoneChosen(AppView.OwnerView)
+
+        assertTrue(
+            "a view the user switched to also wins over the default",
+            viewController.viewSetting.value == AppView.EntrantView
+        )
+    }
+
+    @Test
     fun test_saved_entrant_choices_seed_the_entrant_settings() {
         val entrantSettings = EntrantSettingsController()
 

@@ -301,6 +301,11 @@ Providers:
 - `class PublicDownloadsFileDownloadWriter` — the real Android provider: writes the bytes to
   the platform public Downloads directory; any platform failure answers
   `Result.failure(the exception)`. Not exercisable from JVM unit tests (android runtime only).
+  The write is only allowed because the manifest carries the grant: `WRITE_EXTERNAL_STORAGE`
+  capped at `maxSdkVersion="28"` (legacy targets) and `android:requestRawExternalStorageAccess="true"`
+  on the `android:application` element — an element form AAPT rejects; the attribute form is the
+  world's vocabulary. The capped grant is never given on modern targets, so raw access is what
+  makes the shared Downloads path writable there.
 
 ## NotificationPreferencesService.kt — per-user notification settings
 

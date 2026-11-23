@@ -105,18 +105,71 @@ fun<T> AppDropDownMenu(
     onDismissed: () -> Unit,
     textRenderer: @Composable (T) -> Unit,
     expanded: Boolean = false,
+    centered: Boolean = false,
 ) {
 
     DropdownMenu(
+        modifier = if (centered) Modifier.fillMaxWidth() else Modifier,
         expanded = expanded,
         onDismissRequest = onDismissed
     ) {
         entries.forEach { entry ->
             DropdownMenuItem(
-                text = { textRenderer(entry) },
+                text = {
+                    if (centered) {
+                        // the opened items read as a centered column (feature: the
+                        // view-settings hamburger dropdown, 22-11-26)
+                        Box(
+                            modifier = Modifier.fillMaxWidth(),
+                            contentAlignment = Alignment.Center
+                        ) { textRenderer(entry) }
+                    } else {
+                        textRenderer(entry)
+                    }
+                },
                 onClick = {
                     onSelect(entry)
                     onDismissed()
+                }
+            )
+        }
+    }
+}
+
+/**
+ * The one source of the search bar's hamburger items: Filter, Search History, QR
+ * Scanner. Built here so the Explore page's burger and the search view's burger can
+ * never drift apart (fix 11: no two sources may touch those items) — each caller
+ * supplies only what choosing an option means in its own view, and [active] only
+ * marks options whose section is already showing in that view.
+ */
+enum class SearchMenuItemOption { FILTER, SEARCH_HISTORY, QR_SCANNER }
+
+private fun searchMenuItemLabel(option: SearchMenuItemOption): String = when (option) {
+    SearchMenuItemOption.FILTER -> "Filter"
+    SearchMenuItemOption.SEARCH_HISTORY -> "Search History"
+    SearchMenuItemOption.QR_SCANNER -> "QR Scanner"
+}
+
+@Composable
+fun searchBurgerMenu(
+    expanded: Boolean,
+    onSelect: (SearchMenuItemOption) -> Unit,
+    onDismiss: () -> Unit = {},
+    active: (SearchMenuItemOption) -> Boolean = { false },
+) {
+    DropdownMenu(
+        expanded = expanded,
+        onDismissRequest = onDismiss
+    ) {
+        SearchMenuItemOption.values().forEach { option ->
+            DropdownMenuItem(
+                text = {
+                    Text(searchMenuItemLabel(option) + if (active(option)) " ✓" else "")
+                },
+                onClick = {
+                    onSelect(option)
+                    onDismiss()
                 }
             )
         }

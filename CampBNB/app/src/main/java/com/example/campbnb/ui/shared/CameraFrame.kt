@@ -11,15 +11,17 @@ package com.example.campbnb.ui.shared
  * typed. A test provider hands back a chosen frame, the way DeviceId lets a test
  * replace its source.
  *
- * This platform, so far, can only hand back no frame: its camera controller
+ * This platform, so far, can only hand back no frame of bytes: its camera controller
  * (android.hardware.camera2.CameraManager) is a final class whose constructor is
- * package-private, so no Kotlin here can start one, and a captured frame plane
- * (android.media.Image.Plane) keeps its bytes in java.io.ByteBuffer, a buffer type
- * this platform's runtime no longer exposes, so no bytes could be copied out even
- * if a camera could be started. Both facts were read off the platform itself by
- * letting it compile. A real device provider belongs where NoCameraFrame is used
- * below; the frame reader and the screens are written so that adding one changes
- * nothing else.
+ * package-private, so no platform-only Kotlin here can start one, and a captured frame
+ * plane (android.media.Image.Plane) keeps its bytes in java.io.ByteBuffer, a buffer type
+ * this platform's runtime no longer exposes, so no bytes could be copied out even if a
+ * camera could be started. The androidx.camera path can now start the device camera and
+ * show what it sees as a live preview on the scanner screen (US 01.05.02, live
+ * scanner), but it hands back no picture bytes either, so this provider seam stays
+ * frameless on the device. Both facts were read off the platform itself by letting it
+ * compile. A real device provider belongs where NoCameraFrame is used below; the frame
+ * reader and the screens are written so that adding one changes nothing else.
  */
 
 interface CameraFrameSource {

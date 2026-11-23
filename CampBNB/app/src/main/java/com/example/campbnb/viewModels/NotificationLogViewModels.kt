@@ -55,7 +55,7 @@ sealed interface LogViewState {
  * @param profileLabel How a profile reference is drawn; the screen hands a stable resolver, so a
  *     caller that can resolve references against the saved users gets real names and one that
  *     cannot gets references labeled unknown. Resolved once per receiver while the lines are
- *     built.
+ *     built, and again when [reflowLines] is asked for after the users change.
  */
 class NotificationLogViewModel(
     private val source: NotificationRepository,
@@ -122,6 +122,18 @@ class NotificationLogViewModel(
         val read = readLogs
         if (read != null) {
             _state.value = LogViewState.Ready(read, notificationLogLinesFor(read, nowOpen, profileLabel))
+        }
+    }
+
+    /**
+     * Re-derives the lines of the entries already read, without reading them again: asked for
+     * when saved users arrive or change after the log opened, so receivers show the names they
+     * stand for. Before any successful read there is nothing to draw, so nothing happens.
+     */
+    fun reflowLines() {
+        val read = readLogs
+        if (read != null) {
+            showNotificationLog(read)
         }
     }
 

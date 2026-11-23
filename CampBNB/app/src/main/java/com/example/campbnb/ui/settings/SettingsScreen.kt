@@ -206,8 +206,9 @@ private fun ViewSwitchMenu(
         },
         {display.toggleGroup(SettingsGroupId.APP_VIEW_SWITCH.name )},
         textRenderer,
-        expanded.value
-
+        expanded.value,
+        // the view-settings switch's dropdown reads centered (feature 3)
+        centered = true
     )
 }
 

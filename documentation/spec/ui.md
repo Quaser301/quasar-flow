@@ -65,7 +65,10 @@ JVM-reachable: construct `NoCameraFrame()` and assert the callback receives null
 in-source note records why a real provider cannot exist on this platform (camera2
 `CameraManager` is a final class with a package-private constructor; frame planes keep
 bytes in a `java.io.ByteBuffer` type this runtime no longer exposes) — matches the
-night-run finding; do not try to build a camera provider in a test.
+night-run finding; do not try to build a camera provider in a test. The androidx.camera
+path (US 01.05.02, live scanner) CAN now start the device camera and the scanner screen
+shows its live preview, but that path hands back no picture bytes either, so this seam
+stays frameless on the device.
 
 `ui.shared/DeviceId.kt`: `object DeviceId { fun get(context, src: () -> String = { …ANDROID_ID… }): String = src() }` —
 returns whatever `src()` returns (the real source is `Settings.Secure.getString(context.contentResolver, ANDROID_ID)`).
@@ -84,11 +87,20 @@ the TODO block in this file is a developer note (future rating-section placement
   the view changed to a bad one" mechanism.
 - `BarWithBackChevronAndHeaderCentered(returnFunc, headerTitle)`: back chevron (clickable→returnFunc)
   + centered header text + invisible recentering chevron.
-- `fun<T> AppDropDownMenu(entries, onSelect, onDismissed, textRenderer, expanded = false)`:
-  each entry's click = `onSelect(entry)` THEN `onDismissed()`.
+- `fun<T> AppDropDownMenu(entries, onSelect, onDismissed, textRenderer, expanded = false,
+  centered = false)`: each entry's click = `onSelect(entry)` THEN `onDismissed()`; `centered =
+  true` renders the opened items as centered full-width rows (its only caller today is the
+  app-view switch, which passes true — feature 3).
 - `fun<T> AppSwitchMenu(entries, selected, onSelect: (T, Boolean) -> Unit, textRenderer)`: one
   Switch row per entry; `onSelect(entry, switchedValue)` on toggle; row enabled iff
   `selected.contains(entry)`.
+- `enum class SearchMenuItemOption { FILTER, SEARCH_HISTORY, QR_SCANNER }` +
+  `searchBurgerMenu(expanded, onSelect, onDismiss = {}, active = { _ -> false })`: THE one
+  source of the search-bar hamburger items — labels exact (`"Filter"`, `"Search History"`,
+  `"QR Scanner"`), each item's click = `onSelect(option)` THEN `onDismiss()`. Explore's bar
+  and the search view's bar both call this, so the two burgers can never list different
+  items (fix 11); a caller supplies only what choosing means in its view, and
+  `active(option)` appends `" ✓"` to options whose section is already showing.
 
 ### ui.screens — home-bar vocabulary (HomeScreen.kt)
 
@@ -107,7 +119,10 @@ fun tabsFor(role: UserRole): List<HomeTab>
 Explore is always FIRST. `HomeScreen` itself: tabs are RE-DERIVED from the live
 `AppView` (`AdminView→tabsFor(ADMIN)`, `OwnerView→OWNER`, `EntrantView→CAMPER`) via a
 `LaunchedEffect` on the flow — the route's `role` argument only seeds the initial list;
-Back (BackHandler) resets to tab 0 (Explore); `initialTab` is clamped to the role's tabs (doc).
+Back (BackHandler) resets to tab 0 (Explore); the selected tab SEEDS from `initialTab`
+(clamped to the role's tabs): a plain `remember` resets exactly on a re-mount, so `goHome`
+naming a tab lands on that tab, while in-place tab switches keep the value between
+re-renders; read sites clamp the index to the live (possibly shorter) tab list.
 Composable half: not a unit target. Note `REPORTS`/`FLAGGED`/`PROFILE` destinations reach
 the graph's `else →` branch (`app.md`) — placeholder content today; the enum values exist
 because the bar vocabulary is settled ahead of those screens.
@@ -119,7 +134,10 @@ fields used at every call site: `id, name, location, maxOccupancy` (+ optional
 unasserted (not read off source here). `ui.screens/ReservationScreen.kt` is the
 reservations renderer (params per app.md). `ui.screens/DeviceSignInScreen.kt`, `QrScannerScreen.kt`,
 `QrOldCodeNoticeScreen.kt` (`back: () -> Unit = {}` fires on its Back button), `SetUpScreens.kt`
-(StartScreen/SignUpScreen/RoleSelectScreen) — Composables, contract = their call sites in app.md. `ui.screens/messagesScreen.kt` (package **ui.inbox**): private
+(StartScreen/SignUpScreen/RoleSelectScreen) — Composables, contract = their call sites in app.md.
+`QrScannerScreen` also opens the device camera via androidx.camera when the screen opens and
+draws its live preview once the preview surface arrives (US 01.05.02, live scanner); screen-internal
+wiring only — no parameter or call-site change, and the frame-reading seam is untouched. `ui.screens/messagesScreen.kt` (package **ui.inbox**): private
 drawing helpers `ConversationList/ConversationRow/ChatThread/MessageBubble` +
 `private relativeTime(seconds: Long?): String = seconds?.let { DateUtils.getRelativeTimeSpanString(seconds*1000L, System.currentTimeMillis(), MINUTE_IN_MILLIS).toString() } ?: "Just now"`
 — null seconds ⇒ `"Just now"`; file-PRIVATE (and DUPLICATED identically in
@@ -133,6 +151,10 @@ alone; else `"<start> to <end>"`. `SearchFilters`/`SearchScreen` are public
 (params per app.md call site; the filter fields `startDate/endDate` are STRINGS in
 `yyyy-MM-dd` — the same wire format as `fromPickerMillis` and models' date fields).
 `dateLabelFor` itself cannot be called from a test package.
+The Search view's burger is the shared `searchBurgerMenu` (above, ui.shared): choosing an
+item toggles that section (with its `✓` decoration for what is showing) or fires
+`onQrClick`; `initialShowHistory` — one more parameter per app.md — opens the "Most Recent"
+section straight away, which is how the Explore burger's Search History item lands this view.
 
 ### ui.settings (file `ui/settings/SettingsScreen.kt`)
 
@@ -150,7 +172,8 @@ ADMIN while viewing EntrantView → `[APP_VIEW_SWITCH, ADMIN_SETTINGS, ENTRANT_S
 OWNER → `[OWNER_SETTINGS]`; CAMPER → `[ENTRANT_SETTINGS]`.
 `SettingsScreen(back, role, viewSettings: AppViewSettingController, entrantSettings = EntrantSettingsController(), ownerSettings = OwnerSettingsController(), adminSettingsContent = { AdminSettingsPlaceholder() }, notificationPreferences: NotificationPreferencesService = NoNotificationPreferencesService(), appSettings: AppSettingsService = NoAppSettingsService(), userIdForSettings: String = "")`
 mounts one dropdown per group; expansion state lives in a `remember`ed
-`SettingsDisplayController` (viewModels.md). Its doc warns: controllers should be kept by
+`SettingsDisplayController` (viewModels.md). The app-view switch group's dropdown renders
+its items as centered rows — the shared `AppDropDownMenu` with `centered = true` (feature 3). Its doc warns: controllers should be kept by
 the CALLER (defaults are standalone-use only) — app.md shows the shared instances. The
 app view switch group's selection does TWO things per chosen view: `viewSettings.changeViewTo(view)`
 AND `appSettings.setAppViewChoice(userIdForSettings, view)` (data.md owns the record and
@@ -285,13 +308,19 @@ The four lottery ACTIVITY classes (`LotteryEditActivity`, `LotteryMonitorActivit
 render methods called from app.md (recorded there) — `selectedLottery` is carried across
 screens by the graph's shared state, not by the activities (app.md). `LotteryEditActivity`
 additionally receives a `UserRepository()` for invitation-candidate checks (US 02.04.08).
-Their drawing bodies are not unit targets.
+Their drawing bodies are not unit targets. Truth kept, though: date-range rows display the
+picker's UTC-midnight millis on an explicit UTC basis — a device-local formatter showed the
+day before on both endpoints west of UTC (fix 13) — and edit renders a creator-only
+"Force Close" control delegating to controller.md's `forceCloseLottery` (feature 1).
 
 ### ui.notification — the log screen
 
 `ui/notification/NotificationLogScreen.kt`: Composable taking `title`,
 `notificationSource: NotificationRepository`, `returnFunc` (optional), `profileText`
-(optional resolver — app.md passes `profileLabelOf(...)`). Reads the log through the
+(optional resolver — app.md passes `profileLabelOf(...)`), `savedUsers` (optional `UserModel`
+— app.md passes the real one for the debug view only, and the view model's watch per viewModels.md
+makes late-loaded profiles re-resolve receiver lines; the default is a private model that is never
+notified). Reads the log through the
 data.md `NotificationCommand.Read` contract and draws the group/line output per models.md's
 `notificationLogGroupsFor`/`notificationLogLinesFor`. Nothing testable beyond the lower
 packages' contracts; the debug-log title strings (`"Notification Debugging"`, `"Sent

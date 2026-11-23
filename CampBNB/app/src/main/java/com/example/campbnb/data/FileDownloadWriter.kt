@@ -56,8 +56,10 @@ class InMemoryFileDownloadWriter : FileDownloadWriter {
 /**
  * The real download provider: a named file with its bytes reaches the user's own
  * Downloads folder. The write is asked for through the platform's public Downloads
- * location, which is where a legacy path is allowed up to API 28 and which the
- * manifest declares with WRITE_EXTERNAL_STORAGE capped at that API; a request
+ * location, which a legacy grant covers up to API 28, and beyond which the
+ * manifest asks raw external access for — that request is what keeps the shared
+ * Downloads path writable on modern targets, where the capped grant is never
+ * given; a request
  * arriving here already runs off the screen's draw path, so the write answers the
  * feature through its continuation rather than blocking a frame. From API 29 the
  * file would instead be inserted into the media library and written through the

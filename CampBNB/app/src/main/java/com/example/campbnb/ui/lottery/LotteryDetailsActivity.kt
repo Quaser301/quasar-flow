@@ -35,6 +35,7 @@ import com.example.campbnb.viewModels.AppViewSetting
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import java.util.TimeZone
 
 /**
  * 05-11-26: Prompted gemini-3.5 to create the skeleton ui. Requested A display of the selected
@@ -81,6 +82,10 @@ class LotteryDetailsActivity(
         fun formatDateRange(start: Long, end: Long): String {
             if (start == 0L || end == 0L) return "Not set"
             val formatter = SimpleDateFormat("MMM dd, yyyy", Locale.getDefault())
+            // The picker's boundaries are UTC-midnight millis (DateRangePickerModal);
+            // formatting them in the device timezone would show the day before on
+            // devices west of UTC, so the calendar day is kept on the UTC basis.
+            formatter.timeZone = TimeZone.getTimeZone("UTC")
             return "${formatter.format(Date(start))} - ${formatter.format(Date(end))}"
         }
 

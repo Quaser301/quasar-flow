@@ -67,7 +67,8 @@ sealed interface Screen {
     data class Search(
         val role: UserRole,
         val query: String = "",
-        val openFilter: Boolean = false
+        val openFilter: Boolean = false,
+        val openHistory: Boolean = false
     ) : Screen
 
     // the screen that scans a campsite QR code and opens its campsite (US 01.12.01).

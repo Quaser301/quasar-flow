@@ -26,6 +26,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.campbnb.ui.components.EyeGlyph
 import com.example.campbnb.ui.components.GradientButton
+import com.example.campbnb.ui.components.GradientBarButton
 import com.example.campbnb.ui.components.StarGlyph
 import com.example.campbnb.models.PolicyReason
 import com.example.campbnb.models.policyReasonLabel
@@ -64,19 +65,23 @@ fun placeholderDetails(id: String) = CampsiteDetails(
 /**
  * Details page for one campsite, opened from an image in Explore or Search.
  *
- * The layout is the same for every role. Only the floating button differs:
- *  - Camper: "Enter Lottery".
- *  - Owner: no button.
- *  - Admin: "Delete Site" and "Remove Tag", both behind picking an app-policy reason first;
- *    deleting also confirms through a dialog.
+ * The layout is the same for every role. Only the action area at the bottom differs, and
+ * each role's buttons are gathered behind one hamburger bar (feature 2: less clutter):
+ *  - Camper: a "Lottery" bar opens a menu offering the join or leave action the app enables.
+ *  - Owner: no action area.
+ *  - Admin: a "Site Administration" bar opens one menu: the app-policy reasons are picked
+ *    from it first, and only once a reason is picked do "Delete Site" and "Remove Tag:
+ *    <tag>" appear inside the same menu — an action without a named reason is never
+ *    offered; deleting also confirms through a dialog (US 02.10.02, US 02.10.01, and
+ *    fix 10: the actions used to sit behind menus nothing ever opened).
  *
  * The role's bottom bar stays visible, with Explore highlighted.
  *
- * @param role Decides the bottom bar and the floating button.
+ * @param role Decides the bottom bar and which role's action hamburger is shown.
  * @param campsite What to show.
  * @param onBack Called when the back circle is tapped.
  * @param onTabSelected Called with the tab index when a bottom bar circle is tapped.
- * @param onEnterLottery Called when a camper taps "Enter Lottery".
+ * @param onEnterLottery Called when a camper chooses the lottery action from their menu.
  * @param onDeleteSite Called with the picked app-policy reason after an admin confirms
  *     deleting the site (US 02.10.02).
  * @param onRemoveTag Called with a tag and the app-policy reason when an admin removes one
@@ -105,9 +110,10 @@ fun CampsiteDetailsScreen(
     // The admin's policy actions (US 02.10.02, US 02.10.01): no action is offered until a
     // policy reason has been picked, so the reason always accompanies the action.
     var adminReasonPicked by remember { mutableStateOf<PolicyReason?>(null) }
-    var adminTagPicked by remember { mutableStateOf<String?>(null) }
-    var reasonMenuOpen by remember { mutableStateOf(false) }
-    var tagMenuOpen by remember { mutableStateOf(false) }
+    // One menu per role (feature 2); the menus used to be split and never opened
+    // (fix 10: nothing ever set those flags true, so the actions stayed disabled).
+    var lotteryMenuOpen by remember { mutableStateOf(false) }
+    var adminMenuOpen by remember { mutableStateOf(false) }
 
     val hasFloatingButton = role != UserRole.OWNER
 
@@ -201,86 +207,75 @@ fun CampsiteDetailsScreen(
                 }
             }
 
-            // Floating button, above the bottom bar
+            // The role's action area, above the bottom bar: one hamburger that gathers
+            // that role's buttons (feature 2).
             when (role) {
-                UserRole.CAMPER -> {
-                var buttonBrush: Brush = ButtonGradient
-                var buttonTag = "join_lottery"
-                if (lotteryButtonIsLeave) {
-                    buttonBrush = DeleteGradient
-                    buttonTag = "leave_lottery"
+                UserRole.CAMPER -> Column(
+                    Modifier.align(Alignment.BottomCenter).padding(horizontal = 24.dp, vertical = 12.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    GradientBarButton(
+                        text = "Lottery",
+                        onClick = { lotteryMenuOpen = true }
+                    )
+                    DropdownMenu(
+                        expanded = lotteryMenuOpen,
+                        onDismissRequest = { lotteryMenuOpen = false }
+                    ) {
+                        if (lotteryButtonEnabled) {
+                            DropdownMenuItem(
+                                text = { Text(lotteryButtonText) },
+                                onClick = {
+                                    lotteryMenuOpen = false
+                                    onEnterLottery()
+                                }
+                            )
+                        }
+                    }
                 }
-                GradientButton(
-                    text = lotteryButtonText,
-                    onClick = onEnterLottery,
-                    enabled = lotteryButtonEnabled,
-                    brush = buttonBrush,
-                    height = 52.dp,
-                    modifier = Modifier
-                        .align(Alignment.BottomCenter)
-                        .padding(horizontal = 24.dp, vertical = 12.dp)
-                        .testTag(buttonTag)
-                )
-            }
                 UserRole.ADMIN -> Column(
                     Modifier.align(Alignment.BottomCenter).padding(horizontal = 24.dp, vertical = 12.dp),
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    // The admin picks the app-policy reason first: an action without a named
-                    // reason is never offered, and the reason is what the site's owner is
-                    // told alongside the action.
+                    // One admin hamburger: the policy reason is picked inside it first, and
+                    // only once a reason is picked do the actions appear, in the same open
+                    // menu — an action without a named reason is never offered (US 02.10.02,
+                    // US 02.10.01).
+                    GradientBarButton(
+                        text = "Site Administration",
+                        onClick = { adminMenuOpen = true }
+                    )
                     DropdownMenu(
-                        expanded = reasonMenuOpen,
-                        onDismissRequest = { reasonMenuOpen = false }
+                        expanded = adminMenuOpen,
+                        onDismissRequest = { adminMenuOpen = false }
                     ) {
                         PolicyReason.values().forEach { reason ->
                             DropdownMenuItem(
                                 text = { Text(policyReasonLabel(reason)) },
-                                onClick = {
-                                    adminReasonPicked = reason
-                                    reasonMenuOpen = false
-                                }
+                                onClick = { adminReasonPicked = reason }
                             )
                         }
-                    }
 
-                    GradientButton(
-                        text = "Delete Site",
-                        onClick = { confirmDelete = true },
-                        enabled = adminReasonPicked != null,
-                        brush = DeleteGradient,
-                        height = 52.dp
-                    )
-
-                    DropdownMenu(
-                        expanded = tagMenuOpen,
-                        onDismissRequest = { tagMenuOpen = false }
-                    ) {
-                        campsite.tags.forEach { tag ->
+                        val chosenReason = adminReasonPicked
+                        if (chosenReason != null) {
                             DropdownMenuItem(
-                                text = { Text(tag) },
+                                text = { Text("Delete Site") },
                                 onClick = {
-                                    adminTagPicked = tag
-                                    tagMenuOpen = false
+                                    adminMenuOpen = false
+                                    confirmDelete = true
                                 }
                             )
+                            campsite.tags.forEach { tag ->
+                                DropdownMenuItem(
+                                    text = { Text("Remove Tag: $tag") },
+                                    onClick = {
+                                        adminMenuOpen = false
+                                        onRemoveTag(tag, chosenReason)
+                                    }
+                                )
+                            }
                         }
                     }
-
-                    GradientButton(
-                        text = "Remove Tag",
-                        onClick = {
-                            val tag = adminTagPicked
-                            val reason = adminReasonPicked
-                            if (tag != null && reason != null) {
-                                adminTagPicked = null
-                                onRemoveTag(tag, reason)
-                            }
-                        },
-                        enabled = adminTagPicked != null && adminReasonPicked != null,
-                        brush = DeleteGradient,
-                        height = 52.dp
-                    )
                 }
                 UserRole.OWNER -> Unit
             }

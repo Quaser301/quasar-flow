@@ -51,6 +51,7 @@ import com.google.firebase.auth.FirebaseAuth
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import java.util.TimeZone
 
 /**
  * Activity for editing/adding a lottery.
@@ -67,6 +68,8 @@ import java.util.Locale
  * 20-11-26: Added the invitation picker for US 02.04.08: a name search over the other
  * owners, any number of them checked to receive invitations, and a joining-owner save
  * that keeps other owners' campsites instead of rebuilding the list from my own.
+ * 23-11-26: Prompted Qwen 3.8 Flash Next Coder IQ1_M for the creator-only Force Close
+ * button, which asks the controller to force-close and draw the selected lottery now.
  *
  * @property returnHome Callback function to navigate back to the home screen.
  * @property navigateBackwards Callback function to navigate backwards in the navigation stack.
@@ -228,6 +231,10 @@ class LotteryEditActivity(
         fun formatDateRange(start: Long?, end: Long?): String {
             if (start == null || end == null) return ""
             val formatter = SimpleDateFormat("MMM dd, yyyy", Locale.getDefault())
+            // The picker's boundaries are UTC-midnight millis (DateRangePickerModal);
+            // formatting them in the device timezone would show the day before on
+            // devices west of UTC, so the calendar day is kept on the UTC basis.
+            formatter.timeZone = TimeZone.getTimeZone("UTC")
             return "${formatter.format(Date(start))} - ${formatter.format(Date(end))}"
         }
 
@@ -524,6 +531,27 @@ class LotteryEditActivity(
                     modifier = Modifier.weight(1f)
                 ) {
                     Text(if (isEditMode) "Update" else "Save")
+                }
+            }
+
+            if (isEditMode && !isJoiningOwnerEdit && initialLottery != null) {
+                // feature 1: only the lottery's own admin — the creator — may force it to
+                // close and draw now; the booking window moves onto today so the whole
+                // lifecycle can be tested
+                val closingLottery = initialLottery
+                Button(
+                    onClick = {
+                        controller.forceCloseLottery(
+                            lottery = closingLottery,
+                            nameOfCampsite = { id ->
+                                ownerCampsitesList.firstOrNull { it.id == id }?.campName
+                                    ?: id
+                            }
+                        )
+                    },
+                    modifier = Modifier.fillMaxWidth().padding(top = 12.dp)
+                ) {
+                    Text("Force Close")
                 }
             }
         }

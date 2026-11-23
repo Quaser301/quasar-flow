@@ -129,7 +129,11 @@ fun CampBnbApp(
                         Role.OWNER in privileges -> Role.OWNER
                         else -> Role.ENTRANT
                     }
-                    deps.appViewSettings.changeViewTo(viewFor(role))
+                    // The role-derived view is only a default: a user who saved a view
+                    // choice in Settings keeps it across lifetimes, so signing back in
+                    // must not overwrite it (the reported failure of saving the admin's
+                    // settings view).
+                    deps.appViewSettings.applyViewDefaultIfNoneChosen(viewFor(role))
                     nav.navigate(Screen.Home(role = toUserRole(role))) {
                         popUpTo(Screen.Start) { inclusive = true }
                     }
@@ -323,11 +327,11 @@ fun CampBnbApp(
                         }
 
                         HomeDestination.RESERVATIONS -> {
-                            ReservationsTab(
-                                onOpenReservations = {
-                                    nav.navigate(Screen.Reservations)
-                                }
-                            )
+                            // The reservations view is hosted under the tab directly, so
+                            // pressing the tab lands in the view itself: no intermediate
+                            // screen asking for a second button. Back from the tab behaves
+                            // like back from any other tab: the Explore tab comes back up.
+                            ReservationsPanel(deps) { nav.goHome(role) }
                         }
 
                         HomeDestination.ADMIN_PROFILE_VIEW -> {
@@ -350,10 +354,13 @@ fun CampBnbApp(
                                 returnFunc = { nav.goHome(role) },
                                 // The debug log holds profile references, so it names the
                                 // users they stand for: the saved users are looked up once
-                                // above and every reference resolves against them.
+                                // above and every reference resolves against them. The log
+                                // watches the model, so the names show even though the view
+                                // opens before the users arrive.
                                 profileText = { userId ->
                                     profileLabelOf(userId, deps.userModel.allUsers)
-                                }
+                                },
+                                savedUsers = deps.userModel
                             )
                         }
 
@@ -376,26 +383,36 @@ fun CampBnbApp(
                         newSites = campsiteCards,
                         onSettingsClick = {
                             // Settings is pushed OVER the live Home/Explore frame rather than
-                            // re-navigated to: popping with exclusive Home keeps the explored
-                            // subtree on the stack, so the matching navigateUp back affordance
-                            // pops Settings and returns to the SAME live view, selection and
-                            // cards intact (plain navigate would unmount Home and redraw
-                            // Explore through the loading placeholder).
+                            // re-navigated to: an exclusive Home pop keeps the explored subtree
+                            // on the stack, so the matching navigateUp back affordance pops
+                            // Settings and returns to the SAME live view, selection and cards
+                            // intact (plain navigate would unmount Home and redraw Explore
+                            // through the loading placeholder). launchSingleTop stays out
+                            // because it would launch Settings as the single top screen,
+                            // leaving no Home frame under it for back to pop.
                             nav.navigate(Screen.Settings(role)) {
                                 popUpTo<Screen.Home> { inclusive = false }
-                                launchSingleTop = true
                             }
                         },
                         onCampsiteClick = { campsite ->
+                            // Same live-frame push as the settings entry: exclusive Home
+                            // popUpTo keeps Explore mounted under the details screen, so
+                            // backing from the details view returns to the same Explore
+                            // frame with its selection and cards intact.
                             nav.navigate(
                                 Screen.CampsiteDetailsScreen(role, campsite.id)
-                            )
+                            ) {
+                                popUpTo<Screen.Home> { inclusive = false }
+                            }
                         },
                         onSearch = { text ->
                             nav.navigate(Screen.Search(role, text))
                         },
                         onFilterClick = {
                             nav.navigate(Screen.Search(role, "", true))
+                        },
+                        onOpenHistory = {
+                            nav.navigate(Screen.Search(role, "", false, true))
                         },
                         onOpenQr = {
                             nav.navigate(Screen.QrScanner(role))
@@ -509,6 +526,7 @@ fun CampBnbApp(
             SearchScreen(
                 initialQuery = route.query,
                 initialShowFilter = route.openFilter,
+                initialShowHistory = route.openHistory,
                 results = toCardList(searchModel.visibleCampsites, searchModel),
                 onSearch = { query, filters ->
                     searchController.search(query, filters)
@@ -942,11 +960,12 @@ fun CampBnbApp(
         // names the Home frame, not this route's own: a string route left on the stack
         // would otherwise keep this invisible frame under the reservations screen, and the
         // first back press would land on it (the reported white screen) instead of Home.
+        // No launchSingleTop either: that would launch the reservations screen as the
+        // single top, leaving nothing under back at all.
         composable(NotificationRoutes.RESERVATIONS) {
             LaunchedEffect(Unit) {
                 nav.navigate(Screen.Reservations) {
                     popUpTo<Screen.Home> { inclusive = false }
-                    launchSingleTop = true
                 }
             }
         }
@@ -991,7 +1010,6 @@ fun CampBnbApp(
                     }
                     nav.navigate(Screen.CampsiteDetailsScreen(toUserRole(role), campsiteId)) {
                         popUpTo<Screen.Home> { inclusive = false }
-                        launchSingleTop = true
                     }
                 }
             }
@@ -1265,12 +1283,16 @@ private fun ReservationsPanel(deps: Dependencies, goBack: () -> Unit) {
         mutableStateOf<List<com.example.campbnb.models.ReservationModel>>(emptyList())
     }
 
-    // Load the campsites this viewer browses: the owner's own sites, or for anyone else
+    // Load the campsites this viewer browses: the sites of a user who owns any (by
+    // holding sites, not by carrying an owner-role flag), or for anyone else
     // the sites that carry their own reservations.
     LaunchedEffect(deps.deviceID) {
         deps.campsiteRepository.getAll(
             onSuccess = { allCampsites ->
-                if (deps.currentUserIsOwner) {
+                // A real owner is recognised by owning sites: their saved profile does not
+                // have to carry the OWNER role flag, and gating on the flag left the
+                // top screen of a plain owner empty (the reported regression).
+                if (allCampsites.any { it.ownerId == deps.deviceID }) {
                     val browsedCampsites = allCampsites.filter {
                         it.ownerId == deps.deviceID
                     }
@@ -1318,7 +1340,9 @@ private fun ReservationsPanel(deps: Dependencies, goBack: () -> Unit) {
     // own sites sees every reservation at a site; anyone else only their own.
     LaunchedEffect(selectedCampsiteId, selectedFilter) {
         val campsiteId = selectedCampsiteId
-        val viewerIsOwner = deps.currentUserIsOwner
+        // Match the browse-mode decision above: the browsing sites of an owner are all
+        // their own, the browsing sites of anyone else are not.
+        val viewerIsOwner = campsites.any { it.ownerId == deps.deviceID }
 
         if (campsiteId == null) {
             reservations = emptyList()
@@ -1395,16 +1419,3 @@ private fun ReservationsPanel(deps: Dependencies, goBack: () -> Unit) {
     )
 }
 
-/** Camper's Reservations tab: one link that opens the reservations view. */
-@Composable
-private fun ReservationsTab(onOpenReservations: () -> Unit) {
-    Column(
-        Modifier.fillMaxSize().padding(24.dp),
-        verticalArrangement = Arrangement.Center,
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        Text("Reservations", fontSize = 22.sp)
-        Spacer(Modifier.height(16.dp))
-        GradientButton("Open Reservations", onOpenReservations)
-    }
-}

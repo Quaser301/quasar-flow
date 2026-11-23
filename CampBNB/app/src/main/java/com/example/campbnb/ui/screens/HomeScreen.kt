@@ -9,7 +9,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -101,7 +100,13 @@ fun HomeScreen(
         }
     }
 
-    var selected by rememberSaveable { mutableIntStateOf(0) }
+    // The tab to open first is the route's: goHome re-mounts Home naming the tab it
+    // wants, so the seed honours initialTab (clamped to the role's tabs). A plain
+    // remember resets on exactly such a remount, while the in-place tab switches below
+    // keep the value between re-renders.
+    var selected by remember {
+        mutableIntStateOf(initialTab.coerceIn(0, (tabsFor(role).size - 1).coerceAtLeast(0)))
+    }
 
     BackHandler(enabled = selected != 0) { selected = 0 }
 
@@ -110,7 +115,9 @@ fun HomeScreen(
         bottomBar = { RoleBottomBar(tabs, selected, onSelect = { selected = it }) }
     ) { padding ->
         Box(Modifier.padding(padding).fillMaxSize()) {
-            val destination = tabs[selected].destination
+            // The live tab list follows the current view and can be shorter than the
+            // one this screen was seeded with, so the index is clamped before use.
+            val destination = tabs[selected.coerceIn(0, tabs.size - 1)].destination
             if (destination == HomeDestination.EXPLORE) exploreContent()
             else destinationContent(destination)
         }
