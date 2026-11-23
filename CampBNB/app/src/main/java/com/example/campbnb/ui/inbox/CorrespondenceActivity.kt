@@ -57,12 +57,19 @@ object CorrespondenceTabs {
  */
 @Composable
 fun CorrespondenceScreen(
+<<<<<<< HEAD
     navController: NavController,
     tabLabels: List<String>,
     openTab: String,
     notificationsTabContent: @Composable () -> Unit,
     receivedTabContent: @Composable () -> Unit = {},
     messagesTabContent: @Composable () -> Unit,
+=======
+    initialTab: Int,
+    notificationsContent: @Composable () -> Unit,
+    messagesContent: @Composable () -> Unit,
+    onNavBack: () -> Unit,
+>>>>>>> 898bfa2 (Admitting defeat, and letting Qwen finish. Need sleep.)
 ) {
     var selectedTab by rememberSaveable {
         mutableIntStateOf(tabLabels.indexOf(openTab).coerceAtLeast(0))
@@ -73,7 +80,7 @@ fun CorrespondenceScreen(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
         ) {
-            TextButton(onClick = { navController.popBackStack() }) {
+            TextButton(onClick = onNavBack) {
                 Text("Back")
             }
             Text(

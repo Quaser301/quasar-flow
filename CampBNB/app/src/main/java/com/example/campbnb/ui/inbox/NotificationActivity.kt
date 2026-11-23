@@ -40,7 +40,7 @@ import com.example.campbnb.notifications.NotificationRoutes
 @Composable
 fun NotificationInboxScreen(
     viewModel: NotificationViewModel,
-    navController: NavController
+    navToNotification: (Notification) -> Unit
 ) {
     val state by viewModel.state.collectAsState()
 
@@ -98,9 +98,7 @@ fun NotificationInboxScreen(
                         ) { notification ->
                             NotificationRow(notification = notification) {
                                 viewModel.open(notification)
-                                navController.navigate(
-                                    NotificationRoutes.routeFor(notification)
-                                )
+                                navToNotification(notification)
                             }
                             HorizontalDivider()
                         }

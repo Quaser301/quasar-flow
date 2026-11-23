@@ -28,7 +28,7 @@ sealed interface Screen {
 
     // the screen where a Campsite Owner registers a new campsite.
     @Serializable
-    data object CampsiteEditActivity : Screen
+    data object CampsiteRegistration : Screen
 
     @Serializable
     data class EditCampsite(val campsiteId: String): Screen
@@ -36,17 +36,17 @@ sealed interface Screen {
     // the screen where a Campsite Owner edits their lottery settings.
     // the screen where a Campsite Owner edits/creates their lotteries.
     @Serializable
-    data object LotteryEditActivity: Screen
+    data object LotteryEdit: Screen
 
     // the screen where a Campsite Owner views their lotteries.
     @Serializable
-    data object LotteryMonitorActivity: Screen
+    data object LotteryMonitor: Screen
 
     @Serializable
-    data object LotteryDetailsActivity: Screen
+    data object LotteryDetails: Screen
 
     @Serializable
-    data object LotteryWaitlistActivity: Screen
+    data object LotteryWaitlist: Screen
 
     @Serializable
     data object Start: Screen
@@ -80,15 +80,43 @@ sealed interface Screen {
     data object Reservations : Screen
 
     @Serializable
-    data class CampsiteDetail(val role: UserRole, val campsiteId: String) : Screen
+    data class CampsiteDetails(val role: UserRole, val campsiteId: String) : Screen
 
     // the screen where a Campsite Owner views their campsites.
     @Serializable
-    data class CampsiteMonitorActivity(val role: UserRole) : Screen
-
-
+    data class CampsiteMonitor(val role: UserRole) : Screen
 
     // one campsite's details page.
     @Serializable
     data class CampsiteDetailsScreen(val role: UserRole, val campsiteId: String): Screen
+
+    @Serializable
+    data object Messages : Screen
+
+    @Serializable
+    data object Explore : Screen
+
+    @Serializable
+    data object Bookings : Screen
+
+    @Serializable
+    data object Inbox : Screen
+
+    @Serializable
+    data object Profile : Screen
+
+    @Serializable
+    data object MyCampsites : Screen
+
+    @Serializable
+    data object Reports : Screen
+
+    @Serializable
+    data object Flagged : Screen
+
+    @Serializable
+    data object AdminProfileView : Screen
+
+    @Serializable
+    data object AdminNotificationView : Screen
 }
