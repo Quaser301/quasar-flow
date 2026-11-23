@@ -84,6 +84,8 @@ import com.example.campbnb.viewModels.AppView
 import com.example.campbnb.viewModels.MessageViewModel
 import com.example.campbnb.viewModels.simpleViewModelFactory
 import kotlin.collections.emptyList
+import com.example.campbnb.controller.AdminController
+import com.example.campbnb.ui.shared.toRole
 
 @Composable
 fun CampBnbApp(
@@ -138,25 +140,30 @@ fun CampBnbApp(
                         name = username,
                         email = email,
                         phone = phoneNumber,
-                        roles = listOf(Role.ADMIN)
+                        roles = emptyList()
                     )
+                    deps.userModel.setCurrentUser(newUser)
                     Database.Users.writeEngine().save(newUser, { /* TODO: handle the complete */})
                     nav.navigate(Screen.Role) }
             )
         }
 
         // Role Selection
-        composable<Screen.Role> { // TODO: have admin accounts only be made by other admins
+        composable<Screen.Role> {
             RoleSelectScreen(onRoleSelected = { role ->
-                val targetView = when (role) {
-                    UserRole.ADMIN -> AppView.AdminView
-                    UserRole.OWNER -> AppView.OwnerView
-                    UserRole.CAMPER -> AppView.EntrantView
-                }
-                deps.appViewSettings.changeViewTo(targetView)
-                nav.navigate(Screen.Home(role = role)) {
-                    popUpTo(Screen.Start) {
-                        inclusive = true
+                deps.userController.chooseRole(toRole(role)) { saved ->
+                    if (saved) {
+                        val targetView = when (role) {
+                            UserRole.ADMIN -> AppView.AdminView
+                            UserRole.OWNER -> AppView.OwnerView
+                            UserRole.CAMPER -> AppView.EntrantView
+                        }
+                        deps.appViewSettings.changeViewTo(targetView)
+                        nav.navigate(Screen.Home(role = role)) {
+                            popUpTo(Screen.Start) {
+                                inclusive = true
+                            }
+                        }
                     }
                 }
             })
@@ -307,9 +314,19 @@ fun CampBnbApp(
                             LaunchedEffect(Unit) {
                                 deps.userController.loadAllUsers()
                             }
+                            val adminController = remember {
+                                AdminController(
+                                    deps.userController,
+                                    deps.userRepository,
+                                    deps.campsiteRepository,
+                                    LotteryRepository(),
+                                    deps.notificationController
+                                )
+                            }
                             AdminProfilesScreen(
                                 { nav.goHome(role) },
-                                deps.userModel
+                                deps.userModel,
+                                adminController
                             )
                         }
 

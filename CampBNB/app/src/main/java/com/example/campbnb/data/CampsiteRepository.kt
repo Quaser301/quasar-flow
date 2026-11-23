@@ -38,6 +38,18 @@ open class CampsiteRepository {
         Database.Ratings.readEngine().query().execute(onSuccess, onFailure)
     }
 
+    /** Reads the ratings one user has given (used when an admin deletes that user's profile). */
+    open fun getRatingsByUser(userId: String, onSuccess: (List<Rating>) -> Unit, onFailure: (Exception) -> Unit) {
+        Database.Ratings.readEngine().query()
+            .whereEquals(Rating::userId, userId)
+            .execute(onSuccess, onFailure)
+    }
+
+    /** Deletes one rating by its document id. */
+    open fun deleteRating(ratingId: String, onComplete: (Result<Exception?>) -> Unit) {
+        Database.Ratings.writeEngine().delete(ratingId, onComplete)
+    }
+
     /** Saves a rating; rating again replaces the old one because the id is the same. */
     open fun saveRating(rating: Rating, onComplete: (Result<Exception?>) -> Unit) {
         Database.Ratings.writeEngine().save(rating, onComplete)
