@@ -148,6 +148,28 @@ class UserController(
         )
     }
 
+    /**
+     * Calls [onRemoved] if this device's profile is deleted while the app is running, so the
+     * app can sign the user out (US 03.02.01). Returns a function that stops watching.
+     */
+    fun watchForRemoval(userId: String, onRemoved: () -> Unit): () -> Unit {
+        return repo.listenForRemoval(userId, onRemoved)
+    }
+
+    /** True if the signed-in user holds the ADMIN role. Admin features ask here instead of checking roles themselves. */
+    fun isAdmin(): Boolean {
+        val user = model.currentUser
+        if (user == null) {
+            return false
+        }
+        return user.hasRole(Role.ADMIN)
+    }
+
+    /** The signed-in user's id, or an empty string if nobody is signed in. */
+    fun currentUserId(): String {
+        return model.currentUserId()
+    }
+
     /** Loads every user into the model for the admin (US 03.05.01). */
     fun loadAllUsers() {
         repo.getAll(

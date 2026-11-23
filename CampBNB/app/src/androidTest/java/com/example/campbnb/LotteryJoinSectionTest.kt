@@ -5,6 +5,7 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.example.campbnb.controller.LotteryController
 import com.example.campbnb.data.LotteryRepository
 import com.example.campbnb.database.Database
@@ -14,6 +15,7 @@ import com.example.campbnb.models.WaitingListEntry
 import com.example.campbnb.ui.campsite.LotteryJoinSection
 import org.junit.Rule
 import org.junit.Test
+import org.junit.runner.RunWith
 
 /** In-memory repository for the UI test; never touches the server. */
 class FakeLotteryForUi(private val lotteries: List<Lottery>) : LotteryRepository() {
@@ -42,6 +44,7 @@ class FakeLotteryForUi(private val lotteries: List<Lottery>) : LotteryRepository
     }
 }
 
+@RunWith(AndroidJUnit4::class)
 class LotteryJoinSectionTest {
     @get:Rule
     val composeRule = createComposeRule()

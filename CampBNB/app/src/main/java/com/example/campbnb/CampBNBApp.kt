@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -84,6 +85,8 @@ import com.example.campbnb.viewModels.AppView
 import com.example.campbnb.viewModels.MessageViewModel
 import com.example.campbnb.viewModels.simpleViewModelFactory
 import kotlin.collections.emptyList
+import com.example.campbnb.controller.AdminController
+import com.example.campbnb.ui.shared.toRole
 
 @Composable
 fun CampBnbApp(
@@ -99,6 +102,16 @@ fun CampBnbApp(
     // The lottery the owner picked on the lottery list, shared by the lottery edit,
     // details and waitlist screens.
     var selectedLottery by remember { mutableStateOf<Lottery?>(null) }
+
+    DisposableEffect(deps.deviceID) {
+        val stopWatching = deps.userController.watchForRemoval(deps.deviceID) {
+            deps.userModel.setCurrentUser(null)
+            nav.navigate(Screen.Start) {
+                popUpTo(Screen.Start) { inclusive = true }
+            }
+        }
+        onDispose { stopWatching() }
+    }
 
     NavHost(navController = nav, startDestination = Screen.Start) {
         // Start
@@ -138,25 +151,30 @@ fun CampBnbApp(
                         name = username,
                         email = email,
                         phone = phoneNumber,
-                        roles = listOf(Role.ADMIN)
+                        roles = emptyList()
                     )
+                    deps.userModel.setCurrentUser(newUser)
                     Database.Users.writeEngine().save(newUser, { /* TODO: handle the complete */})
                     nav.navigate(Screen.Role) }
             )
         }
 
         // Role Selection
-        composable<Screen.Role> { // TODO: have admin accounts only be made by other admins
+        composable<Screen.Role> {
             RoleSelectScreen(onRoleSelected = { role ->
-                val targetView = when (role) {
-                    UserRole.ADMIN -> AppView.AdminView
-                    UserRole.OWNER -> AppView.OwnerView
-                    UserRole.CAMPER -> AppView.EntrantView
-                }
-                deps.appViewSettings.changeViewTo(targetView)
-                nav.navigate(Screen.Home(role = role)) {
-                    popUpTo(Screen.Start) {
-                        inclusive = true
+                deps.userController.chooseRole(toRole(role)) { saved ->
+                    if (saved) {
+                        val targetView = when (role) {
+                            UserRole.ADMIN -> AppView.AdminView
+                            UserRole.OWNER -> AppView.OwnerView
+                            UserRole.CAMPER -> AppView.EntrantView
+                        }
+                        deps.appViewSettings.changeViewTo(targetView)
+                        nav.navigate(Screen.Home(role = role)) {
+                            popUpTo(Screen.Start) {
+                                inclusive = true
+                            }
+                        }
                     }
                 }
             })
@@ -307,9 +325,19 @@ fun CampBnbApp(
                             LaunchedEffect(Unit) {
                                 deps.userController.loadAllUsers()
                             }
+                            val adminController = remember {
+                                AdminController(
+                                    deps.userController,
+                                    deps.userRepository,
+                                    deps.campsiteRepository,
+                                    LotteryRepository(),
+                                    deps.notificationController
+                                )
+                            }
                             AdminProfilesScreen(
                                 { nav.goHome(role) },
-                                deps.userModel
+                                deps.userModel,
+                                adminController
                             )
                         }
 

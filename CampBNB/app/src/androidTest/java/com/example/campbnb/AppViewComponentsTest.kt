@@ -1,7 +1,7 @@
 package com.example.campbnb
 
 import androidx.compose.ui.test.ExperimentalTestApi
-import androidx.compose.ui.test.junit4.v2.createComposeRule
+import androidx.compose.ui.test.junit4.createComposeRule
 import com.example.campbnb.ui.shared.AppViewModificationIsValidForCurrentWindowChecker
 import com.example.campbnb.viewModels.AppView
 import com.example.campbnb.viewModels.AppViewSettingController
