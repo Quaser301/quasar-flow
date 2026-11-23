@@ -23,6 +23,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.campbnb.controller.LotteryController
@@ -124,7 +125,7 @@ class LotteryMonitorActivity(
             ) {
                 Button(
                     onClick = { goBack() },
-                    modifier = Modifier.padding(8.dp)
+                    modifier = Modifier.testTag("lotteries_back").padding(8.dp)
                 ) {
                     Text(
                         text = "Back",
@@ -177,7 +178,7 @@ class LotteryMonitorActivity(
 
                             Button(
                                 onClick = { goToLotteryDetails(lottery) },
-                                modifier = Modifier.padding(start = 8.dp)
+                                modifier = Modifier.testTag("lottery_details_open").padding(start = 8.dp)
                             ) {
                                 Text("Details")
                             }
@@ -192,6 +193,7 @@ class LotteryMonitorActivity(
             Button(
                 onClick = { goToCreateLottery() },
                 modifier = Modifier
+                    .testTag("create_lottery")
                     .fillMaxWidth()
                     .height(48.dp),
                 shape = RoundedCornerShape(8.dp)

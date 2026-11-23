@@ -28,16 +28,30 @@ data object ExploreGraph
 /**
  * The explore screen and the related search screen.
  *
+ * @param navToSettings Opens the settings screen from Explore.
+ * @param navToCampsite Opens one campsite's details page from an explore card.
+ * @param navToSearch Opens the search screen for a typed query.
+ * @param navToCampDetails Opens one campsite's details page from a search result.
+ * @param onNavBack Returns to whatever opened the current screen.
+ * @param onSearchFilterClicked Opens the search screen in filter mode.
+ * @param onOpenHistory Opens the search screen showing the search history.
+ * @param onOpenQr Opens the camera scanner.
+ * @param campsiteRepo The shared campsite storage boundary.
+ * @param campsiteModel The shared model the search results draw through.
+ * @param campsiteControl The shared controller that loads and searches.
+ * @param toastGenerator Reports a load failure to the user; the caller owns the channel.
  */
-fun NavGraphBuilder.ExploreGraph(
+fun NavGraphBuilder.exploreGraph(
 
     navToSettings: () -> Unit,
     navToCampsite: (data: CampsiteCardData) -> Unit,
     navToSearch: (String) -> Unit,
-    navToCampDetails: (role: UserRole, deviceID:String) -> Unit,
+    navToCampDetails: (role: UserRole, campsiteId: String) -> Unit,
 
     onNavBack: () -> Unit,
     onSearchFilterClicked: () -> Unit,
+    onOpenHistory: () -> Unit,
+    onOpenQr: () -> Unit,
 
     campsiteRepo: CampsiteRepository,
 
@@ -76,10 +90,12 @@ fun NavGraphBuilder.ExploreGraph(
                 onCampsiteClick = navToCampsite,
                 onSearch = navToSearch,
                 onFilterClick = onSearchFilterClicked,
+                onOpenHistory = onOpenHistory,
+                onOpenQr = onOpenQr,
             )
         }
 
-        composable<Screen.Search> {entry ->
+        composable<Screen.Search> { entry ->
             val route = entry.toRoute<Screen.Search>()
             val searchModel = remember { campsiteModel }
             val searchController = remember { campsiteControl }
@@ -93,11 +109,13 @@ fun NavGraphBuilder.ExploreGraph(
             SearchScreen(
                 initialQuery = route.query,
                 initialShowFilter = route.openFilter,
+                initialShowHistory = route.openHistory,
                 results = toCardList(searchModel.visibleCampsites, searchModel),
                 onSearch = { query, filters ->
                     searchController.search(query, filters)
                 },
                 onClose = onNavBack,
+                onQrClick = onOpenQr,
                 onCampsiteClick = {
                     navToCampDetails(route.role, it.id)
                 }

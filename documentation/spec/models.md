@@ -8,7 +8,7 @@ here are always called with named arguments in tests (as every test file does).
 The storage rules that use these ids are specified in `data.md`; who turns events on these
 entities into notices is `controller.md`.
 
-Written against branch `wyatt-us-01.05.02` (tip `c985351` plus working tree), 2026-11-22.
+Written against branch `wyatt-us-01.05.02` (tip `5275878` plus working tree), 2026-11-23.
 
 ## Vocabulary — the enums, with their exact members
 
@@ -49,6 +49,10 @@ class Campsite(
 ```
 - `tags` are the listing's advertised words; admin tag removal edits this list and must
   keep the record's id (see `controller.md` / `ui.md` for the exact admin flow).
+- `fun toCampsiteCardData(): CampsiteCardData` — PURE projection to `ui.screens.CampsiteCardData`
+  display data: copies `id`, `name = campName`, `location = campLoc`, `maxOccupancy` —
+  NOTHING else carried (no rating fields; ui.campsite's `toCardData` is the one that decorates
+  with the model's ratings). Reachable over a plain `Campsite` value.
 
 ```kotlin
 class Rating(campsiteId, userId: String = "", stars: Int = 0) : Identifiable()
@@ -355,7 +359,7 @@ From `NotificationLogModel.kt` (a model area, not a class — data + pure functi
 
 ```kotlin
 data class NotificationLogGroup(logId, senderId: String, recipientIds: List<String>,
-    sentAtLabel, title, message, routeText: String)
+    sentAtLabel, title, message, routeText, campsiteName, notificationId: String)
 data class NotificationLogLine(lineKey, logId, text: String, style: LogLineStyle)
 fun notificationLogKeyOf(notification: Notification): String
 fun notificationLogGroupsFor(notifications: List<Notification>): List<NotificationLogGroup>
@@ -366,9 +370,13 @@ fun notificationLogLinesFor(logs, openLogIds: Set<String>, profileLabel: (String
 - `notificationLogGroupsFor`: groups records by that key; entry = first record's fields,
   receivers = distinct `recipientId`s IN FIRST-SEEN ORDER, `sentAtLabel` from the FIRST
   non-null `sentAt` (none → the literal `"no saved timestamp"`, else format
-  `"yyyy-MM-dd HH:mm"` US locale), `routeText` via `NotificationRoutes.routeFor` (its package).
+  `"yyyy-MM-dd HH:mm"` US locale), `routeText` via `NotificationRoutes.routeFor` (its package),
+  `campsiteName` = the first record's OWN copied place name, and `notificationId` = the
+  first-seen record's `id` — the generated Firestore document key, the raw handle an admin
+  looks the entry up in the collection by (records of one broadcast differ only per
+  receiver, so any of their keys resolves to the same raw field values).
   Entry order = input order (the CALLER sorts newest-first; this function does not sort).
-- `summaryLineOf` (collapsed bar text): `"sent by <senderId or \"the system\">  -  <n> recipient(s)  -  <sentAtLabel>  -  opens <routeText>"` — two spaces around the `-` separators.
+- `summaryLineOf` (collapsed bar text): `"sent by <senderId resolved through the caller's profileLabel; an empty senderId draws \"the system\">  -  <n> recipient(s)  -  <sentAtLabel>  -  opens <entry campsiteName when it is non-blank, ELSE the routeText>  -  db id <notificationId>"` — two spaces around the `-` separators. The bar NAMES both ends: the sender is resolved like every other reference, and the place a notice opens is drawn from the record's OWN copied name (generators copy the campsite name, falling back to the literal `"the campsite"`), so no route reference leaks; records that copied no name keep their plain section route, which carries no reference either. The `db id` segment is raw on purpose: it is the Notification UUID an admin looks the entry up in the database by to read raw field values.
 - `notificationLogLinesFor`: a CLOSED entry yields only its bar (`"<summary> - tap to open"`,
   style DROPDOWN, key = logId); an OPEN one yields bar (`"... - open"`) then one line per
   receiver (`profileLabel(receiver)`, key `"<logId>#receiver#<receiver>"`, style RECIPIENT),

@@ -19,6 +19,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.campbnb.controller.CampsiteController
@@ -130,7 +131,7 @@ class CampsiteMonitorActivity(
             ) {
                 Button(
                     onClick = { goBack() },
-                    modifier = Modifier.padding(8.dp)
+                    modifier = Modifier.testTag("campsites_back").padding(8.dp)
                 ) {
                     Text(
                         text = "Back",
@@ -210,20 +211,30 @@ class CampsiteMonitorActivity(
                                 horizontalAlignment = Alignment.End,
                                 verticalArrangement = Arrangement.spacedBy(4.dp)
                             ) {
-                                Button(onClick = { goToCampsiteDetails(campsite) }) {
+                                Button(
+                                    modifier = Modifier.testTag("campsite_details_open"),
+                                    onClick = { goToCampsiteDetails(campsite) }
+                                ) {
                                     Text("Details")
                                 }
-                                Button(onClick = { goToEditCampsite(campsite) }) {
+                                Button(
+                                    modifier = Modifier.testTag("campsite_edit_open"),
+                                    onClick = { goToEditCampsite(campsite) }
+                                ) {
                                     Text("Edit")
                                 }
-                                Button(onClick = {
+                                Button(
+                                    modifier = Modifier.testTag("campsite_delete_mark"),
+                                    onClick = {
                                     campsiteToDelete = campsite
                                 }) {
                                     Text("Delete")
                                 }
                                 // A code for this campsite, keeping working forever (the
                                 // reserved default), written through the download system.
-                                Button(onClick = {
+                                Button(
+                                    modifier = Modifier.testTag("campsite_code_download"),
+                                    onClick = {
                                     val code = QRCode(campsiteId = campsite.id)
                                     fileDownloadWriter.downloadFile(
                                         code.fileName(),
@@ -250,6 +261,7 @@ class CampsiteMonitorActivity(
             Button(
                 onClick = { goToRegisterCampsite() },
                 modifier = Modifier
+                    .testTag("register_campsite")
                     .fillMaxWidth()
                     .height(48.dp),
                 shape = RoundedCornerShape(8.dp)
@@ -273,6 +285,7 @@ class CampsiteMonitorActivity(
                 text = { Text("Are you sure you want to delete ${site.campName}?") },
                 confirmButton = {
                     TextButton(
+                        modifier = Modifier.testTag("campsite_delete_confirm"),
                         onClick = {
                             repository.deleteCampsite(site.id) { result ->
                                 if (result.isSuccess) {
@@ -289,6 +302,7 @@ class CampsiteMonitorActivity(
                 },
                 dismissButton = {
                     TextButton(
+                        modifier = Modifier.testTag("campsite_delete_cancel"),
                         onClick = {
                             campsiteToDelete = null
                         }

@@ -22,10 +22,10 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.navigation.NavController
 
 /**
  * The names the correspondence tabs are drawn under. A caller picks tabs and names an
@@ -45,7 +45,6 @@ object CorrespondenceTabs {
  * about roles or permissions: a caller that may show a viewer only their own notices
  * asks for the tabs they have and hands the content those tabs list.
  *
- * @param navController The app's navigation, used by the Back control.
  * @param tabLabels Which tabs this viewer has, in the order they are drawn, taken from
  *     [CorrespondenceTabs].
  * @param openTab Which tab opens, named rather than counted, so a caller that asks for a
@@ -54,22 +53,17 @@ object CorrespondenceTabs {
  * @param receivedTabContent What the "Received" tab lists; only drawn when that tab was
  *     asked for.
  * @param messagesTabContent What the "Messages" tab lists.
+ * @param onNavBack Runs when the Back control is pressed: the caller owns where back
+ *     goes.
  */
 @Composable
 fun CorrespondenceScreen(
-<<<<<<< HEAD
-    navController: NavController,
     tabLabels: List<String>,
     openTab: String,
     notificationsTabContent: @Composable () -> Unit,
     receivedTabContent: @Composable () -> Unit = {},
     messagesTabContent: @Composable () -> Unit,
-=======
-    initialTab: Int,
-    notificationsContent: @Composable () -> Unit,
-    messagesContent: @Composable () -> Unit,
     onNavBack: () -> Unit,
->>>>>>> 898bfa2 (Admitting defeat, and letting Qwen finish. Need sleep.)
 ) {
     var selectedTab by rememberSaveable {
         mutableIntStateOf(tabLabels.indexOf(openTab).coerceAtLeast(0))
@@ -80,7 +74,7 @@ fun CorrespondenceScreen(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
         ) {
-            TextButton(onClick = onNavBack) {
+            TextButton(modifier = Modifier.testTag("correspondence_back"), onClick = onNavBack) {
                 Text("Back")
             }
             Text(
@@ -95,6 +89,7 @@ fun CorrespondenceScreen(
                 Column(
                     modifier = Modifier
                         .weight(1f)
+                        .testTag("correspondence_tab")
                         .selectable(
                             selected = selectedTab == index,
                             onClick = { selectedTab = index },

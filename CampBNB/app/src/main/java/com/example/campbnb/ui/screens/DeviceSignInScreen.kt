@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -67,6 +68,7 @@ fun DeviceSignInScreen(
         GradientButton(
             "Continue",
             enabled = currentId.value.isNotBlank(),
+            modifier = Modifier.testTag("continue_button"),
             onClick = {
                 userController.identify(
                     deviceId = currentId.value,

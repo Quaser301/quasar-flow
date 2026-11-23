@@ -23,6 +23,7 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.input.KeyboardType
@@ -173,7 +174,7 @@ fun SearchScreen(
                 }
             )
 
-            CircleLabelButton("QR Code", onQrClick)
+            CircleLabelButton("QR Code", modifier = Modifier.testTag("qr_code_open"), onClick = onQrClick)
         }
 
         if (showFilter) {
@@ -195,6 +196,7 @@ fun SearchScreen(
                         searchHistory.forEach { past ->
                             DropdownMenuItem(
                                 text = { Text(past) },
+                                modifier = Modifier.testTag("history_choice"),
                                 onClick = { query = past; onSearch(past, filters); close() }
                             )
                         }
@@ -220,6 +222,9 @@ fun SearchScreen(
                         .height(190.dp)
                         .clip(RoundedCornerShape(4.dp))
                         .background(FieldGrey)
+                        // the shared card affordance: Explore rows and the search view's
+                        // results render the same campsite-pick, one name finds either.
+                        .testTag("campsite_card")
                         .clickable { onCampsiteClick(campsite) },
                     contentAlignment = Alignment.Center
                 ) {     // show campsite summary
@@ -262,7 +267,7 @@ private fun FilterPanel(
             singleLine = true,
             shape = RoundedCornerShape(50),
             colors = filterFieldColors(),
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier.testTag("filter_location_field").fillMaxWidth()
         )
 
         Row(
@@ -270,6 +275,7 @@ private fun FilterPanel(
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(50))
                 .background(SearchBarBg)
+                .testTag("date_filter")
                 .clickable { showDatePicker = true }
                 .padding(horizontal = 16.dp, vertical = 16.dp),
             verticalAlignment = Alignment.CenterVertically
@@ -291,11 +297,11 @@ private fun FilterPanel(
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
             shape = RoundedCornerShape(50),
             colors = filterFieldColors(),
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier.testTag("filter_guests_field").fillMaxWidth()
         )
 
         if (filters.activeCount() > 0) {
-            TextButton(onClick = { onChange(SearchFilters()) }) {
+            TextButton(modifier = Modifier.testTag("clear_filters"), onClick = { onChange(SearchFilters()) }) {
                 Text("Clear filters")
             }
         }
@@ -362,6 +368,7 @@ private fun DateRangeDialog(
         onDismissRequest = onDismiss,
         confirmButton = {
             TextButton(
+                modifier = Modifier.testTag("date_confirm"),
                 enabled = pickerState.selectedStartDateMillis != null,
                 onClick = {
                     val startMillis = pickerState.selectedStartDateMillis
@@ -380,7 +387,7 @@ private fun DateRangeDialog(
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) {
+            TextButton(modifier = Modifier.testTag("date_cancel"), onClick = onDismiss) {
                 Text("Cancel")
             }
         }
@@ -407,6 +414,7 @@ private fun DropdownPill(
                 .widthIn(min = 150.dp)
                 .clip(RoundedCornerShape(50))
                 .background(SearchBarBg)
+                .testTag("dropdown_pill_open")
                 .clickable { expanded = true }
                 .padding(horizontal = 16.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically

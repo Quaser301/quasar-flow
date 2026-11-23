@@ -11,6 +11,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 
 /**
@@ -41,6 +42,7 @@ fun QrOldCodeNoticeScreen(back: () -> Unit = {}) {
         )
 
         Button(
+            modifier = Modifier.testTag("old_code_back"),
             onClick = { back() }
         ) {
             Text("Back")

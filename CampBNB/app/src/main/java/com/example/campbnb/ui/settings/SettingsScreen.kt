@@ -12,6 +12,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.Role
@@ -161,6 +162,7 @@ private fun SettingsDropdown(
                 groupLabel(groupId) + if (expanded.value) "" else " - tap to open",
                 onClick = { display.toggleGroup(groupId.name) },
                 modifier = Modifier
+                    .testTag("settings_group_bar")
                     .fillMaxWidth()
                     .padding(6.dp)
             )

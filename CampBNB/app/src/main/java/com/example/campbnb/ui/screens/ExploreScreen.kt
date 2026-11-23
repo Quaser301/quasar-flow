@@ -19,6 +19,7 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.input.ImeAction
@@ -163,13 +164,14 @@ fun CampSearchBar(
         placeholder = { Text("Search for campsites...", fontSize = 14.sp) },
         leadingIcon = {
             Box {
-                Box(Modifier.clickable(onClick = onMenuClick).padding(8.dp)) { MenuGlyph() }
+                Box(Modifier.testTag("search_menu_open").clickable(onClick = onMenuClick).padding(8.dp)) { MenuGlyph() }
                 menuContent()
             }
         },
         trailingIcon = {
             Box(
                 Modifier
+                    .testTag("search_submit")
                     .clickable {
                         onMagnifyClick(query)
                     }
@@ -194,7 +196,9 @@ fun CampSearchBar(
             focusedTextColor = Color.Black,
             unfocusedTextColor = Color.Black
         ),
-        modifier = modifier
+        // one shared search-bar affordance: Explore and the search view both drive
+        // this renderer, one name finds either field.
+        modifier = modifier.testTag("search_field")
     )
 }
 
@@ -205,6 +209,7 @@ private fun SettingsButton(onClick: () -> Unit) {
             .size(48.dp)
             .clip(CircleShape)
             .background(FieldGrey)
+            .testTag("settings_open")
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center
     ) {
@@ -251,6 +256,9 @@ private fun CampsiteRow(
                         .size(width = 180.dp, height = 110.dp)
                         .clip(RoundedCornerShape(4.dp))
                         .background(FieldGrey)
+                        // the shared card affordance: Explore rows and the search view's
+                        // results render the same campsite-pick, one name finds either.
+                        .testTag("campsite_card")
                         .clickable { onClick(campsite) },
                     contentAlignment = Alignment.Center
                 ) {

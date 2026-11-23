@@ -16,6 +16,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -132,7 +133,7 @@ fun CampsiteDetailsScreen(
                 // Back button and name
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     Box(
-                        Modifier.size(40.dp).clip(CircleShape).background(ButtonGradient).clickable(onClick = onBack),
+                        Modifier.size(40.dp).clip(CircleShape).background(ButtonGradient).testTag("details_back").clickable(onClick = onBack),
                         contentAlignment = Alignment.Center
                     ) { Text("<", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold) }
                     Text(campsite.name, fontSize = 28.sp, fontWeight = FontWeight.Bold)
@@ -160,7 +161,7 @@ fun CampsiteDetailsScreen(
                         fontSize = 12.sp,
                         color = LinkBlue,
                         textDecoration = TextDecoration.Underline,
-                        modifier = Modifier.clickable(onClick = onSeeReviews)
+                        modifier = Modifier.testTag("see_reviews").clickable(onClick = onSeeReviews)
                     )
                 }
 
@@ -170,7 +171,7 @@ fun CampsiteDetailsScreen(
                     campsite.tags.take(3).forEach { TagChip(it) }
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Box(
-                            Modifier.size(32.dp).clip(CircleShape).background(EyePink).clickable { showAllTags = true },
+                            Modifier.size(32.dp).clip(CircleShape).background(EyePink).testTag("see_tags").clickable { showAllTags = true },
                             contentAlignment = Alignment.Center
                         ) { EyeGlyph(Modifier.size(18.dp), color = Color(0xFF7A2E2E)) }
                         Text("(View all tags)", fontSize = 8.sp)
@@ -210,27 +211,31 @@ fun CampsiteDetailsScreen(
             // The role's action area, above the bottom bar: one hamburger that gathers
             // that role's buttons (feature 2).
             when (role) {
-                UserRole.CAMPER -> Column(
+                // The lottery action appears only for a campsite that has an active
+                // lottery: with nothing to put in it the hamburger would just open
+                // an empty menu (the status block above already says "No active
+                // lottery" for the rest).
+                UserRole.CAMPER -> if (lotteryButtonEnabled) Column(
                     Modifier.align(Alignment.BottomCenter).padding(horizontal = 24.dp, vertical = 12.dp),
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     GradientBarButton(
                         text = "Lottery",
+                        modifier = Modifier.testTag("lottery_menu_bar"),
                         onClick = { lotteryMenuOpen = true }
                     )
                     DropdownMenu(
                         expanded = lotteryMenuOpen,
                         onDismissRequest = { lotteryMenuOpen = false }
                     ) {
-                        if (lotteryButtonEnabled) {
-                            DropdownMenuItem(
-                                text = { Text(lotteryButtonText) },
-                                onClick = {
-                                    lotteryMenuOpen = false
-                                    onEnterLottery()
-                                }
-                            )
-                        }
+                        DropdownMenuItem(
+                            text = { Text(lotteryButtonText) },
+                            modifier = Modifier.testTag("lottery_enter"),
+                            onClick = {
+                                lotteryMenuOpen = false
+                                onEnterLottery()
+                            }
+                        )
                     }
                 }
                 UserRole.ADMIN -> Column(
@@ -243,6 +248,7 @@ fun CampsiteDetailsScreen(
                     // US 02.10.01).
                     GradientBarButton(
                         text = "Site Administration",
+                        modifier = Modifier.testTag("admin_menu_bar"),
                         onClick = { adminMenuOpen = true }
                     )
                     DropdownMenu(
@@ -251,8 +257,18 @@ fun CampsiteDetailsScreen(
                     ) {
                         PolicyReason.values().forEach { reason ->
                             DropdownMenuItem(
-                                text = { Text(policyReasonLabel(reason)) },
-                                onClick = { adminReasonPicked = reason }
+                                text = {
+                                    // The reason already picked renders in the admin's
+                                    // interaction colour so the admin can see which
+                                    // reason the actions below will carry.
+                                    if (adminReasonPicked == reason) {
+                                        Text(policyReasonLabel(reason), color = AdminInteractionColor)
+                                    } else {
+                                        Text(policyReasonLabel(reason))
+                                    }
+                                },
+                                onClick = { adminReasonPicked = reason },
+                                modifier = Modifier.testTag("admin_reason_choice")
                             )
                         }
 
@@ -260,6 +276,7 @@ fun CampsiteDetailsScreen(
                         if (chosenReason != null) {
                             DropdownMenuItem(
                                 text = { Text("Delete Site") },
+                                modifier = Modifier.testTag("admin_delete_site"),
                                 onClick = {
                                     adminMenuOpen = false
                                     confirmDelete = true
@@ -268,6 +285,7 @@ fun CampsiteDetailsScreen(
                             campsite.tags.forEach { tag ->
                                 DropdownMenuItem(
                                     text = { Text("Remove Tag: $tag") },
+                                    modifier = Modifier.testTag("admin_remove_tag"),
                                     onClick = {
                                         adminMenuOpen = false
                                         onRemoveTag(tag, chosenReason)
@@ -291,7 +309,7 @@ fun CampsiteDetailsScreen(
                     campsite.tags.forEach { TagChip(it) }
                 }
             },
-            confirmButton = { TextButton(onClick = { showAllTags = false }) { Text("Close") } }
+            confirmButton = { TextButton(modifier = Modifier.testTag("tags_close"), onClick = { showAllTags = false }) { Text("Close") } }
         )
     }
 
@@ -302,6 +320,7 @@ fun CampsiteDetailsScreen(
             text = { Text("${campsite.name} will be removed. This can't be undone.") },
             confirmButton = {
                 TextButton(
+                    modifier = Modifier.testTag("admin_delete_confirm"),
                     onClick = {
                         confirmDelete = false
                         val reason = adminReasonPicked
@@ -311,7 +330,7 @@ fun CampsiteDetailsScreen(
                     }
                 ) { Text("Delete") }
             },
-            dismissButton = { TextButton(onClick = { confirmDelete = false }) { Text("Cancel") } }
+            dismissButton = { TextButton(modifier = Modifier.testTag("admin_delete_cancel"), onClick = { confirmDelete = false }) { Text("Cancel") } }
         )
     }
 }

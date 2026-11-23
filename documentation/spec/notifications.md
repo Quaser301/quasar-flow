@@ -7,7 +7,7 @@ This package NEVER builds records — `NotificationController` and the adapters 
 `controller.md` do. Everything here takes an already-built `Notification`
 (`models.md`) and either posts it as an OS banner or maps it to an in-app route.
 
-Written against branch `wyatt-us-01.05.02` (tip `c985351` plus working tree), 2026-11-22.
+Written against branch `wyatt-us-01.05.02` (tip `5275878` plus working tree), 2026-11-23.
 
 ## NotificationChannels (object) — record type → OS channel
 
@@ -140,6 +140,41 @@ fun show(n: Notification)
 
 NOTE `show` itself does NOT check `pushAllowed` — that filter lives in
 `NotificationWatcher`. `SystemNotifier` filters on permission only.
+
+## Push — what delivering from the server would need (contract open — no backend access here)
+
+PUSH is NOT a separate delivery system in this app. An OS banner is already push-shaped:
+`SystemNotifier` turns one built record into a banner whose tap-in carries exactly
+`EXTRA_ROUTE = routeFor(n)` and `EXTRA_NOTIFICATION_ID = n.id` (MainActivity reads those
+extras on tap — app.md). Tapping a banner that ARRIVED by itself lands on the right in-app
+route; tapping one the server DELIVERED must behave identically. That is the whole client
+half, and it exists and is verified. What push still needs is all server-side or OS-transport
+and NONE of it is observable from here:
+
+1. A subscription per user. The server owns subscriptions (a topic per user, or the user
+   per topic — the choice is the backend's); the client would REGISTER one. The gate is
+   exactly the existing preference: `allowPushNotifications` (models.md, default true) gates
+   banner delivery in `NotificationWatcher` and must gate subscription registration with the
+   same reading — a user who turns push off gets no registrations, not just no banners.
+2. Payload schema, kept to the client's OWN vocabulary so any push client is interchangeable:
+   a delivered push carries the pair (`routeFor(n)` as the route key, `n.id` as the
+   notification id) — the same two `NotificationRoutes` keys MainActivity already reads from
+   tap extras. Records are complete when built (this package NEVER builds them), so NOTHING
+   else is recomputed client-side: title, message and channel all come from the delivered
+   record's own fields server-side or must not be re-invented here. A payload that carries
+   only (route, id) is the minimum; anything more (raw record fields) is transport detail,
+   not client contract.
+3. A transport. Native OS-level push subscriptions on Android 15+ would be the OS
+   subscription manager — NOT in this app's dependency set, and no new androidx deps are
+   added (house rule). A web-push transport (server-issued tokens, FCM/APNS-style) needs a
+   backend to issue and refresh them.
+
+NEEDS INFO (backend access, owner to settle): which provider, where subscriptions are stored,
+and the server's token issuance. Deliberately NOT implemented tonight: inventing a client
+subscription wrapper against no server is guessing the API. The pure client half (delivery
+arrives as the (route, id) pair → existing tap-in behaviour) needs no new code — MainActivity
+already maps exactly that pair, and both are already covered by the `"reservations"` and
+`"qr-link"` string-route bridges (app.md).
 
 ## Standing this package up in tests
 

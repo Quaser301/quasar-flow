@@ -21,6 +21,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -108,7 +109,7 @@ class LotteryDetailsActivity(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    Button(onClick = navigateBackwards) {
+                    Button(modifier = Modifier.testTag("lottery_details_back"), onClick = navigateBackwards) {
                         Text("Back")
                     }
                     Text(
@@ -159,6 +160,7 @@ class LotteryDetailsActivity(
                             // View Waitlist Button
                             GradientButton(
                                 text = "View Waitlist",
+                                modifier = Modifier.testTag("view_waitlist"),
                                 onClick = { onViewWaitlist(selectedLottery) }
                             )
                         }
@@ -169,6 +171,7 @@ class LotteryDetailsActivity(
 
                 GradientButton(
                     text = "Edit Lottery",
+                    modifier = Modifier.testTag("lottery_edit_open"),
                     onClick = { onEditLottery(selectedLottery) }
                 )
             }

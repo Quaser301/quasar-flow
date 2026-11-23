@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
@@ -23,6 +24,7 @@ import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -33,6 +35,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -257,7 +261,7 @@ class LotteryEditActivity(
             ) {
                 Button(
                     onClick = { navigateBackwards() },
-                    modifier = Modifier.padding(end = 8.dp)
+                    modifier = Modifier.testTag("lottery_edit_back").padding(end = 8.dp)
                 ) {
                     Text(text = "Back")
                 }
@@ -286,6 +290,7 @@ class LotteryEditActivity(
                     },
                     colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors(),
                     modifier = Modifier
+                        .testTag("campsite_picker_field")
                         .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable)
                         .fillMaxWidth()
                 )
@@ -297,6 +302,7 @@ class LotteryEditActivity(
                     if (ownerCampsitesList.isEmpty()) {
                         DropdownMenuItem(
                             text = { Text("No campsites available") },
+                            modifier = Modifier.testTag("campsite_picker_choice"),
                             onClick = { dropdownExpanded = false }
                         )
                     } else {
@@ -328,6 +334,7 @@ class LotteryEditActivity(
                                         }
                                     }
                                 },
+                                modifier = Modifier.testTag("campsite_picker_choice"),
                                 onClick = {
                                     selectedCampsites = if (isSelected) {
                                         selectedCampsites - campsite
@@ -348,7 +355,7 @@ class LotteryEditActivity(
                 value = ownerNameSearch,
                 onValueChange = { ownerNameSearch = it },
                 label = { Text("Search Owners by Name (optional)") },
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier.testTag("owner_search_field").fillMaxWidth()
             )
 
             val inviteeChoices = invitedOwnerCandidates.filter {
@@ -371,33 +378,54 @@ class LotteryEditActivity(
                         ExposedDropdownMenuDefaults.TrailingIcon(expanded = inviteDropdownExpanded)
                     },
                     colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors(),
-                    modifier = Modifier
-                        .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable)
-                        .fillMaxWidth()
+                    modifier = Modifier.testTag("invite_field").fillMaxWidth()
                 )
 
-                ExposedDropdownMenu(
-                    expanded = inviteDropdownExpanded,
-                    onDismissRequest = { inviteDropdownExpanded = false }
-                ) {
-                    if (inviteeChoices.isEmpty()) {
-                        DropdownMenuItem(
-                            text = { Text("No other owners to invite") },
-                            onClick = { inviteDropdownExpanded = false }
-                        )
-                    } else {
-                        inviteeChoices.forEach { candidate ->
-                            val isSelected = candidate in checkedInvitees
-                            DropdownMenuItem(
-                                text = {
+                // The invited-owner list scrolls with a locked height: the app can
+                // hold more owners than fit on the screen, and the menu used to
+                // grow to fit them all at once. Six candidate rows stay visible
+                // at a time and the rest are reached by scrolling.
+                if (inviteDropdownExpanded) {
+                    val inviteRowHeight = 56.dp
+                    val visibleInviteRows = 6
+                    Surface(
+                        color = Color.White,
+                        shape = RoundedCornerShape(16.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(inviteRowHeight * visibleInviteRows)
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .verticalScroll(rememberScrollState())
+                                .padding(horizontal = 12.dp, vertical = 8.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            if (inviteeChoices.isEmpty()) {
+                                Text(
+                                    text = "No other owners to invite",
+                                    style = MaterialTheme.typography.bodyLarge
+                                )
+                            } else {
+                                inviteeChoices.forEach { candidate ->
+                                    val isSelected = candidate in checkedInvitees
                                     Row(
                                         verticalAlignment = Alignment.CenterVertically,
                                         horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                        modifier = Modifier.fillMaxWidth()
+                                        modifier = Modifier.fillMaxWidth().height(inviteRowHeight)
                                     ) {
                                         Checkbox(
                                             checked = isSelected,
-                                            onCheckedChange = null
+                                            modifier = Modifier.testTag("invite_choice"),
+                                            onCheckedChange = { checked ->
+                                                checkedInvitees =
+                                                    if (checked) {
+                                                        checkedInvitees + candidate
+                                                    } else {
+                                                        checkedInvitees - candidate
+                                                    }
+                                            }
                                         )
                                         Column {
                                             Text(
@@ -413,15 +441,8 @@ class LotteryEditActivity(
                                             }
                                         }
                                     }
-                                },
-                                onClick = {
-                                    checkedInvitees = if (isSelected) {
-                                        checkedInvitees - candidate
-                                    } else {
-                                        checkedInvitees + candidate
-                                    }
                                 }
-                            )
+                            }
                         }
                     }
                 }
@@ -433,7 +454,7 @@ class LotteryEditActivity(
                     onValueChange = { numberOfWinners = it },
                     label = { Text("Number of Winners") },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.testTag("winners_field").fillMaxWidth()
                 )
 
                 OutlinedTextField(
@@ -441,7 +462,7 @@ class LotteryEditActivity(
                     onValueChange = { waitlistCapacity = it },
                     label = { Text("Waitlist Capacity (leave blank for unlimited)") },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.testTag("waitlist_field").fillMaxWidth()
                 )
 
                 // Registration Date Range Picker
@@ -451,12 +472,13 @@ class LotteryEditActivity(
                     readOnly = true,
                     label = { Text("Registration Period") },
                     trailingIcon = {
-                        TextButton(onClick = { showRegDatePicker = true }) {
+                        TextButton(modifier = Modifier.testTag("reg_period_open"), onClick = { showRegDatePicker = true }) {
                             Text("Select")
                         }
                     },
                     modifier = Modifier
                         .fillMaxWidth()
+                        .testTag("reg_period_open")
                         .clickable(
                             interactionSource = remember { MutableInteractionSource() },
                             indication = null
@@ -470,12 +492,13 @@ class LotteryEditActivity(
                     readOnly = true,
                     label = { Text("Booking Period") },
                     trailingIcon = {
-                        TextButton(onClick = { showBookingDatePicker = true }) {
+                        TextButton(modifier = Modifier.testTag("booking_period_open"), onClick = { showBookingDatePicker = true }) {
                             Text("Select")
                         }
                     },
                     modifier = Modifier
                         .fillMaxWidth()
+                        .testTag("booking_period_open")
                         .clickable(
                             interactionSource = remember { MutableInteractionSource() },
                             indication = null
@@ -496,7 +519,7 @@ class LotteryEditActivity(
             ) {
                 OutlinedButton(
                     onClick = { navigateBackwards() },
-                    modifier = Modifier.weight(1f)
+                    modifier = Modifier.testTag("lottery_cancel").weight(1f)
                 ) {
                     Text("Cancel")
                 }
@@ -528,7 +551,7 @@ class LotteryEditActivity(
                             )
                         }
                     },
-                    modifier = Modifier.weight(1f)
+                    modifier = Modifier.testTag("lottery_save").weight(1f)
                 ) {
                     Text(if (isEditMode) "Update" else "Save")
                 }
@@ -549,7 +572,7 @@ class LotteryEditActivity(
                             }
                         )
                     },
-                    modifier = Modifier.fillMaxWidth().padding(top = 12.dp)
+                    modifier = Modifier.testTag("force_close").fillMaxWidth().padding(top = 12.dp)
                 ) {
                     Text("Force Close")
                 }

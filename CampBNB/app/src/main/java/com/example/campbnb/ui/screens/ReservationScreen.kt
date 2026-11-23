@@ -26,6 +26,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -74,6 +75,7 @@ fun ReservationScreen(
             Surface(
                 modifier = Modifier
                     .size(42.dp)
+                    .testTag("reservation_back")
                     .clickable(onClick = onBack),
                 shape = CircleShape,
                 color = CampGreen
@@ -149,7 +151,7 @@ private fun CampsiteSelector(
             val selected = campsite.id == selectedCampsiteId
 
             Surface(
-                modifier = Modifier.clickable {
+                modifier = Modifier.testTag("campsite_choice").clickable {
                     onCampsiteSelected(campsite.id)
                 },
                 shape = RoundedCornerShape(10.dp),
@@ -198,7 +200,7 @@ private fun ReservationFilterTabs(
             onClick = {
                 onFilterSelected(ReservationFilter.ACTIVE)
             },
-            modifier = Modifier.weight(1f)
+            modifier = Modifier.testTag("reservation_tab").weight(1f)
         )
 
         ReservationTab(
@@ -207,7 +209,7 @@ private fun ReservationFilterTabs(
             onClick = {
                 onFilterSelected(ReservationFilter.PAST)
             },
-            modifier = Modifier.weight(1f)
+            modifier = Modifier.testTag("reservation_tab").weight(1f)
         )
 
         ReservationTab(
@@ -216,7 +218,7 @@ private fun ReservationFilterTabs(
             onClick = {
                 onFilterSelected(ReservationFilter.CANCELLED)
             },
-            modifier = Modifier.weight(1f)
+            modifier = Modifier.testTag("reservation_tab").weight(1f)
         )
     }
 }
@@ -398,6 +400,7 @@ private fun ReservationCard(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(vertical = 6.dp)
+                        .testTag("reservation_csv")
                         .clickable {
                             fileDownloadWriter.downloadFile(
                                 reservationCsvFileName(reservation),

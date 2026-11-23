@@ -13,7 +13,7 @@ IMPORTANT LAYOUT FACT: Kotlin package names do not always match directories here
 declares `ui.search`, `ui/screens/CampsiteDetailsScreen.kt` declares `ui.details`. Resolve
 symbols by the package line, never by the directory.
 
-Written against branch `wyatt-us-01.05.02` (tip `c985351` plus working tree), 2026-11-22.
+Written against branch `wyatt-us-01.05.02` (tip `5275878` plus working tree), 2026-11-23.
 
 ## Testable pure surface (package — exact contracts)
 
@@ -105,27 +105,34 @@ the TODO block in this file is a developer note (future rating-section placement
 ### ui.screens — home-bar vocabulary (HomeScreen.kt)
 
 ```kotlin
-enum class HomeDestination { EXPLORE, MESSAGES, BOOKINGS, RESERVATIONS, INBOX, PROFILE,
-    MY_CAMPSITES, REPORTS, FLAGGED, ADMIN_PROFILE_VIEW, ADMIN_NOTIFICATION_VIEW }
-data class HomeTab(val label: String, val destination: HomeDestination)
+data class HomeTab(val label: String, val destination: Screen)
 fun tabsFor(role: UserRole): List<HomeTab>
 ```
 `tabsFor` is PURE and unit-reachable — exact display order and labels:
-- CAMPER: Explore(EXPLORE), Messages(MESSAGES), Bookings(BOOKINGS), Reservations(RESERVATIONS),
-  Inbox(INBOX), Profile(PROFILE).
-- OWNER: Explore, Messages, My Campsites(MY_CAMPSITES), Inbox, Profile.
-- ADMIN: Explore, Messages, Reports(REPORTS), Flagged(FLAGGED),
-  Profiles(ADMIN_PROFILE_VIEW), Notifications(ADMIN_NOTIFICATION_VIEW).
-Explore is always FIRST. `HomeScreen` itself: tabs are RE-DERIVED from the live
-`AppView` (`AdminView→tabsFor(ADMIN)`, `OwnerView→OWNER`, `EntrantView→CAMPER`) via a
-`LaunchedEffect` on the flow — the route's `role` argument only seeds the initial list;
-Back (BackHandler) resets to tab 0 (Explore); the selected tab SEEDS from `initialTab`
-(clamped to the role's tabs): a plain `remember` resets exactly on a re-mount, so `goHome`
-naming a tab lands on that tab, while in-place tab switches keep the value between
-re-renders; read sites clamp the index to the live (possibly shorter) tab list.
-Composable half: not a unit target. Note `REPORTS`/`FLAGGED`/`PROFILE` destinations reach
-the graph's `else →` branch (`app.md`) — placeholder content today; the enum values exist
-because the bar vocabulary is settled ahead of those screens.
+- CAMPER: Explore(`Screen.Explore`), Messages(`Screen.Messages`), Bookings(`Screen.Bookings`),
+  Reservations(`Screen.Reservations`), Inbox(`Screen.Inbox`), Profile(`Screen.Profile`).
+- OWNER: Explore, Messages, My Campsites(`Screen.MyCampsites`), Inbox, Profile.
+- ADMIN: Explore, Messages, Reports(`Screen.Reports`), Flagged(`Screen.Flagged`),
+  Profiles(`Screen.AdminProfileView`), Notifications(`Screen.AdminNotificationView`).
+Explore is always FIRST. A tab's `destination` is the `Screen` route its content registers
+under Home's nested graph (app.md says which nodes live there) — the bar moves on that
+nested graph, never the app's, and there is no separate destination enum any more: the
+Screen seal itself names every tab. `HomeScreen` itself: tabs are RE-DERIVED from the live
+`AppView` (`AdminView→tabsFor(ADMIN)`, `OwnerView→OWNER`, `EntrantView→CAMPER`) through
+`remember(viewState, role)` — the live view decides the list and the `role` argument only
+keys the remembered value. The nested graph OPENS on `tabs[initialTab]` clamped into the
+live list: `goHome` naming a tab (the my-campsites back affordances and the details-page
+picker name it) lands the bar there; the default opens the first tab. The bar's circles
+navigate with `popUpTo(findStartDestination) { saveState }` + `restoreState` +
+`launchSingleTop`, so Explore (always first) stays under every other tab and switching
+back restores the passed-over tabs' saved state rather than rebuilding it.
+Two `RoleBottomBar` overloads (Composable halves, not unit targets): the Home one lights
+a circle from the live nav position — `currentDestination.hierarchy` matched against the
+tab's own class identifier, which the file-PRIVATE `routePrefixOf` reads off the screen
+object itself (nothing about a screen is spelled out); the details-page one has no live
+graph under its caller, so the caller names the lit `selectedIndex` and gets the tapped
+index back. `NavCircle` is file-PRIVATE. `PlaceholderTab(title)` is the temporary content
+for tabs without screens yet (Profile/Reports/Flagged today).
 
 `ui.screens/BookingsScreen.kt`: `enum class BookingTab { CONFIRMED, PENDING }` (vocabulary;
 public). `ui.screens/ExploreScreen.kt` declares the public `CampsiteCardData` data class —
@@ -306,12 +313,19 @@ are 3-line placeholder classes.
 The four lottery ACTIVITY classes (`LotteryEditActivity`, `LotteryMonitorActivity`,
 `LotteryWaitlistActivity`, `LotteryDetailsActivity`): navigation-callback constructors +
 render methods called from app.md (recorded there) — `selectedLottery` is carried across
-screens by the graph's shared state, not by the activities (app.md). `LotteryEditActivity`
+screens by the SHARED `LotterySelectedViewModel` (viewModels.md; app.md builds it once and
+passes it into `lotteryGraph`), not by the activities. `LotteryEditActivity`
 additionally receives a `UserRepository()` for invitation-candidate checks (US 02.04.08).
 Their drawing bodies are not unit targets. Truth kept, though: date-range rows display the
 picker's UTC-midnight millis on an explicit UTC basis — a device-local formatter showed the
-day before on both endpoints west of UTC (fix 13) — and edit renders a creator-only
-"Force Close" control delegating to controller.md's `forceCloseLottery` (feature 1).
+day before on both endpoints west of UTC (fix 13) — edit renders a creator-only
+"Force Close" control delegating to controller.md's `forceCloseLottery` (feature 1), and
+edit's invited-owner panel is a FIXED-VISIBLE-HEIGHT scrollable sheet, not a dropdown:
+six rows visible at 56.dp each (sheet height = `rowHeight × visibleRows`, and the
+multiplication is only ever Dp × Int), rows full-width at one row height with a checkbox
+that mirrors the selection set, scrolling via `verticalScroll(rememberScrollState())` —
+following the app's own `LotteryWaitlistActivity` idiom. An `ExposedDropdownMenu` before
+this hid every invitee past the visible items (reported regression 10).
 
 ### ui.notification — the log screen
 
@@ -319,7 +333,8 @@ day before on both endpoints west of UTC (fix 13) — and edit renders a creator
 `notificationSource: NotificationRepository`, `returnFunc` (optional), `profileText`
 (optional resolver — app.md passes `profileLabelOf(...)`), `savedUsers` (optional `UserModel`
 — app.md passes the real one for the debug view only, and the view model's watch per viewModels.md
-makes late-loaded profiles re-resolve receiver lines; the default is a private model that is never
+makes late-loaded profiles re-resolve profile references — bar senders and receiver lines
+alike; the default is a private model that is never
 notified). Reads the log through the
 data.md `NotificationCommand.Read` contract and draws the group/line output per models.md's
 `notificationLogGroupsFor`/`notificationLogLinesFor`. Nothing testable beyond the lower
@@ -358,5 +373,26 @@ the app-level `ReservationsPanel` (app.md).
   vocabulary; the label strings are display vocabulary — keep both straight.
 - Design observations a test author may legitimately flag (do not test against, note in the test if asserted): the double
   spelling of role maps (shared vs components) is duplication-of-contract; `relativeTime` is
-  duplicated across two files; the "unknown tab opens first" fallback and the placeholder
-  ordering marker `"zz~"` are documented chosen behaviors.
+  duplicated across two files; the profile-list sort prefix (`"zz~" + email` in
+  `AdminProfilesScreen` — a deterministic sort that puts no-email profiles first) is a
+  documented chosen behavior.
+- Tagging, for future UI testing: interactive elements carry `Modifier.testTag("<element>")`
+  (import `androidx.compose.ui.platform.testTag`) — lowercase snake, ELEMENT-level names
+  (`chat_back`, `unread_badge`, `send_button`, `star_<n>`, `conversation_row`). A name
+  identifies the affordance, not the screen: two renderers of the SAME affordance (inbox
+  list rows in `ui/screens` and `ui/inbox`) deliberately SHARE the name, so a device test
+  asking for `conversation_row` finds either. Names are otherwise kept unique across ui.
+  The full tag pass is DONE (same-day follow-up to the night batch): every interactive element
+  under `ui/` now carries a tag. Two rules complete the convention. A primitive that renders exactly ONE affordance
+  carries its tag inside the primitive — `header_back`, `menu_choice`, `search_burger_item`,
+  `view_switch_row`, `search_field` (the shared search bar), `home_tab`, `text_field`,
+  `link_row`, `role_field`, `role_choice`. A primitive that renders MANY affordances
+  (`GradientButton`, `GradientBarButton`, `CircleLabelButton`) stays UNTAGGED inside; the
+  call site supplies its tag through the `modifier` parameter
+  (`modifier = Modifier.testTag("sign_up_button")`). Beyond the inbox twins, shared names
+  are reserved for true same-affordance renderers: `try_again` (both inbox error states),
+  `campsite_card` (Explore rows and the search view's results), `register_campsite` and
+  `campsite_edit_open`/`campsite_delete_mark`/`campsite_delete_confirm`/
+  `campsite_delete_cancel` (campsite monitor and owner activity), the lottery date-dialog
+  names (shared `DatePickers` modal). Disabled, non-interactive items (the "No recent
+  searches" dropdown entry) carry no tag.

@@ -8,7 +8,7 @@ matching screen re-renders when the value changes (`MutableStateFlow` kept priva
 `asStateFlow()` exposed publicly). This package is where the UI's observable state
 machines live; the screens themselves (`ui.md`) only read these flows.
 
-Written against branch `wyatt-us-01.05.02` (tip `c985351` plus working tree), 2026-11-22.
+Written against branch `wyatt-us-01.05.02` (tip `5275878` plus working tree), 2026-11-23.
 
 ## House shape (AppViewSettings.kt)
 
@@ -135,7 +135,8 @@ Runs `readLog()` at construction (`init`).
 - `reflowLines()`: RE-DERIVES the lines for the last-read entries WITHOUT re-reading
   (NOOP before a successful read; the open set is kept as-is). The screen calls it whenever a
   passed `UserModel` reports users changing (the debug view watches the real model, app.md) —
-  profiles loaded after the log opened re-resolve receiver lines to names.
+  profiles loaded after the log opened re-resolve profile references — bar senders and
+  receiver lines alike — to names.
 - The log is read again ONLY on demand (`readLog()` re-run by the screen's refresh tap).
 
 This ViewModel IS JVM-reachable: fake the `NotificationRepository` (in-file fake of the
@@ -186,6 +187,21 @@ are final product vocabulary.
 
 All three are plain classes (no Context, nothing external): JVM-reachable — construct,
 toggle, assert flow values.
+
+## LotterySelectedViewModel.kt — the lottery selected across the lottery screens
+
+```kotlin
+class LotterySelectedViewModel {
+    val selectedLottery: StateFlow<Lottery?>   // starts null
+    fun updateLottery(new: Lottery?): Unit      // plain write
+}
+```
+
+No seams, no init side effects — a single state cell. The APP ROOT builds it once
+(`remember { LotterySelectedViewModel() }`) and hands it to `lotteryGraph` (app.md): the
+monitor clears it before opening edit and records the selection before opening details, and
+every lottery window reads through `selectedLottery`. IS JVM-reachable, trivially: assert
+the cell starts null, `updateLottery(x)` ⇒ `.value === x`, `updateLottery(null)` clears it.
 
 ## Standing viewModels up in tests
 

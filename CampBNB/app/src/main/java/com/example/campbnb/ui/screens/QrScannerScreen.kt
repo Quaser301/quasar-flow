@@ -24,6 +24,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.rememberLifecycleOwner
@@ -124,11 +125,12 @@ fun QrScannerScreen(
             value = typedCode,
             onValueChange = { typedCode = it },
             label = { Text("Scanned code (type it if the camera cannot read it)") },
-            modifier = Modifier.fillMaxSize()
+            modifier = Modifier.testTag("qr_code_field").fillMaxSize()
         )
 
         // The device's own camera: one frame, read for a code.
         Button(
+            modifier = Modifier.testTag("camera_scan"),
             onClick = {
                 frameSource.requestFrame { frame ->
                     if (frame == null) {
@@ -153,11 +155,12 @@ fun QrScannerScreen(
             value = typedImagePath,
             onValueChange = { typedImagePath = it },
             label = { Text("Image file to scan") },
-            modifier = Modifier.fillMaxSize()
+            modifier = Modifier.testTag("image_path_field").fillMaxSize()
         )
 
         Button(
             enabled = typedImagePath.isNotBlank(),
+            modifier = Modifier.testTag("image_scan"),
             onClick = {
                 val scanned = qrTextOfImageFile(typedImagePath)
                 if (scanned == null) {
@@ -174,6 +177,7 @@ fun QrScannerScreen(
 
         Button(
             enabled = scannedCode.isNotBlank(),
+            modifier = Modifier.testTag("open_scanned_code"),
             onClick = {
                 controller.scanQr(
                     payload = scannedCode,

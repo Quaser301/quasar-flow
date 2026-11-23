@@ -1,5 +1,12 @@
 package com.example.campbnb.graphs
 
+/**
+ * The campsite half of the navigation graph: the owner's My Campsites entry, the
+ * registration and editing of a campsite, and one campsite's details page.
+ *
+ * The graph is registered under the app root by name, so the screens inside it are
+ * found by the compiler-checked Screen types rather than by string routes.
+ */
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.CircularProgressIndicator
@@ -19,6 +26,8 @@ import androidx.navigation.toRoute
 import com.example.campbnb.Screen
 import com.example.campbnb.controller.CampsiteController
 import com.example.campbnb.controller.LotteryController
+import com.example.campbnb.controller.NotificationController
+import com.example.campbnb.controller.AdminController
 import com.example.campbnb.data.CampsiteRepository
 import com.example.campbnb.data.LotteryRepository
 import com.example.campbnb.database.Database
@@ -33,7 +42,6 @@ import com.example.campbnb.ui.campsite.lotteryButtonText
 import com.example.campbnb.ui.components.UserRole
 import com.example.campbnb.ui.details.CampsiteDetails
 import com.example.campbnb.ui.details.CampsiteDetailsScreen
-import com.example.campbnb.ui.lottery.LotteryWaitlistActivity
 import com.example.campbnb.ui.shared.observeModel
 import com.example.campbnb.ui.shared.roleFor
 import com.example.campbnb.viewModels.AppViewSetting
@@ -43,9 +51,31 @@ import kotlinx.serialization.Serializable
 @Serializable
 data object CampsiteGraph
 
-fun NavGraphBuilder.CampsiteGraph(
+
+/**
+ * Registers every campsite screen as one sub-graph, entered from My Campsites.
+ *
+ * @param deviceID The current device's stable id.
+ * @param appViewSettings The shared live view setting, followed while drawing.
+ * @param notification The shared notification behavior service.
+ * @param admin The shared admin policy actions over other users' listings.
+ * @param currentUserId The signed-in user's id, for the policy actions' messages.
+ * @param onNavBack Returns to whatever opened the current screen.
+ * @param onOpenMyCampsites Opens the owner's campsite list.
+ * @param onOpenLotteries Opens the owner's lottery list.
+ * @param onOpenReservations Opens the reservations view.
+ * @param onCampsiteDetailsClicked A details screen's tab was selected: go home naming
+ *     the tab.
+ * @param campsiteRepo The shared campsite storage boundary.
+ * @param campsiteModel The shared campsite model.
+ * @param toastGenerator Reports a result to the user; the caller owns the channel.
+ */
+fun NavGraphBuilder.campsiteGraph(
     deviceID: String,
     appViewSettings: AppViewSetting,
+    notification: NotificationController,
+    admin: AdminController,
+    currentUserId: String,
 
     onNavBack: () -> Unit,
     onOpenMyCampsites: () -> Unit,
@@ -54,7 +84,6 @@ fun NavGraphBuilder.CampsiteGraph(
     onCampsiteDetailsClicked: (role: UserRole, tab: Int) -> Unit,
 
     campsiteRepo: CampsiteRepository,
-
     campsiteModel: CampsiteModel,
 
     toastGenerator: (String) -> Unit,
@@ -66,13 +95,13 @@ fun NavGraphBuilder.CampsiteGraph(
 
         composable<Screen.CampsiteRegistration> {
             val controller = remember {
-                CampsiteController (campsiteModel, campsiteRepo)
+                CampsiteController(campsiteModel, campsiteRepo)
             }
 
             CampsiteRegistrationForm(
                 onBack = onNavBack,
-                onUpload = {campsite, uri ->
-                    controller.registerCampsite(campsite, deviceID) {success ->
+                onUpload = { campsite, uri ->
+                    controller.registerCampsite(campsite, deviceID) { success ->
                         if (success) {
                             onNavBack()
                         }
@@ -118,7 +147,7 @@ fun NavGraphBuilder.CampsiteGraph(
                 CampsiteRegistrationForm(
                     existingCampsite = campsite,
                     onBack = onNavBack,
-                    onUpload = {updated, uri ->
+                    onUpload = { updated, uri ->
                         controller.updateCampsite(
                             updated,
                             deviceID
@@ -138,23 +167,22 @@ fun NavGraphBuilder.CampsiteGraph(
         composable<Screen.CampsiteDetailsScreen> { entry ->
             val route = entry.toRoute<Screen.CampsiteDetailsScreen>()
 
-
-            // Follow the app view the user is in right now (like HomeScreen does), not the role
-            // captured when they navigated here.
+            // Follow the app view the user is in right now (like HomeScreen does), not the
+            // role captured when they navigated here.
             val currentView = appViewSettings.setting.collectAsStateWithLifecycle()
             val shownRole = roleFor(currentView.value)
 
-            val campsiteModel = remember { CampsiteModel() }
-            val campsiteController = remember { CampsiteController(
-                campsiteModel,
-                campsiteRepo
-            )
+            val campsiteController = remember {
+                CampsiteController(campsiteModel, campsiteRepo)
             }
             val detailsLotteryModel = remember { LotteryModel() }
             val detailsLotteryController = remember {
-                LotteryController(detailsLotteryModel, LotteryRepository(), Database.Lotteries.readEngine()) {
-                    System.currentTimeMillis()
-                }
+                LotteryController(
+                    detailsLotteryModel,
+                    LotteryRepository(),
+                    Database.Lotteries.readEngine(),
+                    notification
+                ) { System.currentTimeMillis() }
             }
             observeModel(campsiteModel)
 
@@ -168,6 +196,12 @@ fun NavGraphBuilder.CampsiteGraph(
 
             var errorMessage by remember(route.campsiteId) {
                 mutableStateOf<String?>(null)
+            }
+
+            // The saved record behind these details: a policy action acts on the listing
+            // itself, not on what is drawn.
+            var policyCampsite by remember(route.campsiteId) {
+                mutableStateOf<Campsite?>(null)
             }
 
             LaunchedEffect(route.campsiteId) {
@@ -187,6 +221,7 @@ fun NavGraphBuilder.CampsiteGraph(
                             errorMessage = "Campsite could not be found."
                             isLoading = false
                         } else {
+                            policyCampsite = campsite
 
                             // Then retrieve ratings for this campsite.
                             campsiteRepo.getAllRatings(
@@ -257,7 +292,8 @@ fun NavGraphBuilder.CampsiteGraph(
 
                 campsiteDetails != null -> {
                     // Once the model has ratings, use its numbers so the stars and average
-                    // update right after the user rates. Before that, use the ones loaded above.
+                    // update right after the user rates. Before that, use the ones loaded
+                    // above.
                     var shownDetails = campsiteDetails!!
                     if (campsiteModel.ratingCount(route.campsiteId) > 0) {
                         shownDetails = shownDetails.copy(
@@ -279,8 +315,42 @@ fun NavGraphBuilder.CampsiteGraph(
                         lotteryButtonText = lotteryButtonText(detailsLotteryModel),
                         lotteryButtonEnabled = detailsLotteryModel.entrantLottery != null,
                         lotteryButtonIsLeave = detailsLotteryModel.entrantIsOnWaitlist,
-                        onDeleteSite = {
-                            // TODO: connect to the campsite deletion workflow
+                        onDeleteSite = { reason ->
+                            val target = policyCampsite
+                            if (target != null) {
+                                admin.removeCampsite(
+                                    target,
+                                    reason,
+                                    currentUserId
+                                ) { ok ->
+                                    if (ok) {
+                                        toastGenerator(
+                                            "Removed the site and told its owner."
+                                        )
+                                    } else {
+                                        toastGenerator("Could not remove the site.")
+                                    }
+                                }
+                            }
+                        },
+                        onRemoveTag = { tag, reason ->
+                            val target = policyCampsite
+                            if (target != null) {
+                                admin.removeTag(
+                                    target,
+                                    tag,
+                                    reason,
+                                    currentUserId
+                                ) { ok ->
+                                    if (ok) {
+                                        toastGenerator(
+                                            "Removed the tag and told the site's owner."
+                                        )
+                                    } else {
+                                        toastGenerator("Could not remove the tag.")
+                                    }
+                                }
+                            }
                         },
                         entrantContent = {
                             CampsiteRatingSection(
@@ -300,30 +370,5 @@ fun NavGraphBuilder.CampsiteGraph(
                 }
             }
         }
-
-        composable<Screen.LotteryWaitlistActivity> {
-            val activity = remember {
-                LotteryWaitlistActivity(
-                    { nav.navigate(Screen.Start) },
-                    { nav.navigateUp() },
-                    appViewSettings = deps.appViewSettings.toAppViewSetting()
-                )
-            }
-            val model = remember { LotteryModel() }
-            val repo = remember { LotteryRepository() }
-            val controller = remember {
-                LotteryController(
-                    model,
-                    repo,
-                    Database.Lotteries.readEngine()
-                ) { System.currentTimeMillis() }
-            }
-            activity.LotteryWaitlist(
-                model = model,
-                controller = controller,
-                selectedLottery = selectedLottery
-            )
-        }
-
     }
 }

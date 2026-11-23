@@ -19,6 +19,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextAlign
@@ -76,6 +77,7 @@ fun BarWithBackChevronAndHeaderCentered(
     Row(Modifier.fillMaxWidth()) {
         Box(
             modifier = Modifier
+                .testTag("header_back")
                 .clickable(onClick = returnFunc)
                 .padding(12.dp)
         ) {
@@ -127,6 +129,7 @@ fun<T> AppDropDownMenu(
                         textRenderer(entry)
                     }
                 },
+                modifier = Modifier.testTag("menu_choice"),
                 onClick = {
                     onSelect(entry)
                     onDismissed()
@@ -167,6 +170,9 @@ fun searchBurgerMenu(
                 text = {
                     Text(searchMenuItemLabel(option) + if (active(option)) " ✓" else "")
                 },
+                // the ONE affordance both the Explore burger and the search view's
+                // burger render: the shared name finds either (fix 11's one source).
+                modifier = Modifier.testTag("search_burger_item"),
                 onClick = {
                     onSelect(option)
                     onDismiss()
@@ -188,6 +194,7 @@ fun<T> AppSwitchMenu(
             val isEnabled = selected.contains(entry)
             Row(
                 modifier = Modifier
+                    .testTag("view_switch_row")
                     .fillMaxWidth()
                     .height(32.dp)
                     .toggleable(

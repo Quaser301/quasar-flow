@@ -16,6 +16,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -115,6 +116,7 @@ fun NotificationLogScreen(
         }
         Box(
             modifier = Modifier
+                .testTag("log_refresh")
                 .clickable(onClick = {
                     display.readLog()
                 })
@@ -172,6 +174,7 @@ private fun NotificationLogLineDisplay(
         LogLineStyle.DROPDOWN -> {
             Box(
                 modifier = Modifier
+                    .testTag("log_dropdown")
                     .clickable(onClick = {
                         display.toggleLog(line.logId)
                     })

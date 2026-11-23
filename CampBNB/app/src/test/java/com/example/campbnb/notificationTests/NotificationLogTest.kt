@@ -531,8 +531,9 @@ class NotificationLogTest {
     }
 
     // The collapsed bar is stated word-for-word: an unnamed sender draws the system
-    // placeholder, an unstamped entry its no-timestamp wording, and the closed form
-    // appends only the tap note.
+    // placeholder, an unstamped entry its no-timestamp wording, a record that copied no
+    // place keeps its plain route, the entry's raw db id comes through as the record's
+    // own key, and the closed form appends only the tap note.
     @Test
     fun closed_bar_carries_the_exact_stated_copy() {
         val entry = record(
@@ -549,7 +550,7 @@ class NotificationLogTest {
         assertEquals(1, bars.count())
         assertEquals(
             "sent by the system  -  1 recipient(s)  -  no saved timestamp  -  " +
-                    "opens notifications - tap to open",
+                    "opens notifications  -  db id b1 - tap to open",
             bars[0].text
         )
         assertEquals(notificationLogKeyOf(entry), bars[0].logId)

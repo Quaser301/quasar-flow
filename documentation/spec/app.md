@@ -3,7 +3,11 @@
 Spec file for the five files at the root of `CampBNB/app/src/main/java/com/example/campbnb/`:
 `Dependencies.kt` (contract), `AppContainer.kt` (the only production provider),
 `MainActivity.kt` (Android entry), `Screen.kt` (the navigation vocabulary),
-`CampBNBApp.kt` (the `NavHost` graph).
+`CampBNBApp.kt` (the `NavHost` graph), PLUS the `graphs/` sub-package
+(`com.example.campbnb.graphs`): `StartupGraph.kt`, `ExploreGraph.kt`, `CampsiteGraph.kt`,
+`LotteryGraph.kt` — one `NavGraphBuilder` extension function per feature area, CALLED by
+name inside `CampBnbApp`'s `NavHost` (this branch's restructure; the per-screen screen
+windows below are specified here by which file registers them).
 
 This package is GLUE: it owns no behavior of its own — it creates the shared services
 once and connects the packages below it. Nothing here is a JVM unit target (see the last
@@ -11,7 +15,7 @@ section); every semantic a screen depends on is specified in the lower-area spec
 which is where tests belong. This file is written so the test agent can see the
 SEAMS and the app's routing vocabulary without reading the code.
 
-Written against branch `wyatt-us-01.05.02` (tip `c985351` plus working tree), 2026-11-22.
+Written against branch `wyatt-us-01.05.02` (tip `5275878` plus working tree), 2026-11-23.
 
 ## Dependencies (interface) — the app-level seam
 
@@ -131,30 +135,48 @@ SystemNotifier(applicationContext))`.
 One named type per screen the app can display; the seal makes every `is`-check
 exhaustible at COMPILE time (developer note: a renamed/removed screen breaks every
 window still referring to it — that is what keeps `navigate()` calls safe). Members,
-exact: `Home(role: UserRole, tab: Int = 0)`, `CampsiteEditActivity`,
-`EditCampsite(campsiteId: String)`, `LotteryEditActivity`, `LotteryMonitorActivity`,
-`LotteryDetailsActivity`, `LotteryWaitlistActivity`, `Start`, `Login`, `SignUp`,
+exact: `Home(role: UserRole, tab: Int = 0)`, `CampsiteRegistration`,
+`EditCampsite(campsiteId: String)`, `LotteryEdit`, `LotteryMonitor`,
+`LotteryDetails`, `LotteryWaitlist`, `Start`, `Login`, `SignUp`,
 `Role`, `Settings(role: UserRole)`, `Search(role, query: String = "", openFilter: Boolean = false,
 openHistory: Boolean = false)`,
 `QrScanner(role: UserRole)`, `Reservations`, `CampsiteDetail(role, campsiteId)` (declared;
 the graph below opens `CampsiteDetailsScreen` instead — see graph section),
-`CampsiteMonitorActivity(role: UserRole)`, `CampsiteDetailsScreen(role: UserRole, campsiteId: String)`.
+`CampsiteMonitor(role: UserRole)`, `CampsiteDetailsScreen(role: UserRole, campsiteId: String)`,
+plus the Home bottom-bar tab routes as data objects: `Explore`, `Messages`, `Bookings`,
+`Inbox`, `Profile`, `MyCampsites`, `Reports`, `Flagged`, `AdminProfileView`,
+`AdminNotificationView` — the nested Home graph (below) registers content for the tabs.
 `UserRole` is the UI role (ui/components — ui.md); data-class payloads ARE the route
-arguments (`toRoute<T>()` reads them back). `Home.tab` is the bottom-bar tab index.
+arguments (`toRoute<T>()` reads them back). `Home.tab` is the index of the bottom-bar
+tab Home opens on (`HomeScreen`'s `initialTab` seed, clamped to the live tab list).
 
 ## CampBnbApp (`@Composable fun CampBnbApp(deps: Dependencies)`) — the `NavHost` graph
 
-`startDestination = Screen.Start`; one `composable<Screen.X>` per Screen member (plus the
-string routes below). Per-screen instances are `remember`-constructed: fresh `CampsiteModel()`/
+`startDestination = Screen.Start`. The graph is SPLIT (this branch's restructure): the
+`graphs/` sub-package holds one `NavGraphBuilder` extension function per feature area —
+`startupGraph(nav callbacks…)` registers Start/Login/SignUp/Role, `exploreGraph` registers
+Search (its own `Screen.Explore` node is a DEAD bridge — Home registers the live Explore
+content and nothing in the app graph navigates to it), `campsiteGraph` registers
+CampsiteRegistration/EditCampsite/CampsiteDetailsScreen (and a `Screen.MyCampsites` node
+that is the dead twin of Home's live tab content), `lotteryGraph` registers
+LotteryEdit/LotteryMonitor/LotteryDetails/LotteryWaitlist. Each takes the exit callbacks
+its screens use (the app root passes `nav.navigate…`/`nav.goHome` lambdas into them) and is
+CALLED by name inside the app `NavHost`. The app `NavHost` itself registers the remaining
+windows directly: Home (with its nested tab graph, below), CampsiteMonitor, Reservations,
+Settings, QrScanner, and the string-route bridges. Per-screen model/controller instances
+stay `remember`-constructed wherever the window now lives: fresh `CampsiteModel()`/
 `LotteryModel()` + `CampsiteController(model, deps.campsiteRepository)` or
 `LotteryController(model, LotteryRepository(), Database.Lotteries.readEngine(), deps.notificationController)
 { System.currentTimeMillis() }` (the `nowProvider` is literally wall-clock — models.md's
-`Lottery.statusAt` depends on it; note each lottery screen builds its OWN controller over
-its OWN fresh model/repository). Shared `var selectedLottery` (a `Lottery?`) carries the
-lottery the owner picked on the list into the edit/details/waitlist screens.
+`Lottery.statusAt` depends on it; each lottery window still builds its OWN controller over
+its OWN fresh model/repository). The lottery the owner picked on the list is carried into
+the edit/details/waitlist windows by a SHARED `LotterySelectedViewModel` (viewModels.md —
+`selectedLottery` read-only StateFlow + `updateLottery(new)`), built once at the app root
+and passed into `lotteryGraph`: the monitor clears it before opening edit and sets it before
+opening details or the waitlist — there is no app-root `var` any more.
 
 Routing rules that matter to readers and future integration tests (graph edges — one
-line each, all `nav.navigate(...)`):
+line each; `nav` is the app controller, `homeNav` the nested one, all calls as stated):
 - Start → `Screen.Login` on get-started. Login = `DeviceSignInScreen(deps.deviceID,
   userController = deps.userController, onEntered, onNotFound)`. **onEntered**: privileges
   = `userModel.currentUser?.roles`; role picks by PRECEDENCE `ADMIN` beats `OWNER` beats
@@ -170,48 +192,67 @@ line each, all `nav.navigate(...)`):
 - Role: `RoleSelectScreen(onRoleSelected)` maps `UserRole→AppView` INLINE (ADMIN→AdminView,
   OWNER→OwnerView, CAMPER→EntrantView — same as ui.md's `toAppView`), sets the view,
   navigates `Home(role)` popping up to Start inclusive.
-- Home: `entry.toRoute<Screen.Home>()` payload drives tabs; `destinationContent` switches
-  `HomeDestination` (ui/screens — ui.md): MY_CAMPSITES→`MyCampsitesTab` (three gradient
-  buttons → `CampsiteMonitorActivity(role)`, `LotteryMonitorActivity`, `Screen.Reservations`);
-  BOOKINGS→`BookingsScreen` (tab selection kept in a `var` here); MESSAGES→
-  `CorrespondenceDestination(openTab = CorrespondenceTabs.MESSAGES_TAB)`; INBOX→same with
-  NOTIFICATIONS_TAB; RESERVATIONS→`ReservationsPanel(deps)` HOSTED DIRECTLY under the tab
-  (`goBack = nav.goHome(role)` — pressing the tab lands in the view itself, no
-  `ReservationsTab` screen asking for a second button); ADMIN_PROFILE_VIEW→`loadAllUsers()`
-  then `AdminProfilesScreen({nav.goHome(role)}, deps.userModel)`; ADMIN_NOTIFICATION_VIEW→
-  `NotificationLogScreen(title = "Notification Debugging", notificationSource = deps.notificationRepository,
-  profileText = { userId -> profileLabelOf(userId, deps.userModel.allUsers) })` (the
-  debug log resolves profile references via ui.md's `profileLabelOf`); `else`→`PlaceholderTab(destination)`.
-  Explore content: spinner until `campsiteCardsLoaded` (the `getAll` read answered —
-  including after re-entering Explore); then `ExploreScreen` whose callbacks navigate:
-  settings→`Settings(role)` PUSHED over the LIVE Home frame (`popUpTo<Screen.Home> { inclusive = false }`
-  only, and NO `launchSingleTop` anywhere in this bridge — that option launches the target
-  as the single top screen, which leaves no Home frame under back and killed both the back
-  button and the back gesture; the push keeps the explored
-  subtree on the stack and the Settings bridge's `navigateUp` back pops to the SAME live Explore
-  view, selection and cards intact; a plain navigate would unmount Home and redraw Explore through
-the spinner — owner-approved design for the Explore-not-restored complaint), campsite click→
-  `CampsiteDetailsScreen(role, id)` PUSHED over the LIVE Home frame (`popUpTo<Screen.Home>
-  { inclusive = false }`, no `launchSingleTop` — same live-frame push as the settings entry,
-  so back-navigating from the details view returns to the SAME live Explore, selection and
-  cards intact; this recurring back bug was reported again for this entry), search→`Search(role, text)`,
-  filter→`Search(role, "", true)`, search-history→`Search(role, "", false, true)`
-  (the Explore burger and the search view's burger list the SAME items from the one shared
-  ui.md menu source — fix 11; each item opens the search view with its section showing),
-  QR circle→`QrScanner(role)`. Bookings for the tab:
-  `deps.reservationRepository.getForEntrant(entrantId = deps.deviceID, …)` then keep
-  `status == ReservationStatus.ACTIVE` only, mapped to `BookingCardData` with
-  `status = "Confirmed"`, `campsiteNames = listOf(found name or "Campsite")`,
-  `lotteryEntryId` as id. Failure Toasts, exact: `"Could not load bookings: ${error.message}"`,
-  `"Could not load campsite details: …"`, `"Could not load campsites: …"` — Toast copy is
-  integration text, NOT unit assertions.
-- Search: `observeModel(searchModel)` then `loadAndSearch(query)`; the screen opens with
+- Home (`Screen.Home(role, tab)`): `entry.toRoute<Screen.Home>()`. Home's OWN body loads the
+  tab data once (cards via one `getAll`; bookings via `getForEntrant` + a second `getAll` for
+  names, filling `confirmedBookings`), then builds
+  `HomeScreen(role, deps.appViewSettings.toAppViewSetting(), initialTab = route.tab, homeNavController = homeNav)`
+  and passes a builder registering ONE NODE PER BOTTOM-BAR TAB (ui.md `tabsFor` — every tab the
+  bar can name is registered here, so pressing any circle lands on real content). `homeNav =
+  rememberNavController()` is a NESTED graph inside Home: the bar moves between tabs on THAT
+  graph and the app `nav` never enters or leaves a tab, so a tab change is never stacked on the
+  last one, and while tab content shows the live APP-level frame IS Home. The nested graph OPENS
+  on `tabs[route.tab]` clamped (the `initialTab` seed: `goHome` names a tab — CampsiteMonitor's
+  back names My Campsites, reported regression 9; the details-page picker names the tapped tab;
+  the default 0 opens Explore). Nodes below are the tab content:
+  - `Screen.Explore`: `ExploreScreen(recommended = campsiteCards, newSites = campsiteCards)`
+    (the cards come from Home's own `getAll` read; the empty/loading semantics of the screen are
+    ui.md's). Callbacks navigate on the APP graph:
+    settings→`Settings(role)` PLAIN `nav.navigate` — NO popUpTo, NO launchSingleTop: this tab's
+    content only ever shows while Home is the live app-level frame, so a bare push leaves Home
+    mounted under Settings, and Settings' `navigateUp` back pops Settings and re-exposes the SAME
+    live Home (Explore still selected, cards intact). The earlier typed `popUpTo<Screen.Home>
+    { inclusive = false }` could never match a live Home frame — Home is a parameterized route and
+    a typed pop matches a class as a pattern no live instance equals — so it popped the WHOLE
+    stack, leaving Settings the sole entry: back went to the start and the back gesture closed the
+    app (reported regression 7).
+    campsite click→`CampsiteDetailsScreen(role, id)` PLAIN `nav.navigate`, same reasoning (that
+    recurring back bug was reported again for this entry); search→`Search(role, text)`,
+    filter→`Search(role, "", true)`, history→`Search(role, "", false, true)`
+    (the Explore burger and the search view's burger list the SAME items from the one shared
+    ui.md menu source — fix 11; each item opens the search view with its section showing),
+    QR circle→`QrScanner(role)`.
+  - `Screen.Bookings`: `BookingsScreen` reading Home's values; confirmed list:
+    `deps.reservationRepository.getForEntrant(entrantId = deps.deviceID, …)` then keep
+    `status == ReservationStatus.ACTIVE` only, mapped to `BookingCardData` with
+    `status = "Confirmed"`, `campsiteNames = listOf(found name or "Campsite")`,
+    `lotteryEntryId` as id; tab selection kept in Home's `selectedBookingTab` var (`onTabSelected`
+    mutates it). Failure Toasts, exact: `"Could not load bookings: ${error.message}"`,
+    `"Could not load campsite details: …"`, `"Could not load campsites: …"` — Toast copy is
+    integration text, NOT unit assertions.
+  - `Screen.Reservations` (the camper tab): `ReservationsPanel(deps)` HOSTED DIRECTLY under the
+    tab — pressing the tab lands in the view itself, no second button asking again; the panel's
+    back is `homeNav.navigateUp()` (pops the tab's own frame; Explore stays under every other
+    tab, so the first tab lands live — the same net effect as the old `goBack = nav.goHome(role)`).
+  - `Screen.MyCampsites`: `MyCampsitesTab(onOpenMyCampsites = { nav.navigate(Screen.CampsiteMonitor(role)) },
+    onOpenLotteries = { nav.navigate(Screen.LotteryMonitor) }, onOpenReservations = { nav.navigate(Screen.Reservations) })`
+    — those three buttons cross out of Home onto the APP graph.
+  - MESSAGES→`CorrespondenceDestination(openTab = CorrespondenceTabs.MESSAGES_TAB, onNavBack = { homeNav.navigateUp() }, deps)`;
+    INBOX→same with NOTIFICATIONS_TAB — in-Home back affordances stay on the NESTED graph.
+  - ADMIN_PROFILE_VIEW→`loadAllUsers()` then `AdminProfilesScreen({nav.goHome(role)}, deps.userModel)`;
+    ADMIN_NOTIFICATION_VIEW→`NotificationLogScreen(title = "Notification Debugging", notificationSource = deps.notificationRepository,
+    profileText = { userId -> profileLabelOf(userId, deps.userModel.allUsers) })` (the debug log
+    resolves profile references via ui.md's `profileLabelOf`); PROFILE/REPORTS/FLAGGED→`PlaceholderTab(label)`.
+  (The graph files' own `Screen.Explore` and `Screen.MyCampsites` nodes are the DEAD twins of the
+  two live nodes above — nothing in the app graph navigates to them; they belong to the owner's
+  half-finished restructure and stay registered.)
+- Search (registered by `exploreGraph` — the live node; that file's own `Screen.Explore` node
+  is the dead twin mentioned above): `observeModel(searchModel)` then `loadAndSearch(query)`; the screen opens with
   `initialShowFilter = route.openFilter` and `initialShowHistory = route.openHistory` so the
   Explore burger's items land the view with that section showing (fix 11); results drawn with
   `toCardList(searchModel.visibleCampsites, searchModel)` (ui.md); `onClose`→navigateUp.
 - QrScanner screen: `QrScannerScreen(controller = …)` `onOpenCampsite`→that campsite's details;
   the stack keeps this screen under the details page, so back returns here (US 01.12.01).
-- CampsiteDetailsScreen: **shownRole follows the CURRENT app view**
+- CampsiteDetailsScreen (registered by `campsiteGraph`): **shownRole follows the CURRENT app view**
   (`deps.appViewSettings.viewSetting.collectAsStateWithLifecycle()` → `roleFor(…)`) — not
   the role captured in the route. Loads `getAll` then (found) `getAllRatings` filtered to
   the id; average `0.0` when none; details built as `CampsiteDetails(...)` with
@@ -223,24 +264,44 @@ the spinner — owner-approved design for the Explore-not-restored complaint), c
   `deps.adminController.removeCampsite(target, reason, deps.currentUserId)` Toast
   `"Removed the site and told its owner."`/`"Could not remove the site."`; `onRemoveTag`→
   `removeTag(target, tag, reason, …)` Toast `"Removed the tag and told the site's owner."`/`"Could not remove the tag."`
-  (controller.md owns the record-building rules). The action area is one hamburger per
-  role (feature 2): the camper's "Lottery" bar menu offers a join/leave item LABELLED
-  by ui.md's `lotteryButtonText(model)`, ENABLED by `entrantLottery != null`, is-leave by
-  `entrantIsOnWaitlist`; `onEnterLottery`→`detailsLotteryController.toggleEntrantMembership(deps.deviceID)`;
-  entrant content = `CampsiteRatingSection` + `LotteryJoinSection`.
-- Lottery edit/monitor/details/waitlist: each composable `remember`s an ACTIVITY CLASS
+  (controller.md owns the record-building rules). The action area is one hamburger per role (feature 2):
+  the CAMPER's whole "Lottery" action Column exists ONLY while the campsite has a lottery
+  active for the signed-in camper — the graph passes `lotteryButtonEnabled =
+  detailsLotteryModel.entrantLottery != null` and the ui half gates the ENTIRE Column on it,
+  so with no lottery there is no bar at all rather than a dead hamburger with an empty menu
+  inside (reported regression 3). The single item inside is LABELLED by ui.md's
+  `lotteryButtonText(model)`, is-leave by `lotteryButtonIsLeave = entrantIsOnWaitlist`;
+  `onEnterLottery`→`detailsLotteryController.toggleEntrantMembership(deviceID)`.
+  The PolicyReason menu renders the CHOSEN reason in the theme's `AdminInteractionColor`
+  once `adminReasonPicked == reason`, and the action runs with that chosen reason — admin
+  interaction visible in the admin colour (reported regression 5; precedent: NotificationLogScreen
+  renders admin copy in that colour). The details page carries the bottom-bar PICKER:
+  `onTabSelected = { index -> onCampsiteDetailsClicked(route.role, index) }`, the graph's callback
+  passed by the app root as `{ role, tab -> nav.goHome(role, tab) }` — Home opens on the named tab.
+  Entrant content = `CampsiteRatingSection` + `LotteryJoinSection`.
+- Lottery edit/monitor/details/waitlist (registered by `lotteryGraph`, entered at LotteryMonitor):
+  each composable `remember`s an ACTIVITY CLASS
   (`LotteryEditActivity(...)` etc. — ui.md: constructor = return callbacks + `appViewSettings =
   deps.appViewSettings.toAppViewSetting()`), then calls the activity's method
-  (`activity.LotteryEdit(model, controller, userRepository = UserRepository(), initialLottery = selectedLottery, deviceID)`,
-  `LotteryMonitor(model, controller, deviceID)`, `LotteryWaitlist(model, controller, selectedLottery)`,
-  `LotteryDetails(model, selectedLottery)`). Monitor sets `selectedLottery = null` before
-  opening edit, or `= lottery` before opening details — the cross-screen carry. Edit mode
+  (`activity.LotteryEdit(model, controller, userRepository = UserRepository(), initialLottery = selectedLottery.value, deviceID)`,
+  `LotteryMonitor(model, controller, deviceID)`, `LotteryWaitlist(model, controller, selectedLottery.value)`,
+  `LotteryDetails(model, selectedLottery.value)`), where `selectedLottery` is read via
+  `lottery.selectedLottery.collectAsStateWithLifecycle()` off the SHARED `LotterySelectedViewModel`
+  (viewModels.md) that the app root builds once and passes into `lotteryGraph`. The cross-screen
+  carry: Monitor's ctor calls `lottery.updateLottery(null)` before opening edit, and
+  `lottery.updateLottery(newLottery)` before opening details — there is no graph-local var any
+  more. Edit mode
   offers the lottery's own admin (its creator, never a joining owner) a Force Close button
   calling `controller.forceCloseLottery(initialLottery, nameOfCampsite resolved from the
   loaded owner campsites)` — controller.md owns the draw (feature 1).
-- CampsiteMonitorActivity (same-name collision: `Screen.CampsiteMonitorActivity` the route,
-  ui's activity class the renderer): ctor gets `goHome`/`goBack`/`goToRegisterCampsite`
-  (→`CampsiteEditActivity`)/`goToCampsiteDetails`/`goToEditCampsite`/`fileDownloadWriter`/
+- `Screen.CampsiteMonitor` (same-name collision: `Screen.CampsiteMonitor` the route,
+  ui's activity class the renderer; registered at the app root): ctor gets `goHome`/`goBack` —
+  both `{ nav.goHome(route.role, tabIndexOf(route.role, Screen.MyCampsites)) }`, so back opens
+  Home NAMING the My Campsites tab and the bar lands there (reported regression 9: back used to
+  open the first tab; the app root's `tabIndexOf` resolves the index by route equality against
+  `tabsFor`, and a miss coerces to the first tab) — plus `goToRegisterCampsite` (plain push →
+  `Screen.CampsiteRegistration`)/`goToCampsiteDetails`/`goToEditCampsite`/`fileDownloadWriter =
+  deps.fileDownloadWriter` (file-download wiring, item 8)/
   `appViewSettings`/`deviceID`; renders via `activity.CampsiteMonitor(model, controller)`.
 - `Screen.Reservations` → `ReservationsPanel(deps)`: a user OWNING ANY of the sites (decided
   by the loaded sites: `allCampsites.any { it.ownerId == deps.deviceID }`, NOT the owner-role
@@ -255,12 +316,19 @@ the spinner — owner-approved design for the Explore-not-restored complaint), c
   currentUserId, fileDownloadWriter …)` (CSV download ↔ controller.md's `generateReceiptCsv`).
 - Settings composable passes `viewSettings = deps.appViewSettings, entrantSettings,
   notificationPreferences = deps.notificationPreferencesService, userIdForSettings = deps.currentUserId`.
-  Its `back = { nav.navigateUp() }` pairs with the pushed Explore entry above: it pops Settings
-  and reveals the still-mounted Home frame, so Explore returns live, selection and cards intact
-  (this was the Explore-not-restored complaint; the design was owner-approved as the push, not
-  a state hoist or a named Explore node).
-- `private fun NavController.goHome(role, tab = 0)` = navigate `Home(role, tab)`
-  `popUpTo<Screen.Home> { inclusive = true }; launchSingleTop = true`.
+  Its `back = { nav.navigateUp() }` pairs with the Explore bridge's PLAIN push above: nothing
+  was popped there, so Home is still mounted underneath and `navigateUp` pops Settings and
+  re-exposes the SAME live Home (Explore selected, cards intact). This was the
+  Explore-not-restored complaint; the design stays owner-approved as push-not-hoist — only the
+  mechanism changed: a typed pop can never name a parameterized Home frame (see the
+  regression-7 note in the Explore bridge), so the bridge simply does not pop.
+- `private fun NavController.goHome(role, tab = 0)` = navigate `Home(role, tab)` with
+  `popUpTo<Screen.Home> { inclusive = true }; launchSingleTop = true` — kept as-is: even though
+  the typed pop cannot name a live PARAMETERIZED Home frame (no instance route equals the class
+  pattern, so it empties the stack), the following push re-establishes the Home frame, and the
+  net effect is a fresh `[Home]` whose NESTED graph restarts at `tabs[tab]` clamped
+  (`HomeScreen.initialTab`): callers that name a tab (CampsiteMonitor's back, the details-page
+  picker) land the bar there; the default opens the first tab.
 
 **String routes** (runtime-checked, NOT the Screen seal) — these are exactly the
 `NotificationRoutes` constants from notifications.md plus the `qrLinkRoute`/`qrOldCodeRoute`
@@ -271,16 +339,18 @@ calls `onPendingRouteHandled()`:
 - `"notifications"` → Correspondence tab `RECEIVED_TAB` if owner else `NOTIFICATIONS_TAB` (the
   owner's OWN sent notices live under Received — see tab wiring below).
 - `"messages"` → `CorrespondenceDestination(MESSAGES_TAB)`.
-- `"reservations"` → immediately `nav.navigate(Screen.Reservations)` with
-  `popUpTo<Screen.Home> { inclusive = false }` and NO `launchSingleTop` (a string route
-  left on the stack would keep an invisible frame under reservations — the reported white
-  screen bug — this pop takes it out, so the first back press goes to Home; `launchSingleTop`
-  on top of that would leave nothing under back at all, and made back need THREE presses
-  before it dead-ended, the reported pipeline bug).
+- `"reservations"` → the bridge's `LaunchedEffect` runs `nav.navigateUp()` (pops its OWN string
+  frame) then a PLAIN `nav.navigate(Screen.Reservations)` — no popUpTo at all: the typed
+  `popUpTo<Screen.Home> { inclusive = false }` form could never match a live Home frame
+  (Home is a parameterized route; the pop emptied the whole stack and left the reservations
+  view as the only entry — the reservations half of reported regression 7). The self-pop keeps
+  the old white-screen fix (no invisible string frame stays under the view), so the first back
+  press goes to whatever the notification was tapped from, under Home; `launchSingleTop` still
+  unused.
 - `"booking/{lotteryId}"` → `InvitationDestination`: reads the lottery via
   `Database.Lotteries.readEngine().getById`; the invitation panel shows ONLY while
   `viewerId in invited.invitedOwnerIds` and NOT `in joinedOwnerIds`; Accept button →
-  `invitationController.acceptInvitation(lottery, userId, onSuccess = navigate LotteryMonitorActivity)`;
+  `invitationController.acceptInvitation(lottery, userId, onSuccess = navigate `Screen.LotteryMonitor`)`;
   "Not now" → `Screen.Reservations`; otherwise (already joined / resolved / not invited) it
   navigates `Screen.Reservations` (`popUpTo(Screen.Reservations) inclusive`) — taps from WIN
   notifications keep behaving that way (the reservation-then-reservations path). Exact panel
@@ -289,11 +359,14 @@ calls `onPendingRouteHandled()`:
 - `"chat/{reservationId}"` → `CorrespondenceDestination(MESSAGES_TAB, openReservationId = …)`.
 - `"qr-link/{campsiteId}"` (models.md `qrLinkRoute`, queued by MainActivity after resolving a
   LIVE code's opened-link text) → `campsiteId = entry.arguments?.getString("campsiteId") ?: ""`;
-  `LaunchedEffect(campsiteId)` and when it is NOT blank immediately `nav.navigate(Screen.CampsiteDetailsScreen(
-  toUserRole(role), campsiteId))` with `popUpTo<Screen.Home> { inclusive = false }` and NO `launchSingleTop`
-  (same white-screen fix as the reservations bridge: the invisible string frame pops itself out, so
-  the first back press goes to Home, not to a blank frame; `launchSingleTop` would launch the
-  details screen as the single top and leave nothing under back). The key's role = the signed-in user's
+  `LaunchedEffect(campsiteId)` and when it is NOT blank: `nav.navigateUp()` (self-pop, same
+  pattern as the reservations bridge — the typed `popUpTo<Screen.Home> { inclusive = false }`
+  could never name the parameterized Home frame and emptied the stack, reported regression 7)
+  then a PLAIN `nav.navigate(Screen.CampsiteDetailsScreen(
+  toUserRole(role), campsiteId))` — no popUpTo, NO `launchSingleTop`
+  (the self-pop keeps the white-screen fix: no invisible string frame stays under the details
+  page, so the first back press goes Home, not to a blank frame; `launchSingleTop` would launch
+  the details screen as the single top and leave nothing under back). The key's role = the signed-in user's
   OWN privileges with the login precedence (`currentUser?.roles`: ADMIN then OWNER else ENTRANT —
   the same derivation the Login block runs), mapped through `toUserRole` (ui.md RoleMapping); the
   details composable follows the current app view regardless, so the key role is a carrier. A live
