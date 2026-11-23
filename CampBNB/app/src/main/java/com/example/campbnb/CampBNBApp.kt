@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -101,6 +102,16 @@ fun CampBnbApp(
     // The lottery the owner picked on the lottery list, shared by the lottery edit,
     // details and waitlist screens.
     var selectedLottery by remember { mutableStateOf<Lottery?>(null) }
+
+    DisposableEffect(deps.deviceID) {
+        val stopWatching = deps.userController.watchForRemoval(deps.deviceID) {
+            deps.userModel.setCurrentUser(null)
+            nav.navigate(Screen.Start) {
+                popUpTo(Screen.Start) { inclusive = true }
+            }
+        }
+        onDispose { stopWatching() }
+    }
 
     NavHost(navController = nav, startDestination = Screen.Start) {
         // Start
