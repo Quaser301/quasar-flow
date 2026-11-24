@@ -1,5 +1,6 @@
 package com.example.campbnb.graphs
 
+import android.widget.Toast
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -17,12 +18,12 @@ import com.example.campbnb.ui.campsite.toCardList
 import com.example.campbnb.ui.components.UserRole
 import com.example.campbnb.ui.screens.CampsiteCardData
 import com.example.campbnb.ui.screens.ExploreScreen
+import com.example.campbnb.ui.screens.QrScannerScreen
 import com.example.campbnb.ui.search.SearchScreen
 import com.example.campbnb.ui.shared.observeModel
 import kotlinx.serialization.Serializable
 
-@Serializable
-data object ExploreGraph
+
 
 
 /**
@@ -59,9 +60,9 @@ fun NavGraphBuilder.exploreGraph(
 
     campsiteControl: CampsiteController,
 
-    toastGenerator: (reason: String) -> Unit
+    toastGenerator: (reason: String, duration:Int) -> Unit
 ) {
-    navigation<ExploreGraph>(startDestination = Screen.Explore) {
+    navigation<NavGraphNodes.ExploreGraph>(startDestination = Screen.Explore) {
         composable<Screen.Explore> {
             var newCampsiteCards by remember {
                 mutableStateOf<List<CampsiteCardData>>(emptyList())
@@ -78,7 +79,9 @@ fun NavGraphBuilder.exploreGraph(
                         }
                     },
                     onFailure = { error ->
-                        toastGenerator("Could not load campsites: ${error.message}")
+                        toastGenerator(
+                            "Could not load campsites: ${error.message}",
+                            Toast.LENGTH_LONG)
                     }
                 )
             }
@@ -118,6 +121,26 @@ fun NavGraphBuilder.exploreGraph(
                 onQrClick = onOpenQr,
                 onCampsiteClick = {
                     navToCampDetails(route.role, it.id)
+                }
+            )
+        }
+
+        // Camera scanner: opened by the QR circle on Search. A working code opens the
+        // campsite it names; going back from that campsite returns here because the
+        // navigation stack keeps this screen under the details page (US 01.12.01).
+        composable<Screen.QrScanner> { entry ->
+            val route = entry.toRoute<Screen.QrScanner>()
+            val scannerModel = remember { CampsiteModel() }
+            val scannerController = remember {
+                CampsiteController(
+                    scannerModel,
+                    campsiteRepo
+                )
+            }
+            QrScannerScreen(
+                controller = scannerController,
+                onOpenCampsite = { campsite ->
+                    navToCampDetails(route.role, campsite.id)
                 }
             )
         }

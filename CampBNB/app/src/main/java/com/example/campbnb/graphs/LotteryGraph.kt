@@ -22,11 +22,8 @@ import com.example.campbnb.viewModels.LotterySelectedViewModel
 import kotlinx.serialization.Serializable
 
 
-@Serializable
-data object LotteryGraph
 
-
-fun NavGraphBuilder.lotteryGraph(
+fun NavGraphBuilder.LotteryGraph(
     deviceID: String,
     appViewSettings: AppViewSetting,
     lottery: LotterySelectedViewModel,
@@ -40,7 +37,7 @@ fun NavGraphBuilder.lotteryGraph(
     onNavToWaitlist: () -> Unit,
     onGoHome: () -> Unit,
 ) {
-    navigation<LotteryGraph>(startDestination = Screen.LotteryMonitor) {
+    navigation<NavGraphNodes.LotteryGraph>(startDestination = Screen.LotteryMonitor) {
         composable<Screen.LotteryEdit> {
             val selectedLottery = lottery.selectedLottery.collectAsStateWithLifecycle()
             val activity = remember {

@@ -119,4 +119,23 @@ sealed interface Screen {
 
     @Serializable
     data object AdminNotificationView : Screen
+
+    // notification stuff
+    @Serializable
+    data object Notifications : Screen
+
+    @Serializable
+    data object NotifReservations : Screen // same as NotificationRoutes.RESERVATION.
+
+    @Serializable
+    data class BookingEntry(val lotteryID: String) : Screen
+
+    @Serializable
+    data class ChatReservationEntry(val reservationID:String) : Screen
+
+    @Serializable
+    data class QrLinkRoute(val campsiteID:String) : Screen
+
+    @Serializable
+    data object OldQRCode : Screen
 }

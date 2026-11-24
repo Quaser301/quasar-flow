@@ -7,6 +7,7 @@ package com.example.campbnb.graphs
  * The graph is registered under the app root by name, so the screens inside it are
  * found by the compiler-checked Screen types rather than by string routes.
  */
+import android.widget.Toast
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.CircularProgressIndicator
@@ -29,12 +30,14 @@ import com.example.campbnb.controller.LotteryController
 import com.example.campbnb.controller.NotificationController
 import com.example.campbnb.controller.AdminController
 import com.example.campbnb.data.CampsiteRepository
+import com.example.campbnb.data.FileDownloadWriter
 import com.example.campbnb.data.LotteryRepository
 import com.example.campbnb.database.Database
 import com.example.campbnb.models.Campsite
 import com.example.campbnb.models.CampsiteModel
 import com.example.campbnb.models.LotteryModel
 import com.example.campbnb.tabs.MyCampsitesTab
+import com.example.campbnb.ui.campsite.CampsiteMonitorActivity
 import com.example.campbnb.ui.campsite.CampsiteRatingSection
 import com.example.campbnb.ui.campsite.CampsiteRegistrationForm
 import com.example.campbnb.ui.campsite.LotteryJoinSection
@@ -48,8 +51,7 @@ import com.example.campbnb.viewModels.AppViewSetting
 import kotlinx.serialization.Serializable
 
 
-@Serializable
-data object CampsiteGraph
+
 
 
 /**
@@ -76,19 +78,24 @@ fun NavGraphBuilder.campsiteGraph(
     notification: NotificationController,
     admin: AdminController,
     currentUserId: String,
+    fileDownloadWriter: FileDownloadWriter,
 
     onNavBack: () -> Unit,
+    onNavHome: () -> Unit,
     onOpenMyCampsites: () -> Unit,
     onOpenLotteries: () -> Unit,
     onOpenReservations: () -> Unit,
+    onOpenCampsiteReg: () -> Unit,
+    onOpenCampsiteDetails: (role: UserRole, id: String) -> Unit,
+    onOpenCampsiteEdit: (id: String) -> Unit,
     onCampsiteDetailsClicked: (role: UserRole, tab: Int) -> Unit,
 
     campsiteRepo: CampsiteRepository,
     campsiteModel: CampsiteModel,
 
-    toastGenerator: (String) -> Unit,
+    toastGenerator: (String, Int) -> Unit,
 ) {
-    navigation<CampsiteGraph>(startDestination = Screen.MyCampsites) {
+    navigation<NavGraphNodes.CampsiteGraph>(startDestination = Screen.MyCampsites) {
         composable<Screen.MyCampsites> {
             MyCampsitesTab(onOpenMyCampsites, onOpenLotteries, onOpenReservations)
         }
@@ -153,10 +160,10 @@ fun NavGraphBuilder.campsiteGraph(
                             deviceID
                         ) { success ->
                             if (success) {
-                                toastGenerator("Campsite Updated Successfully!")
+                                toastGenerator("Campsite Updated Successfully!", Toast.LENGTH_SHORT)
                                 onNavBack()
                             } else {
-                                toastGenerator("Failed to update campsite.")
+                                toastGenerator("Failed to update campsite.", Toast.LENGTH_LONG)
                             }
                         }
                     }
@@ -325,10 +332,14 @@ fun NavGraphBuilder.campsiteGraph(
                                 ) { ok ->
                                     if (ok) {
                                         toastGenerator(
-                                            "Removed the site and told its owner."
+                                            "Site Removed",
+                                            Toast.LENGTH_SHORT
                                         )
                                     } else {
-                                        toastGenerator("Could not remove the site.")
+                                        toastGenerator(
+                                            "Could not remove the site.",
+                                            Toast.LENGTH_LONG
+                                            )
                                     }
                                 }
                             }
@@ -344,10 +355,14 @@ fun NavGraphBuilder.campsiteGraph(
                                 ) { ok ->
                                     if (ok) {
                                         toastGenerator(
-                                            "Removed the tag and told the site's owner."
+                                            "Tag Removed.",
+                                            Toast.LENGTH_SHORT
                                         )
                                     } else {
-                                        toastGenerator("Could not remove the tag.")
+                                        toastGenerator(
+                                            "Tag Removal Failed.",
+                                            Toast.LENGTH_LONG
+                                        )
                                     }
                                 }
                             }
@@ -370,5 +385,40 @@ fun NavGraphBuilder.campsiteGraph(
                 }
             }
         }
+
+        // Campsite monitor (owner's list of campsites)
+        composable<Screen.CampsiteMonitor> { entry ->
+            val route = entry.toRoute<Screen.CampsiteMonitor>()
+            val activity = remember {
+                CampsiteMonitorActivity(
+                    // Back goes to Home naming the My Campsites tab: a bare Home
+                    // pop re-enters Home through its start, which is the first
+                    // tab, and landed the owner on Explore (reported regression).
+                    // Naming the tab sends Home's nested graph the right one.
+                    goHome = onNavHome,
+                    goBack = onNavBack,
+                    goToRegisterCampsite = onOpenCampsiteReg,
+                    goToCampsiteDetails = { campsite ->
+                        onOpenCampsiteDetails(route.role, campsite.id)
+                    },
+                    goToEditCampsite = { campsite ->
+                        onOpenCampsiteEdit(campsite.id)
+                    },
+                    // The csv export button writes through this boundary; without it
+                    // the screen offers no download at all (the reported regression).
+                    fileDownloadWriter = fileDownloadWriter,
+                    appViewSettings = appViewSettings,
+                    deviceID = deviceID
+                )
+            }
+            val model = remember { CampsiteModel() }
+            val controller = remember { CampsiteController(
+                model,
+                campsiteRepo
+            )
+            }
+            activity.CampsiteMonitor(model = model, controller = controller)
+        }
+
     }
 }
