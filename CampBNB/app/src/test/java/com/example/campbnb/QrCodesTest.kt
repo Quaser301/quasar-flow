@@ -12,6 +12,7 @@ import com.example.campbnb.models.qrImageFileBytes
 import com.example.campbnb.models.qrLinkRoute
 import com.example.campbnb.models.qrOldCodeRoute
 import com.example.campbnb.models.qrRouteOfLinkPayload
+import com.example.campbnb.models.qrScreenOfLinkPayload
 import com.example.campbnb.models.qrTextOfImageFile
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -177,6 +178,33 @@ class QrCodesTest {
     @Test
     fun qrLink_textThatIsNotCodeText_namesNoRoute() {
         assertEquals(null, qrRouteOfLinkPayload("a note from the front desk", 0L))
+    }
+
+    // TEST: the typed twin resolves THROUGH the decision above and decodes the text
+    // onto the Screen vocabulary: a live code names its campsite link screen
+    @Test
+    fun qrScreenOfLinkPayload_liveCode_namesTheCampsiteLinkScreen() {
+        val opened = qrScreenOfLinkPayload(QRCode(campsiteId = "target", stopsAtMillis = 1000L).payload(), 999L)
+
+        assertTrue(opened is Screen.QrLinkRoute)
+        assertEquals("target", (opened as Screen.QrLinkRoute).campsiteID)
+    }
+
+    // TEST: the typed twin answers the old-code notice for a code whose stop passed,
+    // and for one that carries no expiry at all — same pairing as the text decision
+    @Test
+    fun qrScreenOfLinkPayload_deadCode_namesTheOldNoticeScreen() {
+        assertTrue(
+            qrScreenOfLinkPayload(QRCode(campsiteId = "target", stopsAtMillis = 1000L).payload(), 1001L)
+                    is Screen.OldQRCode
+        )
+        assertTrue(qrScreenOfLinkPayload(QRCode(campsiteId = "target").payload(), 0L) is Screen.OldQRCode)
+    }
+
+    // TEST: the typed twin names no screen for text that is not code text
+    @Test
+    fun qrScreenOfLinkPayload_textThatIsNotCodeText_namesNoScreen() {
+        assertEquals(null, qrScreenOfLinkPayload("a note from the front desk", 0L))
     }
 
     // TEST: a working code opens the campsite it names and the model selects it

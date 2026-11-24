@@ -556,6 +556,54 @@ class NotificationLogTest {
         assertEquals(notificationLogKeyOf(entry), bars[0].logId)
     }
 
+    // The bar NAMES its sender: a non-empty senderId is resolved through the caller's
+    // resolver exactly like every other profile reference (models.md stated copy).
+    @Test
+    fun named_sender_draws_its_resolved_label_in_the_bar() {
+        val entry = record(
+            id = "s9",
+            receiver = "camper-1",
+            type = NotificationType.LOSE,
+            title = "Not chosen.",
+            message = "Sorry.",
+            seconds = -1,
+            sender = "camper-9"
+        )
+
+        val bars = linesOf(openLog(listOf(entry)), LogLineStyle.DROPDOWN)
+
+        assertEquals(1, bars.count())
+        assertEquals(
+            "sent by profile camper-9  -  1 recipient(s)  -  no saved timestamp  -  " +
+                    "opens reservations  -  db id s9 - tap to open",
+            bars[0].text
+        )
+    }
+
+    // The place a notice opens is drawn from the record's OWN copied name when it has
+    // one — the route reference never leaks out in front of a named place.
+    @Test
+    fun copied_place_name_wins_over_the_route_reference_in_the_bar() {
+        val entry = record(
+            id = "b2",
+            receiver = "camper-1",
+            type = NotificationType.WIN,
+            title = "You won!",
+            message = "Selected.",
+            seconds = -1,
+            lotteryId = "lot-9",
+            campsite = "Sandy Shore"
+        )
+
+        val bars = linesOf(openLog(listOf(entry)), LogLineStyle.DROPDOWN)
+
+        assertEquals(
+            "sent by the system  -  1 recipient(s)  -  no saved timestamp  -  " +
+                    "opens Sandy Shore  -  db id b2 - tap to open",
+            bars[0].text
+        )
+    }
+
     // A saved stamp labels its entry in the stated date shape; the exact moment is
     // the device's, so only the shape of the label is asserted.
     @Test
