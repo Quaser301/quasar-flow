@@ -37,9 +37,16 @@ import com.example.campbnb.models.LotteryModel
  * the invitation is pending for the current viewer, so taps from WIN notifications keep
  * navigating to the reservations screen as before.
  *
- * @param nav The app's NavController.
- * @param lotteryId The route argument naming the invited lottery.
- * @param deps The app-wide dependencies, which name the viewer by device id.
+ * @param viewerId The viewer the invitation is judged against: the panel appears only while
+ *     this viewer is invited and has not joined.
+ * @param notificationController Used to mark the tapped invitation read.
+ * @param navToLotteryMon Runs on Accept: the caller owns opening the owner lottery list.
+ * @param navToReservations Runs when nothing is pending for the viewer: the caller owns
+ *     opening the reservations screen.
+ * @param goToReservations Runs on "Not now": go to the reservations screen and discard the
+ *     previous stack entries; the caller owns the navigation.
+ * @param lotteryId The route argument naming the invited lottery; blank/absent names
+ *     nothing and keeps the navigating-to-reservations behaviour.
  */
 @Composable
 fun InvitationDestination(

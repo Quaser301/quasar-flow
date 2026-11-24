@@ -17,6 +17,7 @@ import com.example.campbnb.data.ReservationRepository
 import com.example.campbnb.data.UserRepository
 import com.example.campbnb.models.UserModel
 import com.example.campbnb.viewModels.AppViewSettingController
+import com.example.campbnb.Screen
 
 /**
  * Contract for services and session state that live for the whole app run.
@@ -33,8 +34,8 @@ interface Dependencies {
     /** Shared user state, including roles and the signed-in user. */
     val userModel: UserModel
 
-    /** Pending external route target. Null means no route is waiting. */
-    val pendingRoute: String?
+    /** Screen the app should open first when an external event queued one. Null means none is waiting. */
+    val pendingScreen: Screen?
 
     /** Clears the pending route after the app graph accepts it. */
     val onPendingRouteHandled: () -> Unit

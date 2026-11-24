@@ -125,7 +125,9 @@ sealed interface Screen {
     data object Notifications : Screen
 
     @Serializable
-    data object NotifReservations : Screen // same as NotificationRoutes.RESERVATION.
+    // The typed destination a tapped RESERVATION-type notice opens — the typed twin of
+    // the NotificationRoutes.RESERVATIONS route text (notifications.md pairs the two).
+    data object NotifReservations : Screen
 
     @Serializable
     data class BookingEntry(val lotteryID: String) : Screen

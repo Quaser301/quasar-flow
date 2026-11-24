@@ -36,7 +36,6 @@ import androidx.navigation.NavController
 import com.example.campbnb.models.Notification
 import com.example.campbnb.models.NotificationStatus
 import com.example.campbnb.notifications.NotificationPermissionCard
-import com.example.campbnb.notifications.NotificationRoutes
 
 @Composable
 fun NotificationInboxScreen(

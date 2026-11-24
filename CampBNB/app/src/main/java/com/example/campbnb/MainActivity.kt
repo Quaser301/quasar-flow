@@ -12,7 +12,7 @@ import com.example.campbnb.notifications.NotificationRoutes
 import com.example.campbnb.notifications.NotificationWatcher
 import com.example.campbnb.notifications.SystemNotifier
 import com.example.campbnb.models.qrPayloadExtraKey
-import com.example.campbnb.models.qrRouteOfLinkPayload
+import com.example.campbnb.models.qrScreenOfLinkPayload
 
 class MainActivity : ComponentActivity() {
     private val watcher by lazy {
@@ -70,8 +70,14 @@ class MainActivity : ComponentActivity() {
         if (!notificationId.isNullOrBlank()) {
             AppContainer.notificationController.markRead(notificationId)
         }
-        // Open the screen the notification points to (for example "chat/{reservationId}").
-        AppContainer.pendingRoute = route
+        // Open the screen the notification points to: the Intent's route text is
+        // written by SystemNotifier and decodes back to a typed Screen route here,
+        // so the app graph navigates a real screen and a renamed screen breaks the
+        // decode at compile time instead of opening a dead string route.
+        val screen = NotificationRoutes.screenFromIntentText(route)
+        if (screen != null) {
+            AppContainer.pendingScreen = screen
+        }
     }
 
     /** A CampBNB code opened by the device's own camera arrives with the code's text in
@@ -84,9 +90,9 @@ class MainActivity : ComponentActivity() {
 
         val payload = intent.getStringExtra(qrPayloadExtraKey) ?: return
 
-        val route = qrRouteOfLinkPayload(payload)
-        if (!route.isNullOrBlank()) {
-            AppContainer.pendingRoute = route
+        val screen = qrScreenOfLinkPayload(payload)
+        if (screen != null) {
+            AppContainer.pendingScreen = screen
         }
     }
 

@@ -8,7 +8,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
-import com.example.campbnb.Dependencies
 import com.example.campbnb.controller.ReservationFilter
 import com.example.campbnb.data.CampsiteRepository
 import com.example.campbnb.data.FileDownloadWriter
@@ -26,7 +25,15 @@ import com.example.campbnb.ui.screens.ReservationScreen
  * that carry them - an entrant reaching this view gets their own bookings, not an empty
  * campsite selector. The screen only draws what it is handed.
  *
- * @param deps The app-wide dependencies, naming the viewer and the storage boundaries.
+ * @param userId The viewer the browsing is decided against: the owner of any site browses
+ *     their own sites and sees every reservation at each; every other viewer reads their
+ *     own reservations and is offered only the sites that carry them.
+ * @param campsiteRepo Source of the campsites to browse.
+ * @param reservationRepo Source of the reservations.
+ * @param notificationPreferencesService CSV export preferences, handed on to the screen.
+ * @param currentUserID The signed-in user, used for CSV download naming (controller.md's
+ *     `generateReceiptCsv`).
+ * @param fileDownloadWriter Sink for receipt downloads, handed on to the screen.
  * @param goBack The return function handed to the screen, owned by the caller that opened
  *     this view.
  */

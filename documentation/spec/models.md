@@ -8,7 +8,7 @@ here are always called with named arguments in tests (as every test file does).
 The storage rules that use these ids are specified in `data.md`; who turns events on these
 entities into notices is `controller.md`.
 
-Written against branch `wyatt-us-01.05.02` (tip `5275878` plus working tree), 2026-11-23.
+Written against branch `wyatt-us-01.05.02` (tip `03519ac` plus working tree), 2026-11-24.
 
 ## Vocabulary — the enums, with their exact members
 
@@ -270,13 +270,23 @@ fun qrRouteOfLinkPayload(payload: String, atMillis: Long = System.currentTimeMil
 ```
 - The link story (US 01.05.02): the phone's own camera hands the app the opened code's TEXT
   through `qrPayloadExtraKey`, exactly as a notification tap hands over `EXTRA_ROUTE`;
-  MainActivity resolves it and queues the result on `pendingRoute` (app.md). `qrRouteOfLinkPayload`
+  MainActivity resolves the typed twin `qrScreenOfLinkPayload` below and queues its screen
+  on `pendingScreen` (app.md); the TEXT decision is what tests pin. `qrRouteOfLinkPayload`
   rules: text that is not code text → `null` (nothing is queued, the app just opens); a DEAD
   code — its stop already past, OR no expiry at all (the reserved 0 means old, not never-working)
   → `qrOldCodeRoute`; a code that still works → `"$qrLinkRoute/$campsiteId"` (the same campsite
   a scan opens — a code carries its campsite, not a lottery). `atMillis` is the moment the link
   is opened, an injectable time seam (same convention as `scanQr`'s `clock`); tests pass fixed
   moments.
+
+```kotlin
+fun qrScreenOfLinkPayload(payload: String, atMillis: Long = System.currentTimeMillis()): Screen?
+```
+- The typed twin of the decision above, for the app's own crossing (the same pairing as
+  notifications.md's `routeFor`/`screenFor`): it resolves THROUGH `qrRouteOfLinkPayload`
+  and decodes the text — `qrOldCodeRoute` → `Screen.OldQRCode`, a `"$qrLinkRoute/…"`
+  text → `Screen.QrLinkRoute(campsiteId)` (the id after the prefix), anything else →
+  `null`. The two forms never disagree; the string rules above are the whole decision.
 
 ```kotlin
 fun qrImageFileBytes(qrCode: QRCode): ByteArray          // the real PNG bytes of this code's grid

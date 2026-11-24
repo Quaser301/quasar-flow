@@ -1,27 +1,10 @@
 package com.example.campbnb
 
 import android.widget.Toast
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Button
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.unit.dp
-import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import androidx.navigation.compose.NavHost
@@ -29,53 +12,20 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.toRoute
 import com.example.campbnb.Screen
+import com.example.campbnb.graphs.startupGraph
 import com.example.campbnb.graphs.exploreGraph
 import com.example.campbnb.graphs.campsiteGraph
-import com.example.campbnb.graphs.lotteryGraph
-import com.example.campbnb.graphs.startupGraph
-import com.example.campbnb.tabs.MyCampsitesTab
+import com.example.campbnb.graphs.LotteryGraph
+import com.example.campbnb.graphs.CorrespondenceGraph
+import com.example.campbnb.graphs.ReservationGraph
+import com.example.campbnb.graphs.MiscGraph
+import com.example.campbnb.graphs.DebugGraph
 import com.example.campbnb.controller.CampsiteController
-import com.example.campbnb.controller.LotteryController
-import com.example.campbnb.controller.MessageController
-import com.example.campbnb.controller.ReservationFilter
-import com.example.campbnb.models.ReservationStatus
-import com.example.campbnb.models.BookingCardData
-import com.example.campbnb.ui.screens.BookingsScreen
-import com.example.campbnb.ui.screens.BookingTab
-import com.example.campbnb.ui.screens.ReservationScreen
-import com.example.campbnb.data.LotteryRepository
-import com.example.campbnb.data.SentNotificationsRepository
-import com.example.campbnb.database.Database
-import com.example.campbnb.models.Campsite
 import com.example.campbnb.models.CampsiteModel
-import com.example.campbnb.models.Lottery
-import com.example.campbnb.models.LotteryModel
-import com.example.campbnb.models.Role
-import com.example.campbnb.models.qrLinkRoute
-import com.example.campbnb.models.qrOldCodeRoute
-import com.example.campbnb.ui.screens.QrScannerScreen
-import com.example.campbnb.ui.screens.QrOldCodeNoticeScreen
-import com.example.campbnb.notifications.NotificationRoutes
-import com.example.campbnb.ui.screens.CampsiteCardData
-import com.example.campbnb.ui.screens.ExploreScreen
-import com.example.campbnb.ui.screens.HomeScreen
-import com.example.campbnb.ui.screens.PlaceholderTab
-import com.example.campbnb.ui.screens.tabsFor
-import com.example.campbnb.ui.admin.AdminProfilesScreen
-import com.example.campbnb.ui.campsite.CampsiteMonitorActivity
-import com.example.campbnb.ui.components.profileLabelOf
 import com.example.campbnb.ui.components.UserRole
-import com.example.campbnb.ui.notification.NotificationLogScreen
-import com.example.campbnb.ui.inbox.CorrespondenceScreen
-import com.example.campbnb.ui.inbox.CorrespondenceTabs
-import com.example.campbnb.ui.inbox.MessagesScreen
-import com.example.campbnb.ui.inbox.NotificationInboxScreen
-import com.example.campbnb.ui.inbox.NotificationViewModel
-import com.example.campbnb.ui.settings.SettingsScreen
+import com.example.campbnb.ui.screens.tabsFor
+import com.example.campbnb.ui.screens.HomeScreen
 import com.example.campbnb.ui.shared.roleFor
-import com.example.campbnb.ui.shared.toUserRole
-import com.example.campbnb.viewModels.MessageViewModel
-import com.example.campbnb.viewModels.simpleViewModelFactory
 import com.example.campbnb.viewModels.LotterySelectedViewModel
 
 @Composable
@@ -95,16 +45,13 @@ fun CampBnbApp(
 
     // One toast channel shared by the graph builders, the same the app-level screens
     // use. The graphs own no side effect of their own.
-    val toast = { message: String, duration:Int ->
+    val toast = { message: String, duration: Int ->
         Toast.makeText(
             context,
             message,
             duration
         ).show()
     }
-
-    // The lottery the owner picked on the lottery list, shared by the lottery edit,
-    // details and waitlist screens inside the lottery graph.
 
     // The explore graph owns its own campsite model and controller: the search
     // screen draws what its controller loads, and the shared storage boundary
@@ -147,8 +94,9 @@ fun CampBnbApp(
             },
         )
 
-        // Explore and Search. Search is reached from the live Home frame's own
-        // explore content (below); this graph hosts it for the app.
+        // Explore and Search. The same graph is mounted again inside Home's tab
+        // graph below (further down); this hosts it for the app, for entries that
+        // do not come through the bottom bar.
         exploreGraph(
             navToSettings = {
                 nav.navigate(Screen.Settings(currentRole()))
@@ -193,12 +141,20 @@ fun CampBnbApp(
             notification = deps.notificationController,
             admin = deps.adminController,
             currentUserId = deps.currentUserId,
+            fileDownloadWriter = deps.fileDownloadWriter,
 
             onNavBack = {
                 nav.navigateUp()
             },
+            // Back from the campsite monitor goes home NAMING the My Campsites tab:
+            // a bare Home pop re-enters Home through its start, which is the first
+            // tab, and landed the owner on Explore (reported regression 9). Naming
+            // the tab sends Home's nested graph the right one.
             onNavHome = {
-                nav.goHome(roleFor(deps.appViewSettings.viewSetting.value))
+                nav.goHome(
+                    currentRole(),
+                    tabIndexOf(currentRole(), Screen.MyCampsites)
+                )
             },
             onOpenMyCampsites = {
                 nav.navigate(Screen.CampsiteMonitor(currentRole()))
@@ -208,6 +164,15 @@ fun CampBnbApp(
             },
             onOpenReservations = {
                 nav.navigate(Screen.Reservations)
+            },
+            onOpenCampsiteReg = {
+                nav.navigate(Screen.CampsiteRegistration)
+            },
+            onOpenCampsiteDetails = { role, id ->
+                nav.navigate(Screen.CampsiteDetailsScreen(role, id))
+            },
+            onOpenCampsiteEdit = { id ->
+                nav.navigate(Screen.EditCampsite(id))
             },
             // A details screen's tab picker goes home naming the tab.
             onCampsiteDetailsClicked = { role, tab ->
@@ -222,7 +187,7 @@ fun CampBnbApp(
 
         // The lottery half: the owner's lottery list, editing, one lottery's
         // details, and an entrant's waitlist.
-        lotteryGraph(
+        LotteryGraph(
             deviceID = deps.deviceID,
             appViewSettings = deps.appViewSettings.toAppViewSetting(),
             lottery = lottery,
@@ -247,14 +212,98 @@ fun CampBnbApp(
             },
         )
 
+        // Notification and message destinations, including the bridges a tapped
+        // notice names: tapping a notice hands over the typed Screen route that
+        // notice resolves to, and these invisible frames open the view the notice
+        // points at and pop themselves out of the stack.
+        CorrespondenceGraph(
+            currentUserIsOwner = deps.currentUserIsOwner,
+            userId = deps.deviceID,
+
+            userRepo = deps.userRepository,
+            notifRepo = deps.notificationRepository,
+            reservationRepo = deps.reservationRepository,
+            campsiteRepo = deps.campsiteRepository,
+
+            userControl = deps.userController,
+            notifControl = deps.notificationController,
+            msgControl = deps.messageController,
+
+            userModel = deps.userModel,
+
+            onNavBack = {
+                nav.navigateUp()
+            },
+            navToNotif = { screen ->
+                nav.navigate(screen)
+            },
+            navToReservations = {
+                nav.navigate(Screen.Reservations)
+            },
+            navToLotteryMon = {
+                nav.navigate(Screen.LotteryMonitor)
+            },
+            goToReservations = {
+                nav.navigate(Screen.Reservations)
+            },
+
+            toastGen = toast,
+        )
+
+        // The reservations view: opened by a notification tap, the owner's My
+        // Campsites link and the camper's bottom tab.
+        ReservationGraph(
+            userID = deps.deviceID,
+            currentUserId = deps.currentUserId,
+
+            campsiteRepo = deps.campsiteRepository,
+            reservationRepo = deps.reservationRepository,
+            notificationPreferences = deps.notificationPreferencesService,
+            fileDownloadWriter = deps.fileDownloadWriter,
+
+            onNavBack = {
+                nav.navigateUp()
+            },
+        )
+
+        // Settings, the placeholder tabs, and the two QR bridges: the link of a
+        // code opened by the phone's own camera arrives on the same pending-screen
+        // bridge a notification tap uses.
+        MiscGraph(
+            onNavBack = {
+                nav.navigateUp()
+            },
+            navToCampsiteDetails = { role, id ->
+                nav.navigate(Screen.CampsiteDetailsScreen(role, id))
+            },
+
+            userModel = deps.userModel,
+
+            appViewSettings = deps.appViewSettings,
+            entrantSettings = deps.entrantSettings,
+            ownerSettings = deps.ownerSettings,
+            notificationPreferences = deps.notificationPreferencesService,
+            appSettings = deps.appSettingsService,
+            userIdForSettings = deps.currentUserId,
+        )
+
+        // The admin's debugging views.
+        DebugGraph(
+            onNavBack = {
+                nav.goHome(currentRole())
+            },
+
+            notificationRepository = deps.notificationRepository,
+
+            userController = deps.userController,
+
+            userModel = deps.userModel,
+        )
+
         // Home (Explore plus the role's bottom bar)
         composable<Screen.Home> { entry ->
             val route = entry.toRoute<Screen.Home>()
             val role = route.role
-
-            val context = LocalContext.current
-
-
 
             // The bottom bar moves between the tabs on this nested graph: the
             // app's own nav never enters or leaves a tab, so a tab change is
@@ -267,22 +316,204 @@ fun CampBnbApp(
                 initialTab = route.tab,
                 homeNavController = homeNav
             ) {
+                // One node per bottom bar tab: every tab the bar can name is a
+                // graph this same file registers for the app, so its live
+                // content and the shared components behind it are the ones any
+                // other entry to that screen would get. Back controls move on
+                // the bar's own graph (homeNav), so pressing one lands the bar
+                // back where it was; outward jumps — a campsite's details page,
+                // search, the notice bridges — still use the app's nav, which
+                // keeps this live Home frame mounted underneath them.
+                exploreGraph(
+                    navToSettings = {
+                        nav.navigate(Screen.Settings(currentRole()))
+                    },
+                    navToCampsite = { card ->
+                        nav.navigate(
+                            Screen.CampsiteDetailsScreen(currentRole(), card.id)
+                        )
+                    },
+                    navToSearch = { text ->
+                        nav.navigate(Screen.Search(currentRole(), text))
+                    },
+                    navToCampDetails = { role, campsiteId ->
+                        nav.navigate(Screen.CampsiteDetailsScreen(role, campsiteId))
+                    },
 
+                    onNavBack = {
+                        homeNav.navigateUp()
+                    },
+                    onSearchFilterClicked = {
+                        nav.navigate(Screen.Search(currentRole(), "", true))
+                    },
+                    onOpenHistory = {
+                        nav.navigate(Screen.Search(currentRole(), "", false, true))
+                    },
+                    onOpenQr = {
+                        nav.navigate(Screen.QrScanner(currentRole()))
+                    },
+
+                    campsiteRepo = deps.campsiteRepository,
+                    campsiteModel = exploreCampsiteModel,
+                    campsiteControl = exploreCampsiteController,
+
+                    toastGenerator = toast
+                )
+
+                // The owner's My Campsites tab: the tab's own screen names the
+                // links it offers, which open on the app's graph above.
+                campsiteGraph(
+                    deviceID = deps.deviceID,
+                    appViewSettings = deps.appViewSettings.toAppViewSetting(),
+                    notification = deps.notificationController,
+                    admin = deps.adminController,
+                    currentUserId = deps.currentUserId,
+                    fileDownloadWriter = deps.fileDownloadWriter,
+
+                    onNavBack = {
+                        homeNav.navigateUp()
+                    },
+                    onNavHome = {
+                        nav.goHome(
+                            currentRole(),
+                            tabIndexOf(currentRole(), Screen.MyCampsites)
+                        )
+                    },
+                    onOpenMyCampsites = {
+                        nav.navigate(Screen.CampsiteMonitor(currentRole()))
+                    },
+                    onOpenLotteries = {
+                        nav.navigate(Screen.LotteryMonitor)
+                    },
+                    onOpenReservations = {
+                        nav.navigate(Screen.Reservations)
+                    },
+                    onOpenCampsiteReg = {
+                        nav.navigate(Screen.CampsiteRegistration)
+                    },
+                    onOpenCampsiteDetails = { role, id ->
+                        nav.navigate(Screen.CampsiteDetailsScreen(role, id))
+                    },
+                    onOpenCampsiteEdit = { id ->
+                        nav.navigate(Screen.EditCampsite(id))
+                    },
+                    // A details screen's tab picker goes home naming the tab.
+                    onCampsiteDetailsClicked = { role, tab ->
+                        nav.goHome(role, tab)
+                    },
+
+                    campsiteRepo = deps.campsiteRepository,
+                    campsiteModel = campsiteGraphModel,
+
+                    toastGenerator = toast,
+                )
+
+                // Messages, Inbox and Bookings tabs: the same destinations, with
+                // a tap of a notice still running the app's own bridges above.
+                CorrespondenceGraph(
+                    currentUserIsOwner = deps.currentUserIsOwner,
+                    userId = deps.deviceID,
+
+                    userRepo = deps.userRepository,
+                    notifRepo = deps.notificationRepository,
+                    reservationRepo = deps.reservationRepository,
+                    campsiteRepo = deps.campsiteRepository,
+
+                    userControl = deps.userController,
+                    notifControl = deps.notificationController,
+                    msgControl = deps.messageController,
+
+                    userModel = deps.userModel,
+
+                    onNavBack = {
+                        homeNav.navigateUp()
+                    },
+                    navToNotif = { screen ->
+                        nav.navigate(screen)
+                    },
+                    navToReservations = {
+                        nav.navigate(Screen.Reservations)
+                    },
+                    navToLotteryMon = {
+                        nav.navigate(Screen.LotteryMonitor)
+                    },
+                    goToReservations = {
+                        nav.navigate(Screen.Reservations)
+                    },
+
+                    toastGen = toast,
+                )
+
+                // The camper's Reservations tab hosts the view itself.
+                ReservationGraph(
+                    userID = deps.deviceID,
+                    currentUserId = deps.currentUserId,
+
+                    campsiteRepo = deps.campsiteRepository,
+                    reservationRepo = deps.reservationRepository,
+                    notificationPreferences = deps.notificationPreferencesService,
+                    fileDownloadWriter = deps.fileDownloadWriter,
+
+                    onNavBack = {
+                        homeNav.navigateUp()
+                    },
+                )
+
+                // The Profile, Reports and Flagged tabs, plus Settings behind
+                // Explore's settings button — as shared windows of the graph.
+                MiscGraph(
+                    onNavBack = {
+                        homeNav.navigateUp()
+                    },
+                    navToCampsiteDetails = { role, id ->
+                        nav.navigate(Screen.CampsiteDetailsScreen(role, id))
+                    },
+
+                    userModel = deps.userModel,
+
+                    appViewSettings = deps.appViewSettings,
+                    entrantSettings = deps.entrantSettings,
+                    ownerSettings = deps.ownerSettings,
+                    notificationPreferences = deps.notificationPreferencesService,
+                    appSettings = deps.appSettingsService,
+                    userIdForSettings = deps.currentUserId,
+                )
+
+                // The admin's Profiles and Notifications debugging tabs.
+                DebugGraph(
+                    onNavBack = {
+                        nav.goHome(currentRole())
+                    },
+
+                    notificationRepository = deps.notificationRepository,
+
+                    userController = deps.userController,
+
+                    userModel = deps.userModel,
+                )
             }
         }
 
 
-
-
     }
 
-    LaunchedEffect(deps.pendingRoute) {
-        if (!deps.pendingRoute.isNullOrBlank()) {
-            nav.navigate(deps.pendingRoute!!)
+    LaunchedEffect(deps.pendingScreen) {
+        val pending = deps.pendingScreen
+        if (pending != null) {
+            nav.navigate(pending)
             deps.onPendingRouteHandled()
         }
     }
 }
+
+/**
+ * Index of a tab in a role's bottom bar; -1 when that role has no such tab.
+ *
+ * @param role The role whose tab bar is meant.
+ * @param destination The tab's screen to find.
+ */
+private fun tabIndexOf(role: UserRole, destination: Screen): Int =
+    tabsFor(role).indexOfFirst { it.destination == destination }
 
 /**
  * Goes to the home page on the given tab, clearing any screens opened on top of it.
@@ -296,13 +527,3 @@ private fun NavController.goHome(role: UserRole, tab: Int = 0) {
         launchSingleTop = true
     }
 }
-
-/**
- * Index of a tab in a role's bottom bar; -1 when that role has no such tab.
- *
- * @param role The role whose tab bar is meant.
- * @param destination The tab's screen to find.
- */
-private fun tabIndexOf(role: UserRole, destination: Screen): Int =
-    tabsFor(role).indexOfFirst { it.destination == destination }
-

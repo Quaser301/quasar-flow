@@ -10,7 +10,6 @@ import com.example.campbnb.data.AppSettingsService
 import com.example.campbnb.data.NotificationPreferencesService
 import com.example.campbnb.models.Role
 import com.example.campbnb.models.UserModel
-import com.example.campbnb.models.qrOldCodeRoute
 import com.example.campbnb.ui.components.UserRole
 import com.example.campbnb.ui.screens.PlaceholderTab
 import com.example.campbnb.ui.screens.QrOldCodeNoticeScreen
@@ -71,9 +70,9 @@ fun NavGraphBuilder.MiscGraph(
 
     // The phone's own camera opens a CampBNB code's link here: MainActivity has
     // already resolved the code's text into one of these routes and queued it on
-    // pendingRoute, the same bridge a notification tap uses, and the sign-in ran
+    // pendingScreen, the same bridge a notification tap uses, and the sign-in ran
     // before this first render, so the user's data populates. A live code names
-    // its campsite: this invisible string frame opens the details page and pops
+    // its campsite: this invisible typed frame opens the details page and pops
     // itself out of the stack like the reservations bridge does, so the first
     // back press goes to Home, not to this blank frame (a white screen). The role
     // carried into the key is the signed-in user's own privileges, the same
@@ -97,7 +96,7 @@ fun NavGraphBuilder.MiscGraph(
     // A dead code's link — its stop already past, or no expiry at all — answers
     // the old-code notice in place of any destination; back goes where the link
     // would otherwise have been.
-    composable(qrOldCodeRoute) {
+    composable<Screen.OldQRCode> {
         QrOldCodeNoticeScreen(back = onNavBack)
     }
 }

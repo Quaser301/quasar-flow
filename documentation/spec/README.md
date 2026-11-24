@@ -24,7 +24,7 @@ the spec describes that state (tip + working tree) as it is.
 | `controller.md` | package `controller` — the behavior owners: record-building rules, read filters, ordering rules, opt-outs, receipts | full, including the standing-up-real-controllers-over-fake-stores pattern the test idiom follows |
 | `notifications.md` | package `notifications` — channels, routes, watcher, system notifier; the banner baseline rule | full |
 | `viewModels.md` | package `viewModels` — the ViewModel-backed state holders (view/setting controllers, inbox message model, display controllers, factory helpers) | full |
-| `app.md` | root package — `Dependencies` seam, `AppContainer` (the only provider), `MainActivity` startup order, the `Screen` sealed navigation vocabulary, the `CampBnbApp` route graph and its seven string routes | wiring-contract depth (this area is glue; its rules point into the full files above) |
+| `app.md` | root package — `Dependencies` seam, `AppContainer` (the only provider), `MainActivity` startup order, the `Screen` sealed navigation vocabulary, the `CampBnbApp` route graph and its typed pending-`Screen` bridges | wiring-contract depth (this area is glue; its rules point into the full files above) |
 | `ui.md` | packages `ui.*` — screens and shared components | split ON PURPOSE: the pure helpers (role maps, tab/group vocabularies, label and text functions, the inbox ViewModel) at full depth — they are the testable surface; Composable screens at wiring-contract depth (parameters + what they call) |
 | `functions.md` | `CampBNB/functions/` (TypeScript) — the scheduled lottery draw | descriptive only: it writes the same WIN records `models.md`/`database.md` parse; NOT reachable from the Kotlin suites, and the file says so |
 

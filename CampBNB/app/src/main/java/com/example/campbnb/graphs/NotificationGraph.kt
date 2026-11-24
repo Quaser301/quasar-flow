@@ -45,7 +45,7 @@ fun NavGraphBuilder.CorrespondenceGraph(
     userModel: UserModel,
 
     onNavBack: () -> Unit,
-    navToNotif: (String) -> Unit,
+    navToNotif: (screen: Screen) -> Unit,
     navToReservations: () -> Unit,
     navToLotteryMon: () -> Unit,
     goToReservations: () -> Unit,
@@ -192,13 +192,13 @@ fun NavGraphBuilder.CorrespondenceGraph(
 
 
         // Tapping a RESERVATION-type notification opens the reservations view. The
-        // bridge pops its own frame before the push: a string frame left on the stack
-        // would otherwise keep this invisible frame under the reservations screen, and
-        // the first back press would land on it instead of the view the notification
-        // was tapped from. Naming the live Home frame with a typed popUpTo could not
-        // work (Home is a parameterized route; the pop matched nothing, emptied the
-        // stack and left the reservations view as the only entry — reported regression
-        // 7's reservations half).
+        // bridge pops its own frame before the push: a frame left on the stack — even
+        // this invisible typed one — would otherwise keep it under the reservations
+        // screen, and the first back press would land on it instead of the view the
+        // notification was tapped from. Naming the live Home frame with a typed popUpTo
+        // could not work (Home is a parameterized route; the pop matched nothing,
+        // emptied the stack and left the reservations view as the only entry — reported
+        // regression 7's reservations half).
         composable<Screen.NotifReservations> {
             LaunchedEffect(Unit) {
                 onNavBack()

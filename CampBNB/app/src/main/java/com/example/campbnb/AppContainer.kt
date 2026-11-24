@@ -23,6 +23,7 @@ import com.example.campbnb.data.ReservationRepository
 import com.example.campbnb.data.UserRepository
 import com.example.campbnb.database.Database
 import com.example.campbnb.models.Role
+import com.example.campbnb.Screen
 import com.example.campbnb.models.UserModel
 import com.example.campbnb.ui.shared.DeviceId
 import com.example.campbnb.viewModels.AppViewSettingController
@@ -170,9 +171,9 @@ object AppContainer: Dependencies {
         PublicDownloadsFileDownloadWriter()
     }
 
-    override var pendingRoute: String? by mutableStateOf(null)
+    override var pendingScreen: Screen? by mutableStateOf(null)
 
-    override val onPendingRouteHandled: () -> Unit = { pendingRoute = null }
+    override val onPendingRouteHandled: () -> Unit = { pendingScreen = null }
 
     fun init(context: android.content.Context) {
         deviceID = DeviceId.get(context)

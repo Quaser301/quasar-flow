@@ -7,7 +7,7 @@ This package NEVER builds records — `NotificationController` and the adapters 
 `controller.md` do. Everything here takes an already-built `Notification`
 (`models.md`) and either posts it as an OS banner or maps it to an in-app route.
 
-Written against branch `wyatt-us-01.05.02` (tip `5275878` plus working tree), 2026-11-23.
+Written against branch `wyatt-us-01.05.02` (tip `03519ac` plus working tree), 2026-11-24.
 
 ## NotificationChannels (object) — record type → OS channel
 
@@ -44,7 +44,7 @@ registers all five channels with these exact display titles/importances
 - `General` / DEFAULT / description `Other notices from campsite owners`
 - `Lottery invitations` / DEFAULT / description `Invitations to join another owner's lottery`
 
-## NotificationRoutes (object) — record → in-app route
+## NotificationRoutes (object) — record → in-app route, both crossings
 
 ```kotlin
 object NotificationRoutes {
@@ -54,6 +54,8 @@ object NotificationRoutes {
     const val BOOKING = "booking"             // RESERVATIONS = "reservations"
     const val CHAT = "chat"
     fun routeFor(n: Notification): String
+    fun screenFor(n: Notification): Screen
+    fun screenFromIntentText(intentRoute: String): Screen?
 }
 ```
 
@@ -67,8 +69,25 @@ with `models.md` rules; the route depends ONLY on `type` plus one id field):
 - MESSAGE → `"chat/<n.reservationId>"` when `reservationId` is NOT blank;
   otherwise `"messages"`.
 
-The route constants are the vocabulary of the app's route table (`app.md`);
-`SystemNotifier` puts them into Intent extras under the two key constants.
+`screenFor` is the SAME decision against the SAME fields, as the typed `Screen`
+route instead of the text (a `when` with the identical arms): the in-app
+destination a tapped notice opens — `Screen.BookingEntry(<lotteryId>)`,
+`Screen.NotifReservations`, `Screen.ChatReservationEntry(<reservationId>)`,
+falling back to `Screen.Notifications` / `Screen.Messages`. Every in-app notice
+tap navigates by this (the notices tab hands it to its caller's typed callback,
+`app.md`), so the compiler — not the runtime — checks every notice's destination
+against the sealed screen vocabulary.
+
+`screenFromIntentText` is the inverse of `routeFor`: it reads one of those texts
+back as the screen to open (`"reservations"` → `Screen.NotifReservations`,
+`"booking/x"` → `Screen.BookingEntry("x")`, `"chat/x"` → `Screen.ChatReservationEntry("x")`,
+and the two name-only texts → their screens), or null when the text names no known
+route — nothing is opened for such text. The texts are ONLY the format of the
+Android Intent extra that crosses the OS boundary: `SystemNotifier` writes
+`routeFor(n)` there and `MainActivity` reads it back through this decode onto the
+app's pending-SCREEN bridge (`app.md`). The two forms never disagree: `screenFor`
+and `routeFor` switch on the same fields with the same arms, and
+`screenFromIntentText(routeFor(n))` is `screenFor(n)` for every record.
 
 ## NotificationPermission (object) + the card that asks
 
@@ -145,10 +164,11 @@ NOTE `show` itself does NOT check `pushAllowed` — that filter lives in
 
 PUSH is NOT a separate delivery system in this app. An OS banner is already push-shaped:
 `SystemNotifier` turns one built record into a banner whose tap-in carries exactly
-`EXTRA_ROUTE = routeFor(n)` and `EXTRA_NOTIFICATION_ID = n.id` (MainActivity reads those
-extras on tap — app.md). Tapping a banner that ARRIVED by itself lands on the right in-app
-route; tapping one the server DELIVERED must behave identically. That is the whole client
-half, and it exists and is verified. What push still needs is all server-side or OS-transport
+`EXTRA_ROUTE = routeFor(n)` and `EXTRA_NOTIFICATION_ID = n.id` (MainActivity reads
+those extras on tap and reads the route text back through `screenFromIntentText` onto
+the app's pending-SCREEN bridge — app.md). Tapping a banner that ARRIVED by itself lands
+on the right in-app screen; tapping one the server DELIVERED must behave identically.
+That is the whole client half, and it exists and is verified. What push still needs is all server-side or OS-transport
 and NONE of it is observable from here:
 
 1. A subscription per user. The server owns subscriptions (a topic per user, or the user
@@ -159,7 +179,7 @@ and NONE of it is observable from here:
 2. Payload schema, kept to the client's OWN vocabulary so any push client is interchangeable:
    a delivered push carries the pair (`routeFor(n)` as the route key, `n.id` as the
    notification id) — the same two `NotificationRoutes` keys MainActivity already reads from
-   tap extras. Records are complete when built (this package NEVER builds them), so NOTHING
+   tap extras and decodes to a screen through `screenFromIntentText`. Records are complete when built (this package NEVER builds them), so NOTHING
    else is recomputed client-side: title, message and channel all come from the delivered
    record's own fields server-side or must not be re-invented here. A payload that carries
    only (route, id) is the minimum; anything more (raw record fields) is transport detail,

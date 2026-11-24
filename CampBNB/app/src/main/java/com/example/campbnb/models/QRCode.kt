@@ -1,6 +1,7 @@
 package com.example.campbnb.models
 
 import com.example.campbnb.data.downloadSafeName
+import com.example.campbnb.Screen
 
 // The text of a code names CampBNB, the campsite it opens, and the moment it stops
 // working, in that order, separated by colons. Campsite ids are Firestore document
@@ -84,4 +85,25 @@ fun qrRouteOfLinkPayload(payload: String, atMillis: Long = System.currentTimeMil
         return qrOldCodeRoute
     }
     return "$qrLinkRoute/${code.campsiteId}"
+}
+
+/**
+ * The same resolution as [qrRouteOfLinkPayload], as the typed [Screen] route to open:
+ * the pending-screen bridge carries screens, so the app graph navigates a real screen
+ * and a renamed screen breaks the decode at compile time. Kept beside the text form
+ * because the text form is the tested decision this one delegates to.
+ *
+ * @param payload The text carried by the opened link.
+ * @param atMillis The moment the link is opened; injectable so the decision tests
+ *   at any clock.
+ * @return The screen the text names, or null when it names nothing.
+ */
+fun qrScreenOfLinkPayload(payload: String, atMillis: Long = System.currentTimeMillis()): Screen? {
+    val routeText = qrRouteOfLinkPayload(payload, atMillis) ?: return null
+    return when {
+        routeText == qrOldCodeRoute -> Screen.OldQRCode
+        routeText.startsWith("$qrLinkRoute/") ->
+            Screen.QrLinkRoute(routeText.substringAfter("$qrLinkRoute/"))
+        else -> null
+    }
 }

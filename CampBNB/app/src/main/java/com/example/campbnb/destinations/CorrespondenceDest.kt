@@ -1,7 +1,7 @@
 package com.example.campbnb.destinations
 
 import androidx.compose.runtime.Composable
-import com.example.campbnb.Dependencies
+import com.example.campbnb.Screen
 import com.example.campbnb.controller.MessageController
 import com.example.campbnb.controller.NotificationController
 import com.example.campbnb.data.NotificationRepository
@@ -24,6 +24,8 @@ import com.example.campbnb.ui.inbox.CorrespondenceTabs
  * @param openReservationId If set, the Messages tab opens straight into this reservation's chat.
  * @param onNavBack Runs when the screen's Back control is pressed: the caller that opened
  *     this destination owns where back goes.
+ * @param onNavToNotif Runs when a notice is tapped, with the typed [Screen] route that
+ *     notice names: the caller that opened this destination owns the navigation.
  */
 @Composable
 fun CorrespondenceDestination(
@@ -35,7 +37,7 @@ fun CorrespondenceDestination(
     repo: NotificationRepository,
     notifController: NotificationController,
     msgController: MessageController,
-    onNavToNotif: (String) -> Unit // TODO: fix this to use data classes
+    onNavToNotif: (screen: Screen) -> Unit,
 ) {
     if (currentUserIsOwner) {
         CorrespondenceScreen(
