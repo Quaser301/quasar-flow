@@ -38,6 +38,18 @@ open class CampsiteRepository {
         Database.Ratings.readEngine().query().execute(onSuccess, onFailure)
     }
 
+    /** Reads one campsite by its document id; the result is null if it no longer exists. */
+    open fun getById(campsiteId: String, onSuccess: (Campsite?) -> Unit, onFailure: (Exception) -> Unit) {
+        Database.Campsites.readEngine().getById(campsiteId, onSuccess, onFailure)
+    }
+
+    /** Reads the ratings one campsite has received (used when an admin deletes that campsite). */
+    open fun getRatingsByCampsite(campsiteId: String, onSuccess: (List<Rating>) -> Unit, onFailure: (Exception) -> Unit) {
+        Database.Ratings.readEngine().query()
+            .whereEquals(Rating::campsiteId, campsiteId)
+            .execute(onSuccess, onFailure)
+    }
+
     /** Reads the ratings one user has given (used when an admin deletes that user's profile). */
     open fun getRatingsByUser(userId: String, onSuccess: (List<Rating>) -> Unit, onFailure: (Exception) -> Unit) {
         Database.Ratings.readEngine().query()

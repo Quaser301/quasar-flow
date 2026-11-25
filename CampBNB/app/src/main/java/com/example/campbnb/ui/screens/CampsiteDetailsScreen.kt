@@ -30,6 +30,8 @@ import com.example.campbnb.ui.screens.RoleBottomBar
 import com.example.campbnb.ui.screens.tabsFor
 import com.example.campbnb.ui.theme.*
 import kotlin.math.roundToInt
+import com.example.campbnb.models.RemovalReason
+import com.example.campbnb.ui.admin.ConfirmRemovalDialog
 
 /** Everything the details screen shows about one campsite. */
 data class CampsiteDetails(
@@ -85,13 +87,14 @@ fun CampsiteDetailsScreen(
     lotteryButtonText: String = "Enter Lottery",
     lotteryButtonEnabled: Boolean = true,
     lotteryButtonIsLeave: Boolean = false,
-    onDeleteSite: () -> Unit = {},
+    onDeleteSite: (RemovalReason?) -> Unit = {},
     onSeeReviews: () -> Unit = {},
     entrantContent: @Composable () -> Unit = {}
 ) {
     val tabs = remember(role) { tabsFor(role) }
     var showAllTags by remember { mutableStateOf(false) }
     var confirmDelete by remember { mutableStateOf(false) }
+    var pickReason by remember { mutableStateOf(false) }
     val hasFloatingButton = role != UserRole.OWNER
 
     Scaffold(
@@ -210,7 +213,10 @@ fun CampsiteDetailsScreen(
                     onClick = { confirmDelete = true },
                     brush = DeleteGradient,
                     height = 52.dp,
-                    modifier = Modifier.align(Alignment.BottomCenter).padding(horizontal = 24.dp, vertical = 12.dp)
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .padding(horizontal = 24.dp, vertical = 12.dp)
+                        .testTag("delete_site")
                 )
                 UserRole.OWNER -> Unit
             }
@@ -236,9 +242,28 @@ fun CampsiteDetailsScreen(
             title = { Text("Delete this site?") },
             text = { Text("${campsite.name} will be removed. This can't be undone.") },
             confirmButton = {
-                TextButton(onClick = { confirmDelete = false; onDeleteSite() }) { Text("Delete") }
+                TextButton(
+                    onClick = { confirmDelete = false; pickReason = true },
+                    modifier = Modifier.testTag("confirm_delete_site")
+                ) { Text("Delete") }
             },
             dismissButton = { TextButton(onClick = { confirmDelete = false }) { Text("Cancel") } }
+        )
+    }
+
+    // Second step: the admin says which app policy the site broke before it is deleted.
+    if (pickReason) {
+        ConfirmRemovalDialog(
+            title = "Which policy was broken?",
+            message = "${campsite.name} will be permanently deleted and its owner will be told why. " +
+                    "This cannot be undone.",
+            confirmLabel = "Delete",
+            reasonRequired = true,
+            onConfirm = { reason ->
+                pickReason = false
+                onDeleteSite(reason)
+            },
+            onDismiss = { pickReason = false }
         )
     }
 }
