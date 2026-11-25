@@ -144,7 +144,7 @@ SystemNotifier(applicationContext))`.
 One named type per screen the app can display; the seal makes every `is`-check
 exhaustible at COMPILE time (developer note: a renamed/removed screen breaks every
 window still referring to it — that is what keeps `navigate()` calls safe). Members,
-exact: `Home(role: UserRole, tab: Screen? = null)`, `CampsiteRegistration`,
+exact: `Home(role: UserRole)`, `CampsiteRegistration`,
 `EditCampsite(campsiteId: String)`, `LotteryEdit`, `LotteryMonitor`,
 `LotteryDetails`, `LotteryWaitlist`, `Start`, `Login`, `SignUp`,
 `Role`, `Settings(role: UserRole)`, `Search(role, query: String = "", openFilter: Boolean = false,
@@ -163,9 +163,13 @@ notice names — the typed twin of notifications.md's `"reservations"` text),
 live code's link), `OldQRCode` (the dead-code notice) — the graph below registers
 content and bridge frames for every one of these.
 `UserRole` is the UI role (ui/components — ui.md); data-class payloads ARE the route
-arguments (`toRoute<T>()` reads them back). `Home.tab` NAMES the bottom-bar tab Home
-opens on, as the Screen its content shows (`HomeScreen`'s `initialTab`; null names no
-tab and the bar opens on its first tab — there is no index vocabulary anywhere).
+arguments (`toRoute<T>()` reads them back). A route argument can only hold a
+primitive or an enum — the runtime's route serializer resolves one `NavType` per
+argument and knows only those (proven against the pinned 2.8.0 jars: anything else
+throws `could not find any NavType for argument …`). So the tab Home opens on is NOT
+a route argument: `Home` carries only the role, and the tab travels as session state
+through `Dependencies.homeTab` (`Screen?`, null names no tab), which `HomeScreen`
+reads as its `initialTab` — there is no index vocabulary anywhere.
 
 ## CampBnbApp (`@Composable fun CampBnbApp(deps: Dependencies)`) — the `NavHost` graph
 
@@ -236,9 +240,9 @@ line each; `nav` is the app controller, `homeNav` the nested one, all calls as s
 - Role: `RoleSelectScreen(onRoleSelected)` maps `UserRole→AppView` INLINE (ADMIN→AdminView,
   OWNER→OwnerView, CAMPER→EntrantView — same as ui.md's `toAppView`), sets the view,
   navigates `Home(role)` popping up to Start inclusive.
-- Home (`Screen.Home(role, tab)`): `entry.toRoute<Screen.Home>()`; then
+- Home (`Screen.Home(role)`): `entry.toRoute<Screen.Home>()` for the role; then
   `HomeScreen(role = role, appViewSettings = deps.appViewSettings.toAppViewSetting(),
-  initialTab = route.tab, homeNavController = homeNav)` with `homeNav =
+  initialTab = deps.homeTab, homeNavController = homeNav)` with `homeNav =
   rememberNavController()` a NESTED graph inside Home: the bottom bar moves between tabs on
   THAT graph (ui.md `tabsFor` circles; a chosen circle navigates `tab.destination` with
   `popUpTo(findStartDestination)` + `launchSingleTop`, ui.md) and the app `nav` never
@@ -437,13 +441,17 @@ line each; `nav` is the app controller, `homeNav` the nested one, all calls as s
   Explore-not-restored complaint; the design stays owner-approved as push-not-hoist — only the
   mechanism changed: a typed pop can never name a parameterized Home frame (see the
   regression-7 note in the Explore bridge), so the bridge simply does not pop.
-- `private fun NavController.goHome(role, tab = null)` = navigate `Home(role, tab)` with
-  `popUpTo<Screen.Home> { inclusive = true }; launchSingleTop = true` — kept as-is: even though
-  the typed pop cannot name a live PARAMETERIZED Home frame (no instance route equals the class
-  pattern, so it empties the stack), the following push re-establishes the Home frame, and the
-  net effect is a fresh `[Home]` whose NESTED graph restarts at the node owning the NAMED tab
-  (`HomeScreen.initialTab`, a Screen): callers that name a tab (CampsiteMonitor's back, the
-  details-page picker) land the bar there; naming none opens the first tab.
+- `fun NavController.goHome(role, tab = null)` — a LOCAL extension of the app's `nav`, inside
+  `CampBnbApp`, because it needs `deps`: it writes `deps.homeTab = tab` and THEN navigates
+  `Home(role)` with `popUpTo<Screen.Home> { inclusive = true }; launchSingleTop = true`. The
+  tab cannot ride the route (a route argument holds a primitive or an enum, never a Screen —
+  see the route-argument note above), so the write and the navigate are one step: the value an
+  entry asks for is the value Home reads. The typed pop still cannot name a live PARAMETERIZED
+  Home frame (the role keeps Home parameterized, so it empties the stack), and the following
+  push re-establishes it: the net effect is a fresh `[Home]` whose NESTED graph restarts at the
+  node owning the NAMED tab (`HomeScreen.initialTab`, a Screen): callers that name a tab
+  (CampsiteMonitor's back, the details-page picker) land the bar there; naming none opens the
+  first tab.
 
 **Pending-SCREEN bridge (typed)** — there are NO string route nodes left in the graph: the
 app's routing vocabulary is the sealed `Screen` set alone. Route TEXTS exist at one crossing

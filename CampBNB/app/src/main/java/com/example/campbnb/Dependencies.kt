@@ -40,6 +40,14 @@ interface Dependencies {
     /** Clears the pending route after the app graph accepts it. */
     val onPendingRouteHandled: () -> Unit
 
+    /**
+     * Screen the home bottom bar opens on the next time the app enters Home, named by
+     * the Screen its content shows. Null means no tab was named and the bar opens on
+     * its first tab. An entry to Home writes it immediately before navigating, so the
+     * value an entry asked for is the value that Home reads.
+     */
+    var homeTab: Screen?
+
     /** Current user id. The production provider still uses temporary demo ids. */
     var currentUserId: String
 

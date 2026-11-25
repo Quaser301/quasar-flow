@@ -175,6 +175,8 @@ object AppContainer: Dependencies {
 
     override val onPendingRouteHandled: () -> Unit = { pendingScreen = null }
 
+    override var homeTab: Screen? by mutableStateOf(null)
+
     fun init(context: android.content.Context) {
         deviceID = DeviceId.get(context)
         currentUserId = deviceID

@@ -53,6 +53,24 @@ fun CampBnbApp(
         ).show()
     }
 
+    /**
+     * Goes to the home page on the given tab, clearing any screens opened on top of it.
+     *
+     * The tab cannot ride the route: a route argument holds a primitive or an enum, and
+     * a tab is a Screen. It is handed over as session state instead, written in the same
+     * step as the navigation, so the value an entry asks for is the value Home reads.
+     *
+     * @param role The signed-in role, which decides the bottom bar.
+     * @param tab The screen the named tab shows, or null for the bar's first tab.
+     */
+    fun NavController.goHome(role: UserRole, tab: Screen? = null) {
+        deps.homeTab = tab
+        navigate(Screen.Home(role = role)) {
+            popUpTo<Screen.Home> { inclusive = true }
+            launchSingleTop = true
+        }
+    }
+
     // The explore graph owns its own campsite model and controller: the search
     // screen draws what its controller loads, and the shared storage boundary
     // behind them is the app's.
@@ -314,7 +332,7 @@ fun CampBnbApp(
             HomeScreen(
                 role = role,
                 appViewSettings = deps.appViewSettings.toAppViewSetting(),
-                initialTab = route.tab,
+                initialTab = deps.homeTab,
                 homeNavController = homeNav
             ) {
                 // One node per bottom bar tab: every tab the bar can name is a
@@ -504,15 +522,4 @@ fun CampBnbApp(
     }
 }
 
-/**
- * Goes to the home page on the given tab, clearing any screens opened on top of it.
- *
- * @param role The signed-in role, which decides the bottom bar.
- * @param tab The screen the named tab shows, or null for the bar's first tab.
- */
-private fun NavController.goHome(role: UserRole, tab: Screen? = null) {
-    navigate(Screen.Home(role = role, tab = tab)) {
-        popUpTo<Screen.Home> { inclusive = true }
-        launchSingleTop = true
-    }
-}
+
