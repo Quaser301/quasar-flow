@@ -88,6 +88,7 @@ import kotlin.collections.emptyList
 import com.example.campbnb.controller.AdminController
 import com.example.campbnb.ui.shared.toRole
 import com.example.campbnb.ui.admin.ProfileRemovedDialog
+import com.example.campbnb.ui.campsite.CampsiteReviewsScreen
 
 @Composable
 fun CampBnbApp(
@@ -641,6 +642,13 @@ fun CampBnbApp(
                         )
                     }
 
+                    // The name saved with the user's rating and review, shown on the reviews screen.
+                    var reviewerName = ""
+                    val signedInUser = deps.userModel.currentUser
+                    if (signedInUser != null) {
+                        reviewerName = signedInUser.name
+                    }
+
                     CampsiteDetailsScreen(
                         role = shownRole,
                         campsite = shownDetails,
@@ -665,12 +673,34 @@ fun CampBnbApp(
                                 }
                             }
                         },
+                        reviewsContent = { closeReviews ->
+                            // Admins and owners never load ratings through the rating section.
+                            LaunchedEffect(route.campsiteId) {
+                                campsiteController.loadRatings()
+                            }
+                            CampsiteReviewsScreen(
+                                campsiteName = shownDetails.name,
+                                reviews = campsiteModel.ratingsFor(route.campsiteId),
+                                average = campsiteModel.averageRating(route.campsiteId),
+                                isAdmin = shownRole == UserRole.ADMIN,
+                                onBack = closeReviews,
+                                onDeleteReview = { review, reason ->
+                                    adminController.deleteRating(review.id, reason) { success, message ->
+                                        Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+                                        if (success) {
+                                            campsiteController.loadRatings()
+                                        }
+                                    }
+                                }
+                            )
+                        },
                         entrantContent = {
                             CampsiteRatingSection(
                                 campsiteModel,
                                 campsiteController,
                                 route.campsiteId,
-                                deps.deviceID
+                                deps.deviceID,
+                                reviewerName
                             )
                             LotteryJoinSection(
                                 detailsLotteryModel,

@@ -20,6 +20,7 @@ import com.example.campbnb.data.CampsiteRemovalRepository
 import com.example.campbnb.models.Lottery
 import com.example.campbnb.models.ReservationModel
 
+
 /**
  * Control: lets an admin remove things that break app policy.
  *
@@ -128,7 +129,100 @@ class AdminController(
         )
     }
 
-    /** The deletion itself, once the campsite is known to exist. */
+    /**
+     * Deletes one rating together with the review attached to it (US 03.09.01, 03.10.01), then
+     * notifies the user who wrote it.
+     *
+     * Refused (nothing is changed) if the signed-in user is not an admin, the id is blank,
+     * or the rating no longer exists.
+     *
+     * @param ratingId The id of the rating to delete (see [Rating.makeId]).
+     * @param reason Why it is being deleted; shown in the user's notice.
+     * @param onDone Called once with whether it worked and a message the screen can show.
+     */
+    fun deleteRating(
+        ratingId: String,
+        reason: RemovalReason?,
+        onDone: (Boolean, String) -> Unit
+    ) {
+        if (!userController.isAdmin()) {
+            onDone(false, "Only an admin can delete ratings and reviews")
+            return
+        }
+        if (ratingId.isBlank()) {
+            onDone(false, "No rating selected")
+            return
+        }
+
+        // Read the rating fresh from the database: we need its author to send the notice,
+        // and it may already have been deleted.
+        campsiteRepo.getRatingById(
+            ratingId,
+            onSuccess = { rating ->
+                if (rating == null) {
+                    onDone(false, "That rating no longer exists")
+                } else {
+                    deleteRatingChecked(rating, reason, onDone)
+                }
+            },
+            onFailure = { onDone(false, "Could not check the rating, so it was not deleted") }
+        )
+    }
+
+    /** The deletion itself, once the rating is known to exist. */
+    private fun deleteRatingChecked(
+        rating: Rating,
+        reason: RemovalReason?,
+        onDone: (Boolean, String) -> Unit
+    ) {
+        campsiteRepo.deleteRating(rating.id) { result ->
+            if (result.isSuccess) {
+                sendRatingNotice(rating, reason)
+                onDone(true, "Rating and review deleted")
+            } else {
+                onDone(false, "Could not delete the rating")
+            }
+        }
+    }
+
+    /** Looks up the campsite's name for the notice; a campsite that cannot be read is called "a campsite". */
+    private fun sendRatingNotice(rating: Rating, reason: RemovalReason?) {
+        campsiteRepo.getById(
+            rating.campsiteId,
+            onSuccess = { campsite ->
+                var campsiteName = "a campsite"
+                if (campsite != null) {
+                    campsiteName = "\"" + campsite.campName + "\""
+                }
+                notifier.sendNotice(
+                    rating.userId,
+                    "Your rating was removed",
+                    ratingRemovalText(rating, campsiteName, reason)
+                )
+            },
+            onFailure = {
+                notifier.sendNotice(
+                    rating.userId,
+                    "Your rating was removed",
+                    ratingRemovalText(rating, "a campsite", reason)
+                )
+            }
+        )
+    }
+
+    /** The message the rating's author receives. */
+    private fun ratingRemovalText(rating: Rating, campsiteName: String, reason: RemovalReason?): String {
+        var what = "your rating"
+        if (rating.review.isNotBlank()) {
+            what = "your rating and review"
+        }
+        val base = "An admin removed " + what + " of " + campsiteName + " for violating the app policy."
+        if (reason == null) {
+            return base
+        }
+        return base + " Reason: " + reason.label + "."
+    }
+
     /** The deletion itself, once the campsite is known to exist. */
     private fun deleteCampsiteChecked(
         campsite: Campsite,

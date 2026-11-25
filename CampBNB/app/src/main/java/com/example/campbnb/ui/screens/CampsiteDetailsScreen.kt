@@ -1,5 +1,6 @@
 package com.example.campbnb.ui.details
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -76,6 +77,9 @@ fun placeholderDetails(id: String) = CampsiteDetails(
  * @param onEnterLottery Called when a camper taps "Enter Lottery".
  * @param onDeleteSite Called after an admin confirms deleting the site.
  * @param onSeeReviews Called when "See all reviews" is tapped.
+ * @param reviewsContent The reviews screen. "See all reviews" swaps it in for the details (the
+ * role's bottom bar stays); it gets a function that closes it and shows the details again.
+ * The system back button closes it too.
  */
 @Composable
 fun CampsiteDetailsScreen(
@@ -89,136 +93,152 @@ fun CampsiteDetailsScreen(
     lotteryButtonIsLeave: Boolean = false,
     onDeleteSite: (RemovalReason?) -> Unit = {},
     onSeeReviews: () -> Unit = {},
+    reviewsContent: @Composable (onClose: () -> Unit) -> Unit = {},
     entrantContent: @Composable () -> Unit = {}
 ) {
     val tabs = remember(role) { tabsFor(role) }
     var showAllTags by remember { mutableStateOf(false) }
     var confirmDelete by remember { mutableStateOf(false) }
     var pickReason by remember { mutableStateOf(false) }
+    var showReviews by remember { mutableStateOf(false) }
     val hasFloatingButton = role != UserRole.OWNER
+
+    // Back from the reviews screen returns to the details instead of leaving the campsite.
+    BackHandler(enabled = showReviews) { showReviews = false }
 
     Scaffold(
         containerColor = Color.White,
         bottomBar = { RoleBottomBar(tabs, selectedIndex = 0, onSelect = onTabSelected) }
     ) { padding ->
-        Box(Modifier.padding(padding).fillMaxSize()) {
-            Column(
-                Modifier
-                    .fillMaxSize()
-                    .verticalScroll(rememberScrollState())
-                    .padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = if (hasFloatingButton) 92.dp else 16.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                // Back button and name
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        if (showReviews) {
+            Box(Modifier.padding(padding).fillMaxSize()) {
+                reviewsContent { showReviews = false }
+            }
+        } else {
+            Box(Modifier.padding(padding).fillMaxSize()) {
+                Column(
+                    Modifier
+                        .fillMaxSize()
+                        .verticalScroll(rememberScrollState())
+                        .padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = if (hasFloatingButton) 92.dp else 16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    // Back button and name
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Box(
+                            Modifier.size(40.dp).clip(CircleShape).background(ButtonGradient).clickable(onClick = onBack),
+                            contentAlignment = Alignment.Center
+                        ) { Text("<", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold) }
+                        Text(campsite.name, fontSize = 28.sp, fontWeight = FontWeight.Bold)
+                    }
+
+                    // Picture
                     Box(
-                        Modifier.size(40.dp).clip(CircleShape).background(ButtonGradient).clickable(onClick = onBack),
-                        contentAlignment = Alignment.Center
-                    ) { Text("<", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold) }
-                    Text(campsite.name, fontSize = 28.sp, fontWeight = FontWeight.Bold)
-                }
+                        Modifier.fillMaxWidth().height(220.dp).clip(RoundedCornerShape(4.dp)).background(FieldGrey)
+                    )
 
-                // Picture
-                Box(
-                    Modifier.fillMaxWidth().height(220.dp).clip(RoundedCornerShape(4.dp)).background(FieldGrey)
-                )
+                    // Rating
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                            repeat(5) { i ->
+                                val filled = i < campsite.rating.roundToInt()
+                                Box(
+                                    Modifier.size(28.dp).clip(CircleShape).background(if (filled) StarTeal else FieldGrey),
+                                    contentAlignment = Alignment.Center
+                                ) { StarGlyph(Modifier.size(16.dp)) }
+                            }
+                        }
+                        Spacer(Modifier.width(12.dp))
+                        Text(
+                            "See all ${campsite.reviewCount} reviews",
+                            fontSize = 12.sp,
+                            color = LinkBlue,
+                            textDecoration = TextDecoration.Underline,
+                            modifier = Modifier
+                                .testTag("see_reviews")
+                                .clickable {
+                                    showReviews = true
+                                    onSeeReviews()
+                                }
+                        )
+                    }
 
-                // Rating
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                        repeat(5) { i ->
-                            val filled = i < campsite.rating.roundToInt()
+                    // Tags
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text("Tags:", fontSize = 12.sp)
+                        campsite.tags.take(3).forEach { TagChip(it) }
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             Box(
-                                Modifier.size(28.dp).clip(CircleShape).background(if (filled) StarTeal else FieldGrey),
+                                Modifier.size(32.dp).clip(CircleShape).background(EyePink).clickable { showAllTags = true },
                                 contentAlignment = Alignment.Center
-                            ) { StarGlyph(Modifier.size(16.dp)) }
+                            ) { EyeGlyph(Modifier.size(18.dp), color = Color(0xFF7A2E2E)) }
+                            Text("(View all tags)", fontSize = 8.sp)
                         }
                     }
-                    Spacer(Modifier.width(12.dp))
-                    Text(
-                        "See all ${campsite.reviewCount} reviews",
-                        fontSize = 12.sp,
-                        color = LinkBlue,
-                        textDecoration = TextDecoration.Underline,
-                        modifier = Modifier.clickable(onClick = onSeeReviews)
+
+                    // About
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text("About this site...", fontSize = 14.sp)
+
+                        Column(
+                            Modifier.padding(start = 8.dp),
+                            verticalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Text(
+                                "Capacity: ${campsite.capacityGuests} guests",
+                                fontSize = 13.sp
+                            )
+                            Text(
+                                "Location: ${campsite.location}",
+                                fontSize = 13.sp
+                            )
+                        }
+                    }
+
+                    // Description
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text("Description", fontSize = 14.sp)
+                        Text(campsite.description, fontSize = 12.sp, modifier = Modifier.padding(start = 8.dp))
+                    }
+
+                    if (role == UserRole.CAMPER) {
+                        entrantContent()
+                    }
+                }
+
+                // Floating button, above the bottom bar
+                when (role) {
+                    UserRole.CAMPER -> {
+                        var buttonBrush: Brush = ButtonGradient
+                        var buttonTag = "join_lottery"
+                        if (lotteryButtonIsLeave) {
+                            buttonBrush = DeleteGradient
+                            buttonTag = "leave_lottery"
+                        }
+                        GradientButton(
+                            text = lotteryButtonText,
+                            onClick = onEnterLottery,
+                            enabled = lotteryButtonEnabled,
+                            brush = buttonBrush,
+                            height = 52.dp,
+                            modifier = Modifier
+                                .align(Alignment.BottomCenter)
+                                .padding(horizontal = 24.dp, vertical = 12.dp)
+                                .testTag(buttonTag)
+                        )
+                    }
+                    UserRole.ADMIN -> GradientButton(
+                        text = "Delete Site",
+                        onClick = { confirmDelete = true },
+                        brush = DeleteGradient,
+                        height = 52.dp,
+                        modifier = Modifier
+                            .align(Alignment.BottomCenter)
+                            .padding(horizontal = 24.dp, vertical = 12.dp)
+                            .testTag("delete_site")
                     )
+                    UserRole.OWNER -> Unit
                 }
-
-                // Tags
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Tags:", fontSize = 12.sp)
-                    campsite.tags.take(3).forEach { TagChip(it) }
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Box(
-                            Modifier.size(32.dp).clip(CircleShape).background(EyePink).clickable { showAllTags = true },
-                            contentAlignment = Alignment.Center
-                        ) { EyeGlyph(Modifier.size(18.dp), color = Color(0xFF7A2E2E)) }
-                        Text("(View all tags)", fontSize = 8.sp)
-                    }
-                }
-
-                // About
-                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text("About this site...", fontSize = 14.sp)
-
-                    Column(
-                        Modifier.padding(start = 8.dp),
-                        verticalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
-                        Text(
-                            "Capacity: ${campsite.capacityGuests} guests",
-                            fontSize = 13.sp
-                        )
-                        Text(
-                            "Location: ${campsite.location}",
-                            fontSize = 13.sp
-                        )
-                    }
-                }
-
-                // Description
-                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text("Description", fontSize = 14.sp)
-                    Text(campsite.description, fontSize = 12.sp, modifier = Modifier.padding(start = 8.dp))
-                }
-
-                if (role == UserRole.CAMPER) {
-                    entrantContent()
-                }
-            }
-
-            // Floating button, above the bottom bar
-            when (role) {
-                UserRole.CAMPER -> {
-                var buttonBrush: Brush = ButtonGradient
-                var buttonTag = "join_lottery"
-                if (lotteryButtonIsLeave) {
-                    buttonBrush = DeleteGradient
-                    buttonTag = "leave_lottery"
-                }
-                GradientButton(
-                    text = lotteryButtonText,
-                    onClick = onEnterLottery,
-                    enabled = lotteryButtonEnabled,
-                    brush = buttonBrush,
-                    height = 52.dp,
-                    modifier = Modifier
-                        .align(Alignment.BottomCenter)
-                        .padding(horizontal = 24.dp, vertical = 12.dp)
-                        .testTag(buttonTag)
-                )
-            }
-                UserRole.ADMIN -> GradientButton(
-                    text = "Delete Site",
-                    onClick = { confirmDelete = true },
-                    brush = DeleteGradient,
-                    height = 52.dp,
-                    modifier = Modifier
-                        .align(Alignment.BottomCenter)
-                        .padding(horizontal = 24.dp, vertical = 12.dp)
-                        .testTag("delete_site")
-                )
-                UserRole.OWNER -> Unit
             }
         }
     }
