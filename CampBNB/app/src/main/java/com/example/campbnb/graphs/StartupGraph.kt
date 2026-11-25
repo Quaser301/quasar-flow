@@ -11,10 +11,8 @@ import androidx.navigation.navigation
 import com.example.campbnb.Screen
 import com.example.campbnb.controller.UserController
 import com.example.campbnb.data.CampsiteRepository
-import com.example.campbnb.database.Database
 import com.example.campbnb.models.BookingCardData
 import com.example.campbnb.models.Role
-import com.example.campbnb.models.User
 import com.example.campbnb.models.UserModel
 import com.example.campbnb.ui.components.UserRole
 import com.example.campbnb.ui.screens.CampsiteCardData
@@ -80,18 +78,13 @@ fun NavGraphBuilder.startupGraph(
 
         composable<Screen.SignUp> {
             SignUpScreen(
-                // TODO: maybe extract to a model class?
+                // The profile is created through the controller rather than written
+                // inline, so it becomes the signed-in user the moment it is saved:
+                // the role the next screen picks is recorded ON it, and every role
+                // check in the app reads the saved profile, not the app view.
+                // The profile starts with no roles; the role screen grants one.
                 onSignUp = { email, username, phoneNumber ->
-                    val newUser = User(
-                        deviceId = deviceID,
-                        name = username,
-                        email = email,
-                        phone = phoneNumber,
-                        roles = listOf(Role.ENTRANT) // was admin: why????
-                    )
-                    Database.Users
-                        .writeEngine()
-                        .save(newUser, { /* TODO: handle the complete */ })
+                    userController.register(deviceID, username, email, phoneNumber) { }
                     navToRoleSelector()
                 }
             )
@@ -105,8 +98,23 @@ fun NavGraphBuilder.startupGraph(
                         UserRole.OWNER -> AppView.OwnerView
                         UserRole.CAMPER -> AppView.EntrantView
                     }
-                    changeAppViewTo(targetView)
-                    navToHomePage(role)
+                    // The role the user names is recorded on their profile through the
+                    // controller, so the owner's own sent notices and an admin's
+                    // abilities follow the profile and not only the app view (an
+                    // owner who signed up here was being built as an entrant).
+                    // The save is best-effort: the view still switches if it fails.
+                    val chosenRole = when (role) {
+                        UserRole.ADMIN -> Role.ADMIN
+                        UserRole.OWNER -> Role.OWNER
+                        UserRole.CAMPER -> Role.ENTRANT
+                    }
+                    // The view switch and Home wait for the save, so the profile is
+                    // already carrying the role by the time Home first draws its tabs
+                    // (on a failed save the view still switches, as before).
+                    userController.chooseRole(chosenRole) { granted ->
+                        changeAppViewTo(targetView)
+                        navToHomePage(role)
+                    }
                 }
             )
         }
