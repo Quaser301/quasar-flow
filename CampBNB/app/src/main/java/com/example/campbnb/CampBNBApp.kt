@@ -64,8 +64,8 @@ import com.example.campbnb.ui.campsite.lotteryButtonText
 import com.example.campbnb.ui.campsite.toCardList
 import com.example.campbnb.ui.components.GradientButton
 import com.example.campbnb.ui.components.UserRole
-import com.example.campbnb.ui.details.CampsiteDetails
-import com.example.campbnb.ui.details.CampsiteDetailsScreen
+import com.example.campbnb.ui.screens.CampsiteDetails
+import com.example.campbnb.ui.screens.CampsiteDetailsScreen
 import com.example.campbnb.ui.inbox.CorrespondenceScreen
 import com.example.campbnb.ui.inbox.MessagesScreen
 import com.example.campbnb.ui.inbox.NotificationInboxScreen
