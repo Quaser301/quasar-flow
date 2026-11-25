@@ -31,6 +31,14 @@ interface Dependencies {
     /** Stable identifier for the current device. */
     val deviceID: String
 
+    /**
+     * Whether this device has let the app use its camera. The app asks the device
+     * once, at start; the answer arrives back asynchronously, so a screen that opens
+     * a camera reads this instead of asking. False means no answer has arrived, or
+     * the device said no, and the screen keeps working without a camera.
+     */
+    var cameraAllowed: Boolean
+
     /** Shared user state, including roles and the signed-in user. */
     val userModel: UserModel
 

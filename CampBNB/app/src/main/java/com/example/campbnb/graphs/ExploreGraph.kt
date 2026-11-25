@@ -41,6 +41,8 @@ import kotlinx.serialization.Serializable
  * @param campsiteModel The shared model the search results draw through.
  * @param campsiteControl The shared controller that loads and searches.
  * @param toastGenerator Reports a load failure to the user; the caller owns the channel.
+ * @param cameraAllowed Whether this device has let the app use its camera; the camera
+ *   scanner opens a camera only when this says yes.
  */
 fun NavGraphBuilder.exploreGraph(
 
@@ -60,7 +62,9 @@ fun NavGraphBuilder.exploreGraph(
 
     campsiteControl: CampsiteController,
 
-    toastGenerator: (reason: String, duration:Int) -> Unit
+    toastGenerator: (reason: String, duration:Int) -> Unit,
+
+    cameraAllowed: Boolean = false
 ) {
     navigation<NavGraphNodes.ExploreGraph>(startDestination = Screen.Explore) {
         composable<Screen.Explore> {
@@ -141,7 +145,8 @@ fun NavGraphBuilder.exploreGraph(
                 controller = scannerController,
                 onOpenCampsite = { campsite ->
                     navToCampDetails(route.role, campsite.id)
-                }
+                },
+                cameraAllowed = cameraAllowed
             )
         }
     }

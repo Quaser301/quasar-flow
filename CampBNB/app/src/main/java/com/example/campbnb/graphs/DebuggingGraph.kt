@@ -3,7 +3,6 @@ package com.example.campbnb.graphs
 import androidx.compose.runtime.LaunchedEffect
 import androidx.navigation.NavGraphBuilder
 import androidx.navigation.compose.composable
-import androidx.navigation.navigation
 import com.example.campbnb.Screen
 import com.example.campbnb.controller.AdminController
 import com.example.campbnb.controller.UserController
@@ -25,37 +24,38 @@ fun NavGraphBuilder.DebugGraph(
 
     adminController: AdminController
 ) {
-    navigation<NavGraphNodes.DebugGraph>(startDestination = Screen.AdminProfileView) {
-
-        composable<Screen.AdminProfileView> {
-            LaunchedEffect(Unit) {
-                userController.loadAllUsers()
-            }
-            AdminProfilesScreen(
-                onNavBack,
-                userModel,
-                adminController
-            )
+    // Both debug views are registered bare, not under a graph node: a caller that opens
+    // one of them from the bottom bar names the screen it wants, and entering a node
+    // always loads that graph's own start destination — which here was the profile view,
+    // so the notification debugger could never be opened at all. Registered bare, the
+    // screen itself is the start, the way the settings and profile tabs already are.
+    composable<Screen.AdminProfileView> {
+        LaunchedEffect(Unit) {
+            userController.loadAllUsers()
         }
+        AdminProfilesScreen(
+            onNavBack,
+            userModel,
+            adminController
+        )
+    }
 
-        composable<Screen.AdminNotificationView> {
-            LaunchedEffect(Unit) {
-                userController.loadAllUsers()
-            }
-            NotificationLogScreen(
-                title = "Notification Debugging",
-                notificationSource = notificationRepository,
-                returnFunc =onNavBack,
-                // The debug log holds profile references, so it names the
-                // users they stand for: the saved users are looked up once
-                // above and every reference resolves against them. The log
-                // watches the model, so the names show even though the view
-                // opens before the users arrive.
-                profileText = { userId ->
-                    profileLabelOf(userId, userModel.allUsers)
-                },
-                savedUsers = userModel
-            )
+    composable<Screen.AdminNotificationView> {
+        LaunchedEffect(Unit) {
+            userController.loadAllUsers()
         }
+        NotificationLogScreen(
+            title = "Notification Debugging",
+            notificationSource = notificationRepository,
+            returnFunc = onNavBack,
+            // The debug log holds profile references, so it names the users they stand
+            // for: the saved users are looked up once above and every reference resolves
+            // against them. The log watches the model, so the names show even though the
+            // view opens before the users arrive.
+            profileText = { userId ->
+                profileLabelOf(userId, userModel.allUsers)
+            },
+            savedUsers = userModel
+        )
     }
 }
