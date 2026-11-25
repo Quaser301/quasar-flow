@@ -53,6 +53,7 @@ import com.example.campbnb.ui.theme.DeleteGradient
 import com.example.campbnb.ui.theme.DeleteStart
 import com.example.campbnb.ui.theme.FieldGrey
 import com.example.campbnb.ui.theme.StarTeal
+import androidx.compose.material3.Surface
 
 // prompted Claude Sonnet 5.5 for some implementations related to the star ratings
 
@@ -84,8 +85,8 @@ fun CampsiteReviewsScreen(
 
     val selected = findSelected(reviews, selectedUserId)
 
-    Box(Modifier.fillMaxSize()) {
-        Column(Modifier.fillMaxSize().padding(start = 16.dp, end = 16.dp, top = 12.dp)) {
+    Column(Modifier.fillMaxSize()) {
+        Column(Modifier.weight(1f).padding(start = 16.dp, end = 16.dp, top = 12.dp)) {
             // Back button and title
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 Box(
@@ -113,7 +114,7 @@ fun CampsiteReviewsScreen(
 
             // Bottom padding leaves room for the Delete button so it never covers the last card.
             LazyColumn(
-                contentPadding = PaddingValues(bottom = 92.dp),
+                contentPadding = PaddingValues(bottom = 12.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 items(reviews, key = { review -> review.id }) { review ->
@@ -133,17 +134,19 @@ fun CampsiteReviewsScreen(
             }
         }
 
+        // The Delete button has its own strip under the list, so it never covers a card.
         if (isAdmin && selected != null) {
-            GradientButton(
-                text = "Delete review",
-                onClick = { confirmDelete = true },
-                brush = DeleteGradient,
-                height = 52.dp,
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .padding(horizontal = 24.dp, vertical = 12.dp)
-                    .testTag("delete_review")
-            )
+            Surface(color = Color.White, shadowElevation = 8.dp) {
+                Box(Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 12.dp)) {
+                    GradientButton(
+                        text = "Delete review",
+                        onClick = { confirmDelete = true },
+                        brush = DeleteGradient,
+                        height = 52.dp,
+                        modifier = Modifier.testTag("delete_review")
+                    )
+                }
+            }
         }
     }
 
