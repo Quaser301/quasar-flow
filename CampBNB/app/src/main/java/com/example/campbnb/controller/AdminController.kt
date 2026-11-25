@@ -6,12 +6,6 @@ package com.example.campbnb.controller
  * Role: controller for admin removals (US 03.02.01 so far; 03.07.01, 03.01.01, 03.03.01,
  * 03.09.01 and 03.10.01 are meant to be added here the same way).
  * Role checks are not repeated here: it asks UserController whether the caller is an admin.
- *
- * Outstanding issues:
- *  - A deleted profile's reservations and messages are not removed yet. Only its ratings
- *    and waiting-list entries are.
- *  - The deleted user sees the notice only after they sign up again (the notice is saved
- *    under their device id).
  */
 
 import com.example.campbnb.data.CampsiteRepository
@@ -383,9 +377,45 @@ class AdminController(
     private fun removeWaitingListEntries(userId: String, onDone: (Boolean) -> Unit) {
         lotteryRepo.getEntriesByUser(
             userId,
-            onSuccess = { entries -> deleteEntries(entries, 0, onDone) },
+            onSuccess = { entries ->
+                deleteEntries(entries, 0) { entriesGone ->
+                    if (!entriesGone) {
+                        onDone(false)
+                    } else {
+                        cancelReservationsOfUser(userId, onDone)
+                    }
+                }
+            },
             onFailure = { onDone(false) }
         )
+    }
+
+    /** Cancels the user's upcoming reservations, which frees their dates. */
+    private fun cancelReservationsOfUser(userId: String, onDone: (Boolean) -> Unit) {
+        removalRepo.getActiveReservationsOfEntrant(
+            userId,
+            onSuccess = { reservations -> cancelUserReservations(reservations, 0, onDone) },
+            onFailure = { onDone(false) }
+        )
+    }
+
+    /** Cancels reservations[index] onward, one after another; stops and reports false on the first failure. */
+    private fun cancelUserReservations(
+        reservations: List<ReservationModel>,
+        index: Int,
+        onDone: (Boolean) -> Unit
+    ) {
+        if (index >= reservations.size) {
+            onDone(true)
+            return
+        }
+        removalRepo.cancelReservation(reservations[index].lotteryEntryId) { result ->
+            if (result.isSuccess) {
+                cancelUserReservations(reservations, index + 1, onDone)
+            } else {
+                onDone(false)
+            }
+        }
     }
 
     /** Deletes ratings[index] onward, one after another; stops and reports false on the first failure. */

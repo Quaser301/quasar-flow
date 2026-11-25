@@ -185,6 +185,14 @@ class AdminControllerTest {
             savedLotteries.add(lottery)
             onComplete(Result.success(null))
         }
+
+        override fun getActiveReservationsOfEntrant(
+            entrantId: String,
+            onSuccess: (List<ReservationModel>) -> Unit,
+            onFailure: (Exception) -> Unit
+        ) {
+            onSuccess(reservations.filter { it.entrantId == entrantId })
+        }
     }
 
     /** Everything a case needs, built the way the app builds it. */
@@ -595,6 +603,37 @@ class AdminControllerTest {
 
         assertEquals("the request reports failure", false, s.success)
         assertTrue("the campsite is kept so the admin can try again", s.campsiteRepo.campsites.any { it.id == "camp-1" })
+        assertEquals("nothing was announced", 0, s.notificationRepo.saved.size)
+    }
+
+    @Test
+    fun test_DeletingAProfileCancelsItsReservationsOnly() {
+        val s = Setup(listOf(Role.ADMIN))
+        s.removalRepo.reservations.add(
+            ReservationModel(lotteryEntryId = "entry-1", campsiteId = "camp-1", entrantId = "user-9")
+        )
+        s.removalRepo.reservations.add(
+            ReservationModel(lotteryEntryId = "entry-2", campsiteId = "camp-1", entrantId = "user-2")
+        )
+
+        s.delete("user-9", null)
+
+        assertEquals("the deletion worked", true, s.success)
+        assertEquals("only the deleted user's reservation was cancelled", listOf("entry-1"), s.removalRepo.cancelled)
+    }
+
+    @Test
+    fun test_AFailedReservationCancelKeepsTheProfileAndSendsNoNotice() {
+        val s = Setup(listOf(Role.ADMIN))
+        s.removalRepo.reservations.add(
+            ReservationModel(lotteryEntryId = "entry-1", campsiteId = "camp-1", entrantId = "user-9")
+        )
+        s.removalRepo.failCancel = true
+
+        s.delete("user-9", null)
+
+        assertEquals("the request reports failure", false, s.success)
+        assertTrue("the profile is kept so the admin can try again", s.userRepo.users.any { it.id == "user-9" })
         assertEquals("nothing was announced", 0, s.notificationRepo.saved.size)
     }
 }

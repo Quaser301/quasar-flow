@@ -3,6 +3,8 @@ package com.example.campbnb.data
 import com.example.campbnb.database.Database
 import com.example.campbnb.models.Lottery
 import com.example.campbnb.models.ReservationModel
+import com.example.campbnb.models.DateUtils
+import com.example.campbnb.models.ReservationStatus
 
 /**
  * Boundary to Firestore for the clean-up that follows an admin deleting a campsite
@@ -28,6 +30,28 @@ open class CampsiteRemovalRepository {
         onFailure: (Exception) -> Unit
     ) {
         reservations.getActive(campsiteId, onSuccess, onFailure)
+    }
+
+    /** Reads one entrant's active reservations that have not ended yet. */
+    open fun getActiveReservationsOfEntrant(
+        entrantId: String,
+        onSuccess: (List<ReservationModel>) -> Unit,
+        onFailure: (Exception) -> Unit
+    ) {
+        reservations.getForEntrant(
+            entrantId,
+            onSuccess = { all ->
+                val today = DateUtils.today()
+                val upcoming = mutableListOf<ReservationModel>()
+                for (reservation in all) {
+                    if (reservation.status == ReservationStatus.ACTIVE && reservation.endDate >= today) {
+                        upcoming.add(reservation)
+                    }
+                }
+                onSuccess(upcoming)
+            },
+            onFailure = onFailure
+        )
     }
 
     /** Cancels one reservation (its id is the lottery entry id), which frees its dates. */

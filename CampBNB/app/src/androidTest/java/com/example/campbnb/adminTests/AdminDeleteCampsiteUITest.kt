@@ -19,6 +19,8 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.example.campbnb.EmptyLotteryRepository
+import com.example.campbnb.EmptyRemovalRepository
 import com.example.campbnb.controller.AdminController
 import com.example.campbnb.controller.NotificationController
 import com.example.campbnb.controller.UserController
@@ -125,8 +127,9 @@ class AdminDeleteCampsiteUiTest {
             userController,
             UserRepository(),
             campsiteRepo,
-            LotteryRepository(),
-            NotificationController(notifications)
+            EmptyLotteryRepository(),
+            NotificationController(notifications),
+            EmptyRemovalRepository()
         )
         userModel.setCurrentUser(signedInAdmin)
 

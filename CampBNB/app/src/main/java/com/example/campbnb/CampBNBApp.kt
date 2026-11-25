@@ -87,6 +87,7 @@ import com.example.campbnb.viewModels.simpleViewModelFactory
 import kotlin.collections.emptyList
 import com.example.campbnb.controller.AdminController
 import com.example.campbnb.ui.shared.toRole
+import com.example.campbnb.ui.admin.ProfileRemovedDialog
 
 @Composable
 fun CampBnbApp(
@@ -103,13 +104,20 @@ fun CampBnbApp(
     // details and waitlist screens.
     var selectedLottery by remember { mutableStateOf<Lottery?>(null) }
 
+    // True once an admin has deleted this user's profile and the pop-up has not been answered.
+    var showRemovedNotice by remember { mutableStateOf(false) }
+
     DisposableEffect(deps.deviceID) {
-        val stopWatching = deps.userController.watchForRemoval(deps.deviceID) {
-            deps.userModel.setCurrentUser(null)
-            nav.navigate(Screen.Start) {
-                popUpTo(Screen.Start) { inclusive = true }
-            }
-        }
+        val stopWatching = deps.userController.watchForRemoval(
+            deps.deviceID,
+            onDeletedBySelf = {
+                deps.userModel.setCurrentUser(null)
+                nav.navigate(Screen.Start) {
+                    popUpTo(Screen.Start) { inclusive = true }
+                }
+            },
+            onRemoved = { showRemovedNotice = true }
+        )
         onDispose { stopWatching() }
     }
 
@@ -966,6 +974,19 @@ fun CampBnbApp(
             )
         }
 
+    }
+
+    // The user stays where they are until they tap OK; only then do they go to the start screen.
+    if (showRemovedNotice) {
+        ProfileRemovedDialog(
+            onOk = {
+                showRemovedNotice = false
+                deps.userModel.setCurrentUser(null)
+                nav.navigate(Screen.Start) {
+                    popUpTo(Screen.Start) { inclusive = true }
+                }
+            }
+        )
     }
 
     LaunchedEffect(deps.pendingRoute) {
