@@ -339,6 +339,15 @@ fun CampBnbApp(
             navToCampsiteDetails = { role, id ->
                 nav.navigate(Screen.CampsiteDetailsScreen(role, id))
             },
+            navToSettings = { role ->
+                nav.navigate(Screen.Settings(role))
+            },
+            navToMyCampsites = {
+                nav.navigate(Screen.MyCampsites)
+            },
+            navToStart = {
+                nav.navigate(Screen.Start)
+            },
 
             userModel = deps.userModel,
 
@@ -530,6 +539,15 @@ fun CampBnbApp(
                     },
                     navToCampsiteDetails = { role, id ->
                         nav.navigate(Screen.CampsiteDetailsScreen(role, id))
+                    },
+                    navToSettings = { role ->
+                        nav.navigate(Screen.Settings(role))
+                    },
+                    navToMyCampsites = {
+                        nav.navigate(Screen.MyCampsites)
+                    },
+                    navToStart = {
+                        nav.navigate(Screen.Start)
                     },
 
                     userModel = deps.userModel,

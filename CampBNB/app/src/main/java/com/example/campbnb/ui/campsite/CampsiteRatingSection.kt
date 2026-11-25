@@ -1,3 +1,4 @@
+// ===== ui/campsite/CampsiteRatingSection.kt =====
 package com.example.campbnb.ui.campsite
 
 import androidx.compose.foundation.layout.Column
@@ -13,6 +14,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.campbnb.controller.CampsiteController
@@ -53,6 +55,7 @@ fun CampsiteRatingSection(
     var reviewText by remember(savedReview) { mutableStateOf(savedReview) }
 
     Column(modifier = modifier) {
+        Text("Rate this campsite", fontSize = 18.sp, fontWeight = FontWeight.Bold)
         RatingStars(
             currentStars = model.myRating(campsiteId, userId),
             onRate = { stars -> controller.saveRating(campsiteId, userId, stars, userName) }
@@ -61,6 +64,7 @@ fun CampsiteRatingSection(
             value = reviewText,
             onValueChange = { newText -> reviewText = newText },
             label = { Text("Write a review") },
+            minLines = 3,
             modifier = Modifier.fillMaxWidth().testTag("review_input")
         )
         GradientButton(
