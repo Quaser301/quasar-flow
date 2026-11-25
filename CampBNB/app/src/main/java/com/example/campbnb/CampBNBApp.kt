@@ -508,6 +508,15 @@ fun CampBnbApp(
                 deps.campsiteRepository
                 )
             }
+            val adminController = remember {
+                AdminController(
+                    deps.userController,
+                    deps.userRepository,
+                    deps.campsiteRepository,
+                    LotteryRepository(),
+                    deps.notificationController
+                )
+            }
             val detailsLotteryModel = remember { LotteryModel() }
             val detailsLotteryController = remember {
                 LotteryController(detailsLotteryModel, LotteryRepository(), Database.Lotteries.readEngine()) {
@@ -639,8 +648,14 @@ fun CampBnbApp(
                         lotteryButtonText = lotteryButtonText(detailsLotteryModel),
                         lotteryButtonEnabled = detailsLotteryModel.entrantLottery != null,
                         lotteryButtonIsLeave = detailsLotteryModel.entrantIsOnWaitlist,
-                        onDeleteSite = {
-                            // TODO: connect to the campsite deletion workflow
+                        onDeleteSite = { reason ->
+                            adminController.deleteCampsite(route.campsiteId, reason) { success, message ->
+                                Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+                                if (success) {
+                                    // Re-opens Home, which reloads the campsite lists without the deleted site
+                                    nav.goHome(route.role)
+                                }
+                            }
                         },
                         entrantContent = {
                             CampsiteRatingSection(

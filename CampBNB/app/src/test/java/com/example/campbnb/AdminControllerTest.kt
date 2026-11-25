@@ -28,6 +28,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import com.example.campbnb.models.Campsite
 
 class AdminControllerTest {
 
@@ -57,9 +58,30 @@ class AdminControllerTest {
         }
     }
 
-    private class FakeCampsiteRepository(ratings: List<Rating>) : CampsiteRepository() {
+    private class FakeCampsiteRepository(
+        ratings: List<Rating>,
+        campsites: List<Campsite> = emptyList()
+    ) : CampsiteRepository() {
         val ratings = ratings.toMutableList()
+        val campsites = campsites.toMutableList()
         var failRatingDelete = false
+        var failCampsiteDelete = false
+
+        override fun getById(
+            campsiteId: String,
+            onSuccess: (Campsite?) -> Unit,
+            onFailure: (Exception) -> Unit
+        ) {
+            onSuccess(campsites.firstOrNull { it.id == campsiteId })
+        }
+
+        override fun getRatingsByCampsite(
+            campsiteId: String,
+            onSuccess: (List<Rating>) -> Unit,
+            onFailure: (Exception) -> Unit
+        ) {
+            onSuccess(ratings.filter { it.campsiteId == campsiteId })
+        }
 
         override fun getRatingsByUser(
             userId: String,
@@ -75,6 +97,18 @@ class AdminControllerTest {
                 return
             }
             ratings.removeAll { it.id == ratingId }
+            onComplete(Result.success(null))
+        }
+
+        override fun deleteCampsite(
+            campsiteId: String,
+            onComplete: (Result<Exception?>) -> Unit
+        ) {
+            if (failCampsiteDelete) {
+                onComplete(Result.failure(Exception("fake failure")))
+                return
+            }
+            campsites.removeAll { it.id == campsiteId }
             onComplete(Result.success(null))
         }
     }
@@ -112,6 +146,10 @@ class AdminControllerTest {
                 Rating("camp-1", "user-9", 4),
                 Rating("camp-2", "user-9", 5),
                 Rating("camp-1", "user-2", 3)
+            ),
+            listOf(
+                Campsite(ownerId = "owner-1", campName = "Lakeside").apply { id = "camp-1" },
+                Campsite(ownerId = "owner-2", campName = "Ridge").apply { id = "camp-2" }
             )
         )
         val lotteryRepo = FakeLotteryRepository(
@@ -140,6 +178,13 @@ class AdminControllerTest {
 
         fun delete(userId: String, reason: RemovalReason?) {
             controller.deleteProfile(userId, reason) { ok, text ->
+                success = ok
+                message = text
+            }
+        }
+
+        fun deleteCampsite(campsiteId: String, reason: RemovalReason?) {
+            controller.deleteCampsite(campsiteId, reason) { ok, text ->
                 success = ok
                 message = text
             }
@@ -283,6 +328,105 @@ class AdminControllerTest {
         s.userRepo.failDelete = true
 
         s.delete("user-9", RemovalReason.FRAUD)
+
+        assertEquals("the request reports failure", false, s.success)
+        assertEquals("nothing was announced", 0, s.notificationRepo.saved.size)
+    }
+
+    // ---- US 03.01.01: an admin deletes a campsite ----
+
+    @Test
+    fun test_ANonAdminCannotDeleteACampsite() {
+        val s = Setup(listOf(Role.OWNER))
+
+        s.deleteCampsite("camp-1", RemovalReason.SPAM_OR_FAKE)
+
+        assertEquals("the request is refused", false, s.success)
+        assertTrue("the campsite is still there", s.campsiteRepo.campsites.any { it.id == "camp-1" })
+        assertEquals("nothing was announced", 0, s.notificationRepo.saved.size)
+    }
+
+    @Test
+    fun test_ABlankCampsiteIdChangesNothing() {
+        val s = Setup(listOf(Role.ADMIN))
+
+        s.deleteCampsite("  ", RemovalReason.SPAM_OR_FAKE)
+
+        assertEquals("the request is refused", false, s.success)
+        assertEquals("both campsites remain", 2, s.campsiteRepo.campsites.size)
+    }
+
+    @Test
+    fun test_ACampsiteThatNoLongerExistsChangesNothing() {
+        val s = Setup(listOf(Role.ADMIN))
+
+        s.deleteCampsite("camp-404", RemovalReason.SPAM_OR_FAKE)
+
+        assertEquals("the request is refused", false, s.success)
+        assertEquals("both campsites remain", 2, s.campsiteRepo.campsites.size)
+        assertEquals("nothing was announced", 0, s.notificationRepo.saved.size)
+    }
+
+    @Test
+    fun test_DeletingACampsiteRemovesItAndItsRatingsOnly() {
+        val s = Setup(listOf(Role.ADMIN))
+
+        s.deleteCampsite("camp-1", RemovalReason.FRAUD)
+
+        assertEquals("the deletion worked", true, s.success)
+        assertEquals("only the other campsite remains", listOf("camp-2"), s.campsiteRepo.campsites.map { it.id })
+        assertEquals(
+            "only the other campsite's rating remains",
+            listOf("camp-2"),
+            s.campsiteRepo.ratings.map { it.campsiteId }
+        )
+    }
+
+    @Test
+    fun test_TheOwnerIsToldWhichCampsiteWasRemovedAndWhy() {
+        val s = Setup(listOf(Role.ADMIN))
+
+        s.deleteCampsite("camp-1", RemovalReason.INAPPROPRIATE_CONTENT)
+
+        val notices = s.notificationRepo.saved.values.toList()
+        assertEquals("exactly one notice was saved", 1, notices.size)
+        assertEquals("it is addressed to the campsite's owner", "owner-1", notices[0].recipientId)
+        assertTrue("it names the campsite", notices[0].message.contains("Lakeside"))
+        assertTrue(
+            "it states the reason picked",
+            notices[0].message.contains(RemovalReason.INAPPROPRIATE_CONTENT.label)
+        )
+    }
+
+    @Test
+    fun test_TheOwnerNoticeStillGoesOutWithoutAReason() {
+        val s = Setup(listOf(Role.ADMIN))
+
+        s.deleteCampsite("camp-1", null)
+
+        val notices = s.notificationRepo.saved.values.toList()
+        assertEquals("exactly one notice was saved", 1, notices.size)
+        assertFalse("no reason is mentioned", notices[0].message.contains("Reason"))
+    }
+
+    @Test
+    fun test_AFailedRatingCleanupKeepsTheCampsiteAndSendsNoNotice() {
+        val s = Setup(listOf(Role.ADMIN))
+        s.campsiteRepo.failRatingDelete = true
+
+        s.deleteCampsite("camp-1", RemovalReason.FRAUD)
+
+        assertEquals("the request reports failure", false, s.success)
+        assertTrue("the campsite is kept so the admin can try again", s.campsiteRepo.campsites.any { it.id == "camp-1" })
+        assertEquals("nothing was announced", 0, s.notificationRepo.saved.size)
+    }
+
+    @Test
+    fun test_AFailedCampsiteDeleteReportsFailureAndSendsNoNotice() {
+        val s = Setup(listOf(Role.ADMIN))
+        s.campsiteRepo.failCampsiteDelete = true
+
+        s.deleteCampsite("camp-1", RemovalReason.FRAUD)
 
         assertEquals("the request reports failure", false, s.success)
         assertEquals("nothing was announced", 0, s.notificationRepo.saved.size)

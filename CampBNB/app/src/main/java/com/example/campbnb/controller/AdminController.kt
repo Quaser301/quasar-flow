@@ -12,6 +12,8 @@ package com.example.campbnb.controller
  *    and waiting-list entries are.
  *  - The deleted user sees the notice only after they sign up again (the notice is saved
  *    under their device id).
+ *  - A deleted campsite's ratings are removed, but its lotteries, waiting-list entries and
+ *    reservations are not yet.
  */
 
 import com.example.campbnb.data.CampsiteRepository
@@ -21,6 +23,7 @@ import com.example.campbnb.models.RemovalReason
 import com.example.campbnb.models.Rating
 import com.example.campbnb.models.WaitingListEntry
 import com.example.campbnb.models.Role
+import com.example.campbnb.models.Campsite
 
 /**
  * Control: lets an admin remove things that break app policy.
@@ -85,6 +88,89 @@ class AdminController(
             },
             onFailure = { onDone(false, "Could not check the profile, so it was not deleted") }
         )
+    }
+
+    /**
+     * Deletes the campsite with [campsiteId] and its ratings (US 03.01.01), then notifies the
+     * campsite's owner.
+     *
+     * Refused (nothing is changed) if the signed-in user is not an admin, the id is blank,
+     * or the campsite no longer exists. If removing the ratings fails, the campsite itself
+     * is kept so the admin can try again.
+     *
+     * @param campsiteId The id of the campsite to delete.
+     * @param reason Why it is being deleted; shown in the owner's notice.
+     * @param onDone Called once with whether it worked and a message the screen can show.
+     */
+    fun deleteCampsite(
+        campsiteId: String,
+        reason: RemovalReason?,
+        onDone: (Boolean, String) -> Unit
+    ) {
+        if (!userController.isAdmin()) {
+            onDone(false, "Only an admin can delete campsites")
+            return
+        }
+        if (campsiteId.isBlank()) {
+            onDone(false, "No campsite selected")
+            return
+        }
+
+        // Read the campsite fresh from the database: we need its owner to send the notice,
+        // and it may already have been deleted.
+        campsiteRepo.getById(
+            campsiteId,
+            onSuccess = { campsite ->
+                if (campsite == null) {
+                    onDone(false, "That campsite no longer exists")
+                } else {
+                    deleteCampsiteChecked(campsite, reason, onDone)
+                }
+            },
+            onFailure = { onDone(false, "Could not check the campsite, so it was not deleted") }
+        )
+    }
+
+    /** The deletion itself, once the campsite is known to exist. */
+    private fun deleteCampsiteChecked(
+        campsite: Campsite,
+        reason: RemovalReason?,
+        onDone: (Boolean, String) -> Unit
+    ) {
+        campsiteRepo.getRatingsByCampsite(
+            campsite.id,
+            onSuccess = { ratings ->
+                deleteRatings(ratings, 0) { ratingsGone ->
+                    if (!ratingsGone) {
+                        onDone(false, "Could not remove this campsite's ratings, so it was not deleted")
+                    } else {
+                        campsiteRepo.deleteCampsite(campsite.id) { result ->
+                            if (result.isSuccess) {
+                                notifier.sendNotice(
+                                    campsite.ownerId,
+                                    "Your campsite was removed",
+                                    campsiteRemovalText(campsite, reason)
+                                )
+                                onDone(true, "Campsite deleted")
+                            } else {
+                                onDone(false, "Could not delete the campsite")
+                            }
+                        }
+                    }
+                }
+            },
+            onFailure = { onDone(false, "Could not remove this campsite's ratings, so it was not deleted") }
+        )
+    }
+
+    /** The message the campsite's owner receives. */
+    private fun campsiteRemovalText(campsite: Campsite, reason: RemovalReason?): String {
+        val base = "An admin removed your campsite \"" + campsite.campName +
+                "\" for violating the app policy."
+        if (reason == null) {
+            return base
+        }
+        return base + " Reason: " + reason.label + "."
     }
 
     /** The deletion itself, once the profile is known to exist and not to be an admin's. */

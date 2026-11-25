@@ -1,4 +1,4 @@
-package com.example.campbnb
+package com.example.campbnb.adminTests
 
 // tests created with the help of Claude Sonnet 5.5
 
