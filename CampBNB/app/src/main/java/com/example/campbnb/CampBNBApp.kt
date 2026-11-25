@@ -88,6 +88,7 @@ import kotlin.collections.emptyList
 import com.example.campbnb.controller.AdminController
 import com.example.campbnb.ui.shared.toRole
 import com.example.campbnb.ui.admin.ProfileRemovedDialog
+import com.example.campbnb.ui.profile.ProfileScreen
 
 @Composable
 fun CampBnbApp(
@@ -355,7 +356,37 @@ fun CampBnbApp(
                                 returnFunc = { nav.goHome(role) }
                             )
                         }
-
+                        HomeDestination.PROFILE -> {
+                            val user = deps.userModel.currentUser
+                            ProfileScreen(
+                                role = role,
+                                initialName = user?.name ?: "",
+                                initialEmail = user?.email ?: "",
+                                initialPhone = user?.phone ?: "",
+                                onSave = { name, email, phone ->
+                                    val current = deps.userModel.currentUser
+                                    if (current != null) {
+                                        val updated = User(
+                                            deviceId = current.deviceId,
+                                            name = name,
+                                            email = email,
+                                            phone = phone,
+                                            roles = current.roles
+                                        )
+                                        Database.Users.writeEngine().save(updated) { result ->
+                                            if (result.isSuccess) {
+                                                deps.userModel.setCurrentUser(updated)
+                                                Toast.makeText(context, "Profile saved", Toast.LENGTH_SHORT).show()
+                                            } else {
+                                                Toast.makeText(context, "Couldn't save your profile. Try again.", Toast.LENGTH_SHORT).show()
+                                            }
+                                        }
+                                    }
+                                },
+                                onOpenSettings = { nav.navigate(Screen.Settings(role)) },
+                                onManageCampsites = { nav.navigate(Screen.CampsiteMonitorActivity(role)) }
+                            )
+                        }
                         else -> {
                             PlaceholderTab(destination)
                         }
