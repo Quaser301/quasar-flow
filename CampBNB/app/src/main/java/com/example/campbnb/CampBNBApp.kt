@@ -33,6 +33,7 @@ import com.example.campbnb.ui.screens.HomeScreen
 import com.example.campbnb.ui.shared.roleFor
 import com.example.campbnb.viewModels.LotterySelectedViewModel
 import com.example.campbnb.ui.admin.ProfileRemovedDialog
+import com.example.campbnb.ui.campsite.CampsiteReviewsScreen
 
 @Composable
 fun CampBnbApp(
@@ -205,6 +206,7 @@ fun CampBnbApp(
             notification = deps.notificationController,
             admin = deps.adminController,
             currentUserId = deps.currentUserId,
+            currentUserName = deps.userModel.currentUser?.name ?: "",
             fileDownloadWriter = deps.fileDownloadWriter,
 
             onNavBack = {
@@ -431,6 +433,7 @@ fun CampBnbApp(
                     notification = deps.notificationController,
                     admin = deps.adminController,
                     currentUserId = deps.currentUserId,
+                    currentUserName = deps.userModel.currentUser?.name ?: "",
                     fileDownloadWriter = deps.fileDownloadWriter,
 
                     onNavBack = {

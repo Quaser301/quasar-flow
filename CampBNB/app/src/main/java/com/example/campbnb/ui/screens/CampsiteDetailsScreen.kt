@@ -1,5 +1,6 @@
 package com.example.campbnb.ui.details
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -88,6 +89,9 @@ fun placeholderDetails(id: String) = CampsiteDetails(
  * @param onDeleteSite Called with the app-policy reason the admin picked for the deletion,
  *     after they confirm deleting the site (US 03.01.01).
  * @param onSeeReviews Called when "See all reviews" is tapped.
+ * @param reviewsContent The reviews screen. "See all reviews" swaps it in for the details (the
+ *     role's bottom bar stays); it gets a function that closes it and shows the details again.
+ *     The system back button closes it too.
  */
 @Composable
 fun CampsiteDetailsScreen(
@@ -101,6 +105,7 @@ fun CampsiteDetailsScreen(
     lotteryButtonIsLeave: Boolean = false,
     onDeleteSite: (RemovalReason?) -> Unit = {},
     onSeeReviews: () -> Unit = {},
+    reviewsContent: @Composable (onClose: () -> Unit) -> Unit = {},
     entrantContent: @Composable () -> Unit = {}
 ) {
     val tabs = remember(role) { tabsFor(role) }
@@ -114,13 +119,24 @@ fun CampsiteDetailsScreen(
     // (US 03.01.01): confirming the delete opens the reason picker, and the picker is
     // what calls [onDeleteSite] with the reason.
     var pickReason by remember { mutableStateOf(false) }
+    // "See all reviews" swaps the reviews screen in for the details (the reviews screen
+    // is handed through reviewsContent, where the app knows it); the system back button
+    // closes it too.
+    var showReviews by remember { mutableStateOf(false) }
     val hasFloatingButton = role != UserRole.OWNER
+
+    BackHandler(enabled = showReviews) { showReviews = false }
 
     Scaffold(
         containerColor = Color.White,
         bottomBar = { RoleBottomBar(tabs, selectedIndex = 0, onSelect = onTabSelected) }
     ) { padding ->
-        Box(Modifier.padding(padding).fillMaxSize()) {
+        if (showReviews) {
+            Box(Modifier.padding(padding).fillMaxSize()) {
+                reviewsContent { showReviews = false }
+            }
+        } else {
+            Box(Modifier.padding(padding).fillMaxSize()) {
             Column(
                 Modifier
                     .fillMaxSize()
@@ -159,7 +175,10 @@ fun CampsiteDetailsScreen(
                         fontSize = 12.sp,
                         color = LinkBlue,
                         textDecoration = TextDecoration.Underline,
-                        modifier = Modifier.testTag("see_reviews").clickable(onClick = onSeeReviews)
+                        modifier = Modifier.testTag("see_reviews").clickable {
+                            showReviews = true
+                            onSeeReviews()
+                        }
                     )
                 }
 
@@ -247,6 +266,7 @@ fun CampsiteDetailsScreen(
                         .testTag("delete_site")
                 )
                 UserRole.OWNER -> Unit
+            }
             }
         }
     }

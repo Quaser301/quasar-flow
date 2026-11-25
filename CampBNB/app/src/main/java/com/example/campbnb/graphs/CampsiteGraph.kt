@@ -40,6 +40,7 @@ import com.example.campbnb.tabs.MyCampsitesTab
 import com.example.campbnb.ui.campsite.CampsiteMonitorActivity
 import com.example.campbnb.ui.campsite.CampsiteRatingSection
 import com.example.campbnb.ui.campsite.CampsiteRegistrationForm
+import com.example.campbnb.ui.campsite.CampsiteReviewsScreen
 import com.example.campbnb.ui.campsite.LotteryJoinSection
 import com.example.campbnb.ui.campsite.lotteryButtonText
 import com.example.campbnb.ui.components.UserRole
@@ -62,6 +63,8 @@ import kotlinx.serialization.Serializable
  * @param notification The shared notification behavior service.
  * @param admin The shared admin policy actions over other users' listings.
  * @param currentUserId The signed-in user's id, for the policy actions' messages.
+ * @param currentUserName The signed-in user's name, shown beside their own rating on the
+ *     reviews screen before the saved rating is reloaded.
  * @param onNavBack Returns to whatever opened the current screen.
  * @param onOpenMyCampsites Opens the owner's campsite list.
  * @param onOpenLotteries Opens the owner's lottery list.
@@ -78,6 +81,7 @@ fun NavGraphBuilder.campsiteGraph(
     notification: NotificationController,
     admin: AdminController,
     currentUserId: String,
+    currentUserName: String,
     fileDownloadWriter: FileDownloadWriter,
 
     onNavBack: () -> Unit,
@@ -332,12 +336,38 @@ fun NavGraphBuilder.campsiteGraph(
                                 }
                             }
                         },
+                        // "See all reviews" on the details screen swaps this reviews
+                        // screen in for the details. The ratings come from the same
+                        // model the rating section writes through, so the list shows
+                        // a rating the user has just saved; the admin's delete of one
+                        // card goes through the shared admin policy actions.
+                        reviewsContent = { closeReviews ->
+                            LaunchedEffect(route.campsiteId) {
+                                campsiteController.loadRatings()
+                            }
+                            CampsiteReviewsScreen(
+                                campsiteName = shownDetails.name,
+                                reviews = campsiteModel.ratingsFor(route.campsiteId),
+                                average = campsiteModel.averageRating(route.campsiteId),
+                                isAdmin = shownRole == UserRole.ADMIN,
+                                onBack = closeReviews,
+                                onDeleteReview = { review, reason ->
+                                    admin.deleteRating(review.id, reason) { ok, message ->
+                                        toastGenerator(message, Toast.LENGTH_SHORT)
+                                        if (ok) {
+                                            campsiteController.loadRatings()
+                                        }
+                                    }
+                                }
+                            )
+                        },
                         entrantContent = {
                             CampsiteRatingSection(
                                 campsiteModel,
                                 campsiteController,
                                 route.campsiteId,
-                                deviceID
+                                deviceID,
+                                currentUserName
                             )
                             LotteryJoinSection(
                                 detailsLotteryModel,
