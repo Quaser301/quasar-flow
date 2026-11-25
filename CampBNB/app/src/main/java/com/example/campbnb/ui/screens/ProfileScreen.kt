@@ -165,7 +165,13 @@ fun ProfileScreen(
         )
         OutlinedTextField(
             value = phone,
-            onValueChange = { phone = it; phoneError = null },
+            onValueChange = { input ->
+                // Letters and symbols other than + - ( ) . and space are ignored; capped at 20 characters
+                if (input.length <= 20 && input.all { it.isDigit() || it in "+-(). " }) {
+                    phone = input
+                    phoneError = null
+                }
+            },
             label = { Text("Phone number") },
             isError = phoneError != null,
             supportingText = { phoneError?.let { Text(it) } },
@@ -182,8 +188,7 @@ fun ProfileScreen(
                 nameError = if (name.isBlank()) "Enter your name" else null
                 emailError =
                     if (!Patterns.EMAIL_ADDRESS.matcher(email.trim()).matches()) "Enter a valid email" else null
-                phoneError =
-                    if (phone.count { it.isDigit() } < 10) "Enter a valid phone number" else null
+                phoneError = validatePhone(phone)
 
                 if (nameError == null && emailError == null && phoneError == null) {
                     onSave(name.trim(), email.trim(), phone.trim())
@@ -275,4 +280,27 @@ private fun DeleteProfileDialog(
             TextButton(onClick = onDismiss) { Text("Cancel") }
         }
     )
+}
+
+private val PHONE_ALLOWED = Regex("""^\+?[0-9 ()\-.]+$""")
+
+/**
+ * Checks a phone number typed by the user.
+ *
+ * Allows an optional leading +, digits, spaces, dashes, dots and parentheses,
+ * and requires between 10 and 15 digits (15 is the international maximum).
+ *
+ * @return An error message to show under the field, or null if the number is valid.
+ */
+internal fun validatePhone(phone: String): String? {
+    val trimmed = phone.trim()
+    if (trimmed.isEmpty()) return "Enter your phone number"
+    if (!PHONE_ALLOWED.matches(trimmed)) return "Use only digits, spaces, dashes, and parentheses"
+
+    val digits = trimmed.count { it.isDigit() }
+    return when {
+        digits < 10 -> "Phone number is too short"
+        digits > 15 -> "Phone number is too long"
+        else -> null
+    }
 }
