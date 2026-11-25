@@ -66,9 +66,10 @@ in-source note records why a real provider cannot exist on this platform (camera
 `CameraManager` is a final class with a package-private constructor; frame planes keep
 bytes in a `java.io.ByteBuffer` type this runtime no longer exposes) — matches the
 night-run finding; do not try to build a camera provider in a test. The androidx.camera
-path (US 01.05.02, live scanner) CAN now start the device camera and the scanner screen
-shows its live preview, but that path hands back no picture bytes either, so this seam
-stays frameless on the device.
+path (US 01.05.02, live scanner) CAN now start the device camera — once the device has
+granted the app its camera, which the manifest declares and the scanner screen asks for —
+and the scanner screen shows its live preview, but that path hands back no picture bytes
+either, so this seam stays frameless on the device.
 
 `ui.shared/DeviceId.kt`: `object DeviceId { fun get(context, src: () -> String = { …ANDROID_ID… }): String = src() }` —
 returns whatever `src()` returns (the real source is `Settings.Secure.getString(context.contentResolver, ANDROID_ID)`).
@@ -153,8 +154,13 @@ reservations renderer (params per app.md). `ui.screens/DeviceSignInScreen.kt`, `
 `QrOldCodeNoticeScreen.kt` (`back: () -> Unit = {}` fires on its Back button), `SetUpScreens.kt`
 (StartScreen/SignUpScreen/RoleSelectScreen) — Composables, contract = their call sites in app.md.
 `QrScannerScreen` also opens the device camera via androidx.camera when the screen opens and
-draws its live preview once the preview surface arrives (US 01.05.02, live scanner); screen-internal
-wiring only — no parameter or call-site change, and the frame-reading seam is untouched. `ui.screens/messagesScreen.kt` (package **ui.inbox**): private
+draws its live preview once the preview surface arrives (US 01.05.02, live scanner). The camera
+only starts once the device has allowed the app to use it: `app/src/main/AndroidManifest.xml`
+declares `android.permission.CAMERA` and the screen asks for it through
+`ActivityResultContracts.RequestPermission()` before binding, opening the camera when the answer
+comes back granted (the same ask the notification card does for its own permission); a denial
+leaves the placeholder and the typed/file paths. Screen-internal wiring only — no parameter or
+call-site change, and the frame-reading seam is untouched. `ui.screens/messagesScreen.kt` (package **ui.inbox**): private
 drawing helpers `ConversationList/ConversationRow/ChatThread/MessageBubble` +
 `private relativeTime(seconds: Long?): String = seconds?.let { DateUtils.getRelativeTimeSpanString(seconds*1000L, System.currentTimeMillis(), MINUTE_IN_MILLIS).toString() } ?: "Just now"`
 — null seconds ⇒ `"Just now"`; file-PRIVATE (and DUPLICATED identically in

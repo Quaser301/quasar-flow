@@ -331,6 +331,14 @@ line each; `nav` is the app controller, `homeNav` the nested one, all calls as s
   - PROFILE/REPORTS/FLAGGED→`MiscGraph`'s `PlaceholderTab(label)` nodes; its `Settings`
     node is same-mounted but is no tab — only the Explore settings button reaches it, and
     that callback runs on the app `nav`, so the reachable `Settings` is the APP mount's.
+    The button pushes `Screen.Settings(signedInRole())`, NOT `currentRole()`: the Settings
+    screen's `role` is the role the signed-in profile holds (`deps.userModel.currentUser`'s
+    roles, ADMIN > OWNER > ENTRANT — the same pick the sign-in makes), while its view comes
+    from the shared `AppViewSettingController`. The two are different things and the screen
+    needs both: `settingsGroupsFor` keeps the app-view switch and the admin settings mounted
+    for an admin who is currently viewing as another role, and a view-derived role would hide
+    the switch, which is what locked an admin out of their admin abilities for good after
+    they switched views and closed the app.
   - ADMIN_PROFILE_VIEW→`DebugGraph`'s start node: `loadAllUsers()` then
     `AdminProfilesScreen(onNavBack, userModel)`; ADMIN_NOTIFICATION_VIEW→
     `NotificationLogScreen(title = "Notification Debugging", notificationSource =

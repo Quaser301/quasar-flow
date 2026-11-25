@@ -3,6 +3,9 @@ package com.example.campbnb.ui.screens
 // AI-assisted (US 01.12.01, scanner screen with the camera-frame affordance): written by Qwen 3.8 Flash
 // IQ1_M.
 
+import android.Manifest
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.camera.compose.CameraXViewfinder
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.SurfaceRequest
@@ -72,12 +75,15 @@ fun QrScannerScreen(
 
     // One camera session per screen opening (US 01.05.02, live scanner): the preview
     // surface arrives through the surface-request callback and is shown as it comes.
+    // The device only lets a camera start once it has allowed the app to use it, so the
+    // permission is asked for first and the camera opens when the answer comes back;
+    // asking again once it is already allowed costs no prompt, the answer just arrives.
     // This device's camera path hands no byte frames, so the frame-reading flow
     // below is untouched and still reads typed text or picture files.
     val context = LocalContext.current
     val lifecycleOwner = rememberLifecycleOwner()
 
-    LaunchedEffect(lifecycleOwner) {
+    fun openCamera() {
         try {
             val cameraProvider = androidx.camera.lifecycle.ProcessCameraProvider.getInstance(context).get()
             cameraProvider.unbindAll()
@@ -92,6 +98,18 @@ fun QrScannerScreen(
             // A camera that cannot be opened leaves the frame area on its placeholder;
             // the typed and file paths keep the scanner working.
         }
+    }
+
+    val cameraLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { allowed ->
+        if (allowed) {
+            openCamera()
+        }
+    }
+
+    LaunchedEffect(lifecycleOwner) {
+        cameraLauncher.launch(android.Manifest.permission.CAMERA)
     }
 
     // Text the user typed wins over the last picture this screen read.

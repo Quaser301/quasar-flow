@@ -300,7 +300,9 @@ fun qrTextOfImageFile(imageFilePath: String): String?    // same through a real 
   side = `(symbol.size() + 2*QUIET_ZONE) * 8`; scanlines carry filter byte 0; the image
   bytes are zlib STORED blocks (≤65535 bytes each, header `0x78 0x01`, length+complement
   per block, Adler-32 modulus 65521), split into IDAT chunks of ≤65535 data bytes, each
-  chunk CRC'd (polynomial 0xEDB88320 reflected). The file starts with the PNG signature
+  chunk CRC'd OVER ITS TYPE CHARACTERS PLUS ITS DATA (polynomial 0xEDB88320 reflected) —
+  the type is part of that checksum, and a chunk CRC'd over its data alone is rejected by
+  every real PNG reader (IEND's own CRC is then the constant `AE 42 60 82`). The file starts with the PNG signature
   `89 50 4E 47 0D 0A 1A 0A`.
 - Read path uses the JDK image codecs and ONLY RUNS ON THE JVM TEST HOST (the Android
   runtime has no java.awt — this is why the write path avoids image classes).

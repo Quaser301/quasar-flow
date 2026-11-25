@@ -23,6 +23,7 @@ import com.example.campbnb.graphs.MiscGraph
 import com.example.campbnb.graphs.DebugGraph
 import com.example.campbnb.controller.CampsiteController
 import com.example.campbnb.models.CampsiteModel
+import com.example.campbnb.models.Role
 import com.example.campbnb.ui.components.UserRole
 import com.example.campbnb.ui.screens.HomeScreen
 import com.example.campbnb.ui.shared.roleFor
@@ -42,6 +43,20 @@ fun CampBnbApp(
     // The role the app view says the user is in right now. Graph callbacks that run
     // outside one screen's route need it, the same derivation HomeScreen uses.
     fun currentRole(): UserRole = roleFor(deps.appViewSettings.viewSetting.value)
+
+    // The role the signed-in profile actually holds, which is not the same thing: a
+    // user may be viewing as another role while still holding this one. The Settings
+    // screen takes this one, so an admin who switched their app view can still reach
+    // the view switch and switch back; a view-derived role would hide the switch and
+    // leave them locked out of their admin abilities for good.
+    fun signedInRole(): UserRole {
+        val privileges = deps.userModel.currentUser?.roles ?: emptyList()
+        return when {
+            Role.ADMIN in privileges -> UserRole.ADMIN
+            Role.OWNER in privileges -> UserRole.OWNER
+            else -> UserRole.CAMPER
+        }
+    }
 
     // One toast channel shared by the graph builders, the same the app-level screens
     // use. The graphs own no side effect of their own.
@@ -121,7 +136,7 @@ fun CampBnbApp(
         // do not come through the bottom bar.
         exploreGraph(
             navToSettings = {
-                nav.navigate(Screen.Settings(currentRole()))
+                nav.navigate(Screen.Settings(signedInRole()))
             },
             navToCampsite = { card ->
                 nav.navigate(
@@ -345,7 +360,7 @@ fun CampBnbApp(
                 // keeps this live Home frame mounted underneath them.
                 exploreGraph(
                     navToSettings = {
-                        nav.navigate(Screen.Settings(currentRole()))
+                        nav.navigate(Screen.Settings(signedInRole()))
                     },
                     navToCampsite = { card ->
                         nav.navigate(

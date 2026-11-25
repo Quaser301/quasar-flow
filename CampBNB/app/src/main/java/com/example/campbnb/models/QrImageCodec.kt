@@ -150,14 +150,16 @@ private fun writeIntBig(bytes: ByteArray, at: Int, value: Int) {
 
 /**
  * One PNG chunk: the length of its data, its type as characters, the data, and the
- * CRC of its data again, exactly as the format requires of every chunk.
+ * CRC over its type and its data together, exactly as the format requires of every
+ * chunk. The type characters are part of that checksum and not just the data: a real
+ * reader computes it over both, so a chunk that names only its picture is rejected.
  */
 private fun pngChunkBytes(type: String, data: ByteArray): ByteArray {
     val chunk = ByteArray(8 + type.count() + data.size)
     writeIntBig(chunk, 0, data.size)
     var at = 4
     for (character in type) {
-        chunk[at] = character.toByte()
+        chunk[at] = character.code.toByte()
         at += 1
     }
     var read = 0
@@ -166,7 +168,11 @@ private fun pngChunkBytes(type: String, data: ByteArray): ByteArray {
         at += 1
         read += 1
     }
-    writeIntBig(chunk, chunk.size - 4, pngCrcOf(data))
+    writeIntBig(
+        chunk,
+        chunk.size - 4,
+        pngCrcOf(sliceOf(chunk, 4, type.count() + data.size))
+    )
     return chunk
 }
 
@@ -174,8 +180,10 @@ private val crcPolynomial = 0xEDB88320.toInt()
 
 /**
  * The image part of a PNG file: the zlib stream as one chunk when it fits, or as
- * several chunks each carrying the next part of the same stream, because a PNG
- * chunk's own length is a two-byte count and cannot name more than 65535 bytes.
+ * several chunks each carrying the next part of the same stream. A reader puts the
+ * parts back in order, so the split point is free to choose; it is the largest
+ * block a zlib stored block can name (its own length is two bytes), which is what
+ * keeps every stored block here legal.
  */
 private fun pngImageChunks(idat: ByteArray): ByteArray {
     val parts = if (idat.size == 0) 1 else (idat.size + 65534) / 65535
@@ -205,7 +213,7 @@ private fun sliceOf(data: ByteArray, at: Int, length: Int): ByteArray {
     return piece
 }
 
-/** The CRC-32 a PNG chunk carries over its data, the table-free form. */
+/** The CRC-32 over these bytes, the table-free form (a PNG chunk runs it over its type characters and its data). */
 private fun pngCrcOf(data: ByteArray): Int {
     var crc = -1
     var read = 0
