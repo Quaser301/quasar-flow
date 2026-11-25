@@ -42,25 +42,16 @@ import com.example.campbnb.ui.components.UserRole
 private val CampGreen = Color(0xFF3B6D11)
 private val CampGreenDark = Color(0xFF27500A)
 private val CampGreenLight = Color(0xFFEAF3DE)
-
-/**
- * Profile tab for campers (entrants) and owners. Lets the user edit their name, email and
- * phone number (US 01.05.02). The screen only validates and reports; saving is done by [onSave].
- *
- * @param role Decides the role chip and whether the owner row is shown.
- * @param onSave Called with the validated name, email and phone when "Save changes" is tapped.
- * @param onOpenSettings Opens Settings (where the app policy lives).
- * @param onManageCampsites Owner only: opens the owner's campsite list.
 private val DeleteRed = Color(0xFFA32D2D)
 
 private const val DELETE_PHRASE = "DELETE"
 
 /**
- * Profile tab for campers (entrants) and owners. Lets the user edit their name, email and
- * phone number (US 01.05.02) and, for campers, delete their profile (US 01.07.03).
+ * Profile tab for campers (entrants), owners and admins. Lets the user edit their name, email
+ * and phone number (US 01.05.02) and delete their profile (US 01.07.03).
  * The screen only validates and reports; saving and deleting are done by the caller.
  *
- * @param role Decides the role chip, the owner row, and whether the delete button is shown.
+ * @param role Decides the role chip and whether the owner row is shown.
  * @param initialName Current name stored for the user.
  * @param initialEmail Current email stored for the user.
  * @param initialPhone Current phone number stored for the user.
@@ -81,7 +72,6 @@ fun ProfileScreen(
     initialPhone: String,
     onSave: (name: String, email: String, phone: String) -> Unit,
     onOpenSettings: () -> Unit,
-    onManageCampsites: () -> Unit
     onManageCampsites: () -> Unit,
     onDeleteProfile: () -> Unit,
     isSaving: Boolean = false,
@@ -166,7 +156,7 @@ fun ProfileScreen(
         OutlinedTextField(
             value = phone,
             onValueChange = { input ->
-                // Letters and symbols other than + - ( ) . and space are ignored; capped at 20 characters
+                // Only digits and + - ( ) . space can be typed; capped at 20 characters
                 if (input.length <= 20 && input.all { it.isDigit() || it in "+-(). " }) {
                     phone = input
                     phoneError = null
@@ -198,7 +188,6 @@ fun ProfileScreen(
             shape = RoundedCornerShape(24.dp),
             modifier = Modifier.fillMaxWidth().height(48.dp)
         ) {
-            Text("Save changes")
             Text(if (isSaving) "Saving…" else "Save changes")
         }
 
@@ -208,14 +197,12 @@ fun ProfileScreen(
         }
         ProfileRow("Settings and app policy", onOpenSettings)
 
-        if (role == UserRole.CAMPER || role == UserRole.OWNER || role == UserRole.ADMIN) {
-            Spacer(Modifier.height(24.dp))
-            TextButton(
-                onClick = { showDeleteDialog = true },
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text("Delete my profile", color = DeleteRed)
-            }
+        Spacer(Modifier.height(24.dp))
+        TextButton(
+            onClick = { showDeleteDialog = true },
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text("Delete my profile", color = DeleteRed)
         }
     }
 
