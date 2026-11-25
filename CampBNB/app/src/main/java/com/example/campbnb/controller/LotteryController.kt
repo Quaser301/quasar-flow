@@ -358,8 +358,12 @@ class LotteryController(
      * Force-closes and draws a lottery right now (feature 1: the admin of a lottery can
      * force it to close so the whole lifecycle can be tested): the draw selects up to
      * [numberOfWinners] of the current entrants in arbitrary order, and the booking
-     * window is moved onto today, so [LotteryStatus.BOOKING] is what the SAME clock
-     * reading yields at the boundaries of models.md. The entrants hear the result —
+     * window keeps the period the owner chose — only a window that has not opened yet
+     * is pulled to now, so [LotteryStatus.BOOKING] is what the SAME clock reading
+     * yields at the boundaries of models.md. A period that has already passed is held
+     * open for the rest of today, the shortest window a draw can still be booked in.
+     * The draw edits the lottery the caller named, id included, so force-closing never
+     * leaves a second copy of it on file. The entrants hear the result —
      * winners and losers both, as one [NotificationIntent.LotteryDrawn] — only once the
      * closed record is stored; [onDone] holds true only for a stored record, and a read
      * or save failure reports false and draws nothing.
@@ -389,9 +393,19 @@ class LotteryController(
                     registrationStart = if (lottery.registrationStart > now) now
                         else lottery.registrationStart,
                     registrationEnd = now,
-                    bookingStart = now,
-                    bookingEnd = startOfTodayUtc() + DAY_MILLIS - 1
-                )
+                    // the booking period the owner chose is kept; only a window that
+                    // has not opened yet is pulled to now, and a period that already
+                    // passed is held open for the rest of today
+                    bookingStart = if (lottery.bookingStart > now) now
+                        else lottery.bookingStart,
+                    bookingEnd = if (lottery.bookingEnd < now) startOfTodayUtc() + DAY_MILLIS - 1
+                        else lottery.bookingEnd
+                ).also {
+                    // the draw edits the SAME record: copy() does not carry the id
+                    // inherited from Identifiable, and a fresh id would save a second
+                    // copy of this lottery
+                    it.id = lottery.id
+                }
                 repo.save(
                     closed,
                     onSuccess = {

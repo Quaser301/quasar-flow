@@ -19,6 +19,11 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
@@ -26,6 +31,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.campbnb.data.CampsiteRepository
+import com.example.campbnb.models.Campsite
 import com.example.campbnb.models.Lottery
 import com.example.campbnb.models.LotteryModel
 import com.example.campbnb.ui.components.GradientButton
@@ -37,6 +44,17 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import java.util.TimeZone
+
+/**
+ * The "Campsite(s)" line: the names the lottery's campsites are known by, in the order
+ * the lottery lists them. PURE, so the names can be pinned without a device.
+ *
+ * @param campsiteIds The campsites the lottery covers, by id.
+ * @param nameOfCampsite Resolves an id to the name it is known by; a nameless id is
+ *     answered with the id itself, which is the only thing left to show.
+ */
+fun campsiteNamesLine(campsiteIds: List<String>, nameOfCampsite: (String) -> String): String =
+    campsiteIds.map(nameOfCampsite).joinToString(", ").ifEmpty { "None" }
 
 /**
  * 05-11-26: Prompted gemini-3.5 to create the skeleton ui. Requested A display of the selected
@@ -79,6 +97,19 @@ class LotteryDetailsActivity(
                 AppView.AdminView
             )
         )
+
+        // A lottery names its campsites by id, so the names are read once the lottery
+        // is known — the same map the lottery monitor keeps.
+        var campsitesById by remember { mutableStateOf<Map<String, Campsite>>(emptyMap()) }
+        val campsiteRepo = remember { CampsiteRepository() }
+        LaunchedEffect(selectedLottery) {
+            if (selectedLottery != null) {
+                campsiteRepo.getAll(
+                    onSuccess = { all -> campsitesById = all.associateBy { it.id } },
+                    onFailure = { }
+                )
+            }
+        }
 
         fun formatDateRange(start: Long, end: Long): String {
             if (start == 0L || end == 0L) return "Not set"
@@ -149,7 +180,12 @@ class LotteryDetailsActivity(
                             )
 
                             InfoRow("Status", "${selectedLottery.statusAt(System.currentTimeMillis())}")
-                            InfoRow("Campsite(s)", selectedLottery.campsiteIds.joinToString(", ").ifEmpty { "None" })
+                            InfoRow(
+                                "Campsite(s)",
+                                campsiteNamesLine(selectedLottery.campsiteIds) { id ->
+                                    campsitesById[id]?.campName ?: id
+                                }
+                            )
                             InfoRow("Number of Winners", "${selectedLottery.numberOfWinners}")
                             InfoRow("Waitlist Capacity", selectedLottery.waitlistCapacity?.toString() ?: "Unlimited")
                             InfoRow("Registration Period", formatDateRange(selectedLottery.registrationStart, selectedLottery.registrationEnd))
