@@ -41,8 +41,8 @@ import com.example.campbnb.models.UserModel
 import com.example.campbnb.ui.campsite.CampsiteRatingSection
 import com.example.campbnb.ui.campsite.CampsiteReviewsScreen
 import com.example.campbnb.ui.components.UserRole
-import com.example.campbnb.ui.screens.CampsiteDetails
-import com.example.campbnb.ui.screens.CampsiteDetailsScreen
+import com.example.campbnb.ui.details.CampsiteDetails
+import com.example.campbnb.ui.details.CampsiteDetailsScreen
 import com.example.campbnb.ui.shared.observeModel
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue

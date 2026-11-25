@@ -1,21 +1,33 @@
 package com.example.campbnb.ui.shared
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.selection.toggleable
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.campbnb.ui.components.BackArrow
+import com.example.campbnb.ui.theme.DataColorImportant
 import com.example.campbnb.viewModels.AppView
 import com.example.campbnb.viewModels.AppViewSetting
 import kotlinx.coroutines.flow.StateFlow
@@ -65,6 +77,7 @@ fun BarWithBackChevronAndHeaderCentered(
     Row(Modifier.fillMaxWidth()) {
         Box(
             modifier = Modifier
+                .testTag("header_back")
                 .clickable(onClick = returnFunc)
                 .padding(12.dp)
         ) {
@@ -83,6 +96,122 @@ fun BarWithBackChevronAndHeaderCentered(
                 .padding(12.dp)
         ) {
             BackArrow(color = Color.Transparent)
+        }
+    }
+}
+
+@Composable
+fun<T> AppDropDownMenu(
+    entries:List<T>,
+    onSelect: (T) -> Unit,
+    onDismissed: () -> Unit,
+    textRenderer: @Composable (T) -> Unit,
+    expanded: Boolean = false,
+    centered: Boolean = false,
+) {
+
+    DropdownMenu(
+        modifier = if (centered) Modifier.fillMaxWidth() else Modifier,
+        expanded = expanded,
+        onDismissRequest = onDismissed
+    ) {
+        entries.forEach { entry ->
+            DropdownMenuItem(
+                text = {
+                    if (centered) {
+                        // the opened items read as a centered column (feature: the
+                        // view-settings hamburger dropdown, 22-11-26)
+                        Box(
+                            modifier = Modifier.fillMaxWidth(),
+                            contentAlignment = Alignment.Center
+                        ) { textRenderer(entry) }
+                    } else {
+                        textRenderer(entry)
+                    }
+                },
+                modifier = Modifier.testTag("menu_choice"),
+                onClick = {
+                    onSelect(entry)
+                    onDismissed()
+                }
+            )
+        }
+    }
+}
+
+/**
+ * The one source of the search bar's hamburger items: Filter, Search History, QR
+ * Scanner. Built here so the Explore page's burger and the search view's burger can
+ * never drift apart (fix 11: no two sources may touch those items) — each caller
+ * supplies only what choosing an option means in its own view, and [active] only
+ * marks options whose section is already showing in that view.
+ */
+enum class SearchMenuItemOption { FILTER, SEARCH_HISTORY, QR_SCANNER }
+
+private fun searchMenuItemLabel(option: SearchMenuItemOption): String = when (option) {
+    SearchMenuItemOption.FILTER -> "Filter"
+    SearchMenuItemOption.SEARCH_HISTORY -> "Search History"
+    SearchMenuItemOption.QR_SCANNER -> "QR Scanner"
+}
+
+@Composable
+fun searchBurgerMenu(
+    expanded: Boolean,
+    onSelect: (SearchMenuItemOption) -> Unit,
+    onDismiss: () -> Unit = {},
+    active: (SearchMenuItemOption) -> Boolean = { false },
+) {
+    DropdownMenu(
+        expanded = expanded,
+        onDismissRequest = onDismiss
+    ) {
+        SearchMenuItemOption.values().forEach { option ->
+            DropdownMenuItem(
+                text = {
+                    Text(searchMenuItemLabel(option) + if (active(option)) " ✓" else "")
+                },
+                // the ONE affordance both the Explore burger and the search view's
+                // burger render: the shared name finds either (fix 11's one source).
+                modifier = Modifier.testTag("search_burger_item"),
+                onClick = {
+                    onSelect(option)
+                    onDismiss()
+                }
+            )
+        }
+    }
+}
+
+@Composable
+fun<T> AppSwitchMenu(
+    entries: List<T>,
+    selected: List<T>,
+    onSelect: (T, Boolean) -> Unit,
+    textRenderer: (T) -> String
+) {
+    Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        entries.forEach { entry ->
+            val isEnabled = selected.contains(entry)
+            Row(
+                modifier = Modifier
+                    .testTag("view_switch_row")
+                    .fillMaxWidth()
+                    .height(32.dp)
+                    .toggleable(
+                        value = isEnabled,
+                        role = Role.Switch,
+                        onValueChange = { switchedOn ->
+                            onSelect(entry, switchedOn)
+                        }
+                    )
+                    .padding(horizontal = 16.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(text = textRenderer(entry), fontSize = 32.sp, color = DataColorImportant)
+                Spacer(modifier = Modifier.width(8.dp))
+                Switch(checked = isEnabled, onCheckedChange = null)
+            }
         }
     }
 }

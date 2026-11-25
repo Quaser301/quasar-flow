@@ -8,6 +8,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -29,7 +30,7 @@ fun StartScreen(onGetStarted: () -> Unit) {
             textAlign = TextAlign.Center
         )
         Spacer(Modifier.height(24.dp))
-        GradientButton("Get started", onGetStarted)
+        GradientButton("Get started", modifier = Modifier.testTag("get_started"), onClick = onGetStarted)
     }
 }
 
@@ -57,6 +58,7 @@ fun SignUpScreen(
         GradientButton(
             text = "Sign Up",
             enabled = email.isNotBlank() && username.isNotBlank() && phoneNumber.isNotBlank(),
+            modifier = Modifier.testTag("sign_up_button"),
             onClick = { onSignUp(email, username, phoneNumber) }
         )
         Spacer(Modifier.height(24.dp))
@@ -81,7 +83,13 @@ fun RoleSelectScreen(onRoleSelected: (UserRole) -> Unit) {
             ) {
                 Text("Are you a...", fontSize = 22.sp, fontWeight = FontWeight.Bold)
                 UserRole.values().forEach { role ->
-                    GradientButton(role.label, onClick = { onRoleSelected(role) })
+                    // the same role-select affordance the role field's dropdown offers;
+                    // a device test asking for role_choice finds either route in.
+                    GradientButton(
+                        role.label,
+                        modifier = Modifier.testTag("role_choice"),
+                        onClick = { onRoleSelected(role) }
+                    )
                 }
             }
         }

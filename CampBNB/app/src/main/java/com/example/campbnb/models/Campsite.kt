@@ -1,6 +1,7 @@
 package com.example.campbnb.models
 
 import com.example.campbnb.database.Identifiable
+import com.example.campbnb.ui.screens.CampsiteCardData
 
 class Campsite(
     val ownerId: String = "",
@@ -17,4 +18,13 @@ class Campsite(
     val availableStartDate: String = "",       // yyyy-MM-dd
     val availableEndDate: String = "",         // yyyy-MM-dd
     val blockedDates: List<String> = emptyList()
-) : Identifiable() {}
+) : Identifiable() {
+    fun toCampsiteCardData(): CampsiteCardData {
+        return CampsiteCardData(
+            id = id,
+            name = campName,
+            location = campLoc,
+            maxOccupancy = maxOccupancy
+        )
+    }
+}

@@ -10,6 +10,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberDateRangePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import com.example.campbnb.models.DateUtils.today
 import java.text.SimpleDateFormat
@@ -33,6 +34,7 @@ fun DateRangePickerModal(
         onDismissRequest = onDismiss,
         confirmButton = {
             TextButton(
+                modifier = Modifier.testTag("lottery_date_confirm"),
                 onClick = {
                     onDateRangeSelected(
                         Pair(
@@ -47,7 +49,7 @@ fun DateRangePickerModal(
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) {
+            TextButton(modifier = Modifier.testTag("lottery_date_cancel"), onClick = onDismiss) {
                 Text("Cancel")
             }
         }

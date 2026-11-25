@@ -2,6 +2,7 @@
 package com.example.campbnb.controller
 
 import com.example.campbnb.models.Message
+import com.example.campbnb.models.NotificationIntent
 
 /**
  * Notifies interested parties when a new message is sent.
@@ -23,16 +24,7 @@ class MessageNotificationAdapter(
         message: Message,
         campsiteName: String
     ) {
-        notifications.send(
-            recipientId = message.recipientId,
-            type = "MESSAGE",
-            details = mapOf(
-                "reservationId" to message.reservationId,
-                "campsiteName" to campsiteName,
-                "senderId" to message.senderId,
-                "preview" to message.content.take(100)
-            )
-        )
+        notifications.notify(NotificationIntent.MessageArrived(message, campsiteName))
     }
 }
 

@@ -19,6 +19,7 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.input.ImeAction
@@ -28,6 +29,8 @@ import com.example.campbnb.ui.components.MenuGlyph
 import com.example.campbnb.ui.components.SearchGlyph
 import com.example.campbnb.ui.theme.FieldGrey
 import com.example.campbnb.ui.theme.SearchBarBg
+import com.example.campbnb.ui.shared.SearchMenuItemOption
+import com.example.campbnb.ui.shared.searchBurgerMenu
 
 /** What a campsite card in a horizontal row needs to show. Add an image URL later. */
 data class CampsiteCardData(
@@ -55,7 +58,12 @@ private val placeholderCards = List(6) {
  * @param onMenuClick Called when the hamburger icon is tapped.
  * @param onFilterClick Called when "Filter" is chosen from the hamburger menu. Opens the
  * Search page with its filter panel showing (US 01.01.02).
+ * @param onOpenHistory Called when "Search History" is chosen from the hamburger menu.
+ *     Opens the search view with its recent searches showing; the item itself comes
+ *     from the shared menu source so both burgers list the same items (fix 11).
  * @param onSearch Called with the query when the user submits a search.
+ * @param onOpenQr Called when "QR Scanner" is chosen from the search bar's menu. Opens the
+ *     camera scanner, so a search-bar interaction reaches it (US 01.12.01).
  */
 @Composable
 fun ExploreScreen(
@@ -66,6 +74,8 @@ fun ExploreScreen(
     onSettingsClick: () -> Unit = {},
     onMenuClick: () -> Unit = {},
     onFilterClick: () -> Unit = {},
+    onOpenHistory: () -> Unit = {},
+    onOpenQr: () -> Unit = {},
     onSearch: (String) -> Unit = {}
 ) {
     var query by rememberSaveable { mutableStateOf("") }   // import androidx.compose.runtime.saveable.rememberSaveable
@@ -106,18 +116,17 @@ fun ExploreScreen(
                     },
 
                     menuContent = {
-                        DropdownMenu(
+                        searchBurgerMenu(
                             expanded = menuOpen,
-                            onDismissRequest = { menuOpen = false }
-                        ) {
-                            DropdownMenuItem(
-                                text = { Text("Filter") },
-                                onClick = {
-                                    menuOpen = false
-                                    onFilterClick()
+                            onSelect = { option ->
+                                when (option) {
+                                    SearchMenuItemOption.FILTER -> onFilterClick()
+                                    SearchMenuItemOption.SEARCH_HISTORY -> onOpenHistory()
+                                    SearchMenuItemOption.QR_SCANNER -> onOpenQr()
                                 }
-                            )
-                        }
+                            },
+                            onDismiss = { menuOpen = false }
+                        )
                     }
                 )
 
@@ -155,13 +164,14 @@ fun CampSearchBar(
         placeholder = { Text("Search for campsites...", fontSize = 14.sp) },
         leadingIcon = {
             Box {
-                Box(Modifier.clickable(onClick = onMenuClick).padding(8.dp)) { MenuGlyph() }
+                Box(Modifier.testTag("search_menu_open").clickable(onClick = onMenuClick).padding(8.dp)) { MenuGlyph() }
                 menuContent()
             }
         },
         trailingIcon = {
             Box(
                 Modifier
+                    .testTag("search_submit")
                     .clickable {
                         onMagnifyClick(query)
                     }
@@ -186,7 +196,9 @@ fun CampSearchBar(
             focusedTextColor = Color.Black,
             unfocusedTextColor = Color.Black
         ),
-        modifier = modifier
+        // one shared search-bar affordance: Explore and the search view both drive
+        // this renderer, one name finds either field.
+        modifier = modifier.testTag("search_field")
     )
 }
 
@@ -197,6 +209,7 @@ private fun SettingsButton(onClick: () -> Unit) {
             .size(48.dp)
             .clip(CircleShape)
             .background(FieldGrey)
+            .testTag("settings_open")
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center
     ) {
@@ -243,6 +256,9 @@ private fun CampsiteRow(
                         .size(width = 180.dp, height = 110.dp)
                         .clip(RoundedCornerShape(4.dp))
                         .background(FieldGrey)
+                        // the shared card affordance: Explore rows and the search view's
+                        // results render the same campsite-pick, one name finds either.
+                        .testTag("campsite_card")
                         .clickable { onClick(campsite) },
                     contentAlignment = Alignment.Center
                 ) {

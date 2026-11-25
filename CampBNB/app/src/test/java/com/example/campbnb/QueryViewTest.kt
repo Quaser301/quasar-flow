@@ -118,6 +118,34 @@ class QueryViewTest {
     }
 
 
+    @Test
+    fun test_AQueryMatchingNothingStillSucceedsWithNoData() {
+        val resultSlot = slot<(List<TestUser>) -> Unit>()
+        every {
+            mockChain.execute(
+                capture(resultSlot),
+                any())
+        } returns Unit
+
+        val stateHistory = mutableListOf<QueryState<TestUser>>()
+        val jobCollector = CoroutineScope(testDispatcher).launch {
+            view.queryState.collect { stateHistory.add(it) }
+        }
+
+        view.fetchAll()
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        resultSlot.captured.invoke(emptyList())
+
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(3, stateHistory.size)
+        assertTrue("an empty result is a Success, not a Fault", stateHistory[2] is QueryState.Success)
+        assertEquals(0, (stateHistory[2] as QueryState.Success).data.size)
+        jobCollector.cancel()
+    }
+
+
     fun testStateIsX(state: QueryState<TestUser>) {
         assertEquals(state, view.queryState.value)
     }

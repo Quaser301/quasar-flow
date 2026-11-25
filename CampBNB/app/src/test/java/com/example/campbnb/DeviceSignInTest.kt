@@ -66,4 +66,14 @@ class DeviceSignInTest {
 
         assertTrue("an unchanging identity stays put", display.deviceId.value == "dev-same")
     }
+
+    @Test
+    fun test_AnEmptyNoticeStringDropsTheNoticeDirectly() {
+        val display = DeviceSignInController()
+
+        display.noticeFrom("Waiting by the reader")
+        display.noticeFrom("")
+
+        assertTrue("an empty string means no notice", display.notice.value.isEmpty())
+    }
 }

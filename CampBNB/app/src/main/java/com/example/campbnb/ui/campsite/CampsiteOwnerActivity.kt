@@ -9,6 +9,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import com.example.campbnb.data.CampsiteRepository
 import com.example.campbnb.database.Database
@@ -60,10 +61,10 @@ fun CampsiteOwnerActivity(
             modifier = Modifier.padding(vertical = 8.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            Button(onClick = onRegister) {
+            Button(modifier = Modifier.testTag("register_campsite"), onClick = onRegister) {
                 Text("Register Campsite")
             }
-            Button(onClick = onOpenLotteries) {
+            Button(modifier = Modifier.testTag("my_lotteries_open"), onClick = onOpenLotteries) {
                 Text("My Lotteries")
             }
         }
@@ -82,6 +83,7 @@ fun CampsiteOwnerActivity(
                     Text("Price: $${campsite.campPrice}")
 
                     Button(
+                        modifier = Modifier.testTag("campsite_edit_open"),
                         onClick = {
                             onEdit(campsite.id)
                         }
@@ -89,6 +91,7 @@ fun CampsiteOwnerActivity(
                         Text("Edit Campsite")
                     }
                     Button(
+                        modifier = Modifier.testTag("campsite_delete_mark"),
                         onClick = {
                             campsiteToDelete = campsite
                             showDeleteConfirmation = true
@@ -112,6 +115,7 @@ fun CampsiteOwnerActivity(
             text = { Text("Are you sure you want to delete ${site.campName}?") },
             confirmButton = {
                 TextButton(
+                    modifier = Modifier.testTag("campsite_delete_confirm"),
                     onClick = {
                         Database.Campsites.writeEngine().delete(site.id) { result ->
                             if (result.isSuccess) {
@@ -129,6 +133,7 @@ fun CampsiteOwnerActivity(
             },
             dismissButton = {
                 TextButton(
+                    modifier = Modifier.testTag("campsite_delete_cancel"),
                     onClick = {
                         showDeleteConfirmation = false
                         campsiteToDelete = null

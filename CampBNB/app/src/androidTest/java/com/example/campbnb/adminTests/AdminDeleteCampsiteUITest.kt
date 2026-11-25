@@ -37,8 +37,8 @@ import com.example.campbnb.models.Role
 import com.example.campbnb.models.User
 import com.example.campbnb.models.UserModel
 import com.example.campbnb.ui.components.UserRole
-import com.example.campbnb.ui.screens.CampsiteDetails
-import com.example.campbnb.ui.screens.CampsiteDetailsScreen
+import com.example.campbnb.ui.details.CampsiteDetails
+import com.example.campbnb.ui.details.CampsiteDetailsScreen
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule

@@ -55,4 +55,47 @@ class NotificationChannelsTest {
         )
     }
 
+    @Test
+    fun invitations_use_their_own_channel() {
+        Assert.assertEquals(
+            NotificationChannels.LOTTERY_INVITES,
+            NotificationChannels.channelFor(NotificationType.INVITE)
+        )
+    }
+
+    // The channel names are the exact wire strings the OS sees, not only the constants.
+    @Test
+    fun channel_names_are_the_exact_wire_values() {
+        Assert.assertEquals("lottery_results", NotificationChannels.channelFor(
+            NotificationType.WIN))
+        Assert.assertEquals("lottery_results", NotificationChannels.channelFor(
+            NotificationType.LOSE))
+        Assert.assertEquals("reservations", NotificationChannels.channelFor(
+            NotificationType.CONFIRMATION))
+        Assert.assertEquals("reservations", NotificationChannels.channelFor(
+            NotificationType.CANCELLATION))
+        Assert.assertEquals("reservations", NotificationChannels.channelFor(
+            NotificationType.REJECTION))
+        Assert.assertEquals("messages", NotificationChannels.channelFor(
+            NotificationType.MESSAGE))
+        Assert.assertEquals("general", NotificationChannels.channelFor(
+            NotificationType.OWNER_NOTICE))
+        Assert.assertEquals("lottery_invites", NotificationChannels.channelFor(
+            NotificationType.INVITE))
+    }
+
+    @Test
+    fun blank_record_still_has_a_channel() {
+        // The map is TOTAL: a type is enough, no record fields are consulted.
+        NotificationType.values().forEach { type ->
+            val channel = NotificationChannels.channelFor(type)
+            Assert.assertTrue(channel in listOf(
+                NotificationChannels.LOTTERY_RESULTS,
+                NotificationChannels.RESERVATIONS,
+                NotificationChannels.MESSAGES,
+                NotificationChannels.GENERAL,
+                NotificationChannels.LOTTERY_INVITES
+            ))
+        }
+    }
 }

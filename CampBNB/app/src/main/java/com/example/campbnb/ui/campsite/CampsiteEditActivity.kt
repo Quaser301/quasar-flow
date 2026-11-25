@@ -26,6 +26,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.example.campbnb.models.Campsite
@@ -131,6 +132,7 @@ fun CampsiteRegistrationForm(
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         Button(
+            modifier = Modifier.testTag("edit_back"),
             onClick = {
                 if (Owner_PutInput) {
                     BackConfirmation = true
@@ -153,51 +155,51 @@ fun CampsiteRegistrationForm(
             value = CampName,
             onValueChange = { CampName = it },
             label = { Text("Campsite Name") },
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier.testTag("name_field").fillMaxWidth()
         )
         OutlinedTextField(
             value = CampLoc,
             onValueChange = { CampLoc = it },
             label = { Text("Campsite Location") },
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier.testTag("location_field").fillMaxWidth()
         )
         OutlinedTextField(
             value = CampDesc,
             onValueChange = { CampDesc = it },
             label = { Text("Campsite Description") },
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier.testTag("description_field").fillMaxWidth()
         )
         OutlinedTextField(
             value = CampAmenities,
             onValueChange = { CampAmenities = it },
             label = { Text("Campsite Amenities (comma-separated)") },
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier.testTag("amenities_field").fillMaxWidth()
         )
         OutlinedTextField(
             value = maxOccupancy,
             onValueChange = { maxOccupancy = it },
             label = { Text("Maximum Occupancy") },
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier.testTag("occupancy_field").fillMaxWidth()
         )
         OutlinedTextField(
             value = CampPrice,
             onValueChange = { CampPrice = it },
             label = { Text("Campsite Price") },
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier.testTag("price_field").fillMaxWidth()
         )
         OutlinedTextField(
             value = cancelPolicy,
             onValueChange = { cancelPolicy = it },
             label = { Text("Cancel Policy") },
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier.testTag("cancel_policy_field").fillMaxWidth()
         )
         OutlinedTextField(
             value = geoLocation,
             onValueChange = { geoLocation = it },
             label = { Text("Geographical location") },
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier.testTag("geo_field").fillMaxWidth()
         )
         Text(
             text = "Tags",
@@ -207,16 +209,16 @@ fun CampsiteRegistrationForm(
             value = tagInput,
             onValueChange = { tagInput = it },
             label = { Text("Enter a tag") },
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier.testTag("tag_field").fillMaxWidth()
         )
         Button(
+            modifier = Modifier.testTag("tag_add").fillMaxWidth(),
             onClick = {
                 if (tagInput.isNotBlank()) {
                     tags = tags + tagInput.trim()
                     tagInput = ""
                 }
-            },
-            modifier = Modifier.fillMaxWidth()
+            }
         ) {
             Text("Add Tag")
         }
@@ -228,6 +230,7 @@ fun CampsiteRegistrationForm(
             ) {
                 Text(tag)
                 TextButton(
+                    modifier = Modifier.testTag("tag_remove"),
                     onClick = {
                         tags = tags - tag
                     }
@@ -241,10 +244,10 @@ fun CampsiteRegistrationForm(
             style = MaterialTheme.typography.titleMedium,
         )
         Button(
+            modifier = Modifier.testTag("image_upload").fillMaxWidth(),
             onClick = {
                 imagePicker.launch("image/*")
-            },
-            modifier = Modifier.fillMaxWidth()
+            }
         ) {
             Text("Upload Image")
         }
@@ -256,6 +259,7 @@ fun CampsiteRegistrationForm(
             ) {
                 Text("Image Selected")
                 TextButton(
+                    modifier = Modifier.testTag("image_remove"),
                     onClick = {
                         CampImg = null
                     }
@@ -265,6 +269,7 @@ fun CampsiteRegistrationForm(
             }
         }
         Button(
+            modifier = Modifier.testTag("save_changes").fillMaxWidth(),
             onClick = {
                 val campsite = Campsite(
                     campName = CampName.trim(),
@@ -288,8 +293,7 @@ fun CampsiteRegistrationForm(
                 }
                 onUpload(campsite, CampImg)
             },
-            enabled = Validation,
-            modifier = Modifier.fillMaxWidth()
+            enabled = Validation
         ) {
             Text(
                 if (existingCampsite == null) {"Upload my listing"}
@@ -311,6 +315,7 @@ fun CampsiteRegistrationForm(
             },
             confirmButton = {
                 TextButton(
+                    modifier = Modifier.testTag("discard_confirm"),
                     onClick = {
                         BackConfirmation = false
                         onBack()
@@ -321,6 +326,7 @@ fun CampsiteRegistrationForm(
             },
             dismissButton = {
                 TextButton(
+                    modifier = Modifier.testTag("discard_cancel"),
                     onClick = {
                         BackConfirmation = false
                     }

@@ -81,4 +81,78 @@ class NotificationViewModelTest {
         )
         assertTrue(viewModel.state.value is InboxState.Error)
     }
+
+    private fun unstamped(id: String) =
+        Notification(
+            recipientId = "user-1",
+            type = NotificationType.LOSE,
+            title = "Lottery update",
+            message = "Your lottery result is available."
+        ).also { it.id = id }
+
+    @Test
+    fun neverSavedRecordsComeBeforeStampedOnes() {
+        val viewModel = NotificationViewModel(
+            NotificationController(repository),
+            "user-1"
+        )
+        val neverSaved = unstamped("never-saved")
+        val stamped = notification("stamped", 200)
+
+        repository.emit(
+            NotificationUpdate(
+                all = listOf(stamped, neverSaved),
+                added = emptyList()
+            )
+        )
+
+        val ready = viewModel.state.value as InboxState.Ready
+        assertEquals(
+            listOf("never-saved", "stamped"),
+            ready.items.map { it.id }
+        )
+    }
+
+    @Test
+    fun markAllReadBeforeAnySnapshotChangesNothing() {
+        val viewModel = NotificationViewModel(
+            NotificationController(repository),
+            "user-1"
+        )
+
+        viewModel.markAllRead()
+
+        assertTrue(viewModel.state.value is InboxState.Loading)
+        assertEquals(0, repository.saved.size)
+    }
+
+    @Test
+    fun markAllReadFromReadyMarksEveryUnreadRecord() {
+        val viewModel = NotificationViewModel(
+            NotificationController(repository),
+            "user-1"
+        )
+        val first = notification("first", 100)
+        val second = notification("second", 200)
+        repository.saved[first.id] = first
+        repository.saved[second.id] = second
+
+        repository.emit(
+            NotificationUpdate(
+                all = listOf(first, second),
+                added = emptyList()
+            )
+        )
+
+        viewModel.markAllRead()
+
+        assertEquals(
+            NotificationStatus.READ,
+            repository.saved.getValue("first").status
+        )
+        assertEquals(
+            NotificationStatus.READ,
+            repository.saved.getValue("second").status
+        )
+    }
 }

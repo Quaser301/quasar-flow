@@ -14,8 +14,10 @@ import com.example.campbnb.database.Identifiable
 enum class LotteryStatus { UPCOMING, OPEN, DRAWN, BOOKING, CLOSED }
 
 /**
- * Entity: a lottery over one or more campsites (US 02.04.01-.07). Times are epoch millis.
- * Status is derived from the dates.
+ * Entity: a lottery over one or more campsites (US 02.04.01-.08). Times are epoch millis.
+ * Status is derived from the dates. Other owners may share a lottery (US 02.04.08): they
+ * are invited when the lottery is created or updated, and once they accept they can see it
+ * and edit only their own campsites, never its parameters.
  *
  * @property ownerId Unique identifier of the campsite owner who created this lottery.
  * @property campsiteIds List of campsite IDs associated with this lottery.
@@ -27,6 +29,8 @@ enum class LotteryStatus { UPCOMING, OPEN, DRAWN, BOOKING, CLOSED }
  * @property waitlistCapacity Maximum capacity for waitlist entrants; null indicates unlimited capacity.
  * @property drawn True if winners have been selected and drawn for this lottery.
  * @property winnerIds List of entrant user IDs who were selected as winners.
+ * @property invitedOwnerIds List of other owners asked to join this lottery, invitations not yet accepted.
+ * @property joinedOwnerIds List of other owners who accepted an invitation and share this lottery.
  */
 data class Lottery(
     val ownerId: String = "",
@@ -38,7 +42,12 @@ data class Lottery(
     val numberOfWinners: Int = 0,
     val waitlistCapacity: Int? = null,      // null = unlimited (US 02.04.07)
     val drawn: Boolean = false,
-    val winnerIds: List<String> = emptyList()
+    val winnerIds: List<String> = emptyList(),
+    // US 02.04.08: invitedOwnerIds names the owners selected when the lottery was created
+    // or updated and not yet accepted; joinedOwnerIds names the ones who accepted and share
+    // the lottery. The creating owner is in neither list: they were never invited.
+    val invitedOwnerIds: List<String> = emptyList(),
+    val joinedOwnerIds: List<String> = emptyList()
 ): Identifiable() {
 
     /**
@@ -89,7 +98,86 @@ data class Lottery(
         if (bookingEnd < bookingStart) {
             return false
         }
+        // US 02.04.08: invitations must name owners cleanly. A blank is no one; an owner
+        // cannot invite themselves to their own lottery; one person cannot be both invited
+        // and already joining; the same owner cannot be named twice.
+        if (invitedOwnerIds.any { it.isBlank() } || joinedOwnerIds.any { it.isBlank() }) {
+            return false
+        }
+        if (ownerId in invitedOwnerIds || ownerId in joinedOwnerIds) {
+            return false
+        }
+        if (invitedOwnerIds.any { it in joinedOwnerIds }) {
+            return false
+        }
+        if (invitedOwnerIds.distinct().size != invitedOwnerIds.size ||
+            joinedOwnerIds.distinct().size != joinedOwnerIds.size
+        ) {
+            return false
+        }
         return true
     }
+
+    /**
+     * Whether [userId] may see this lottery (US 02.04.08): the owner who created it and the
+     * owners who accepted an invitation may; owners invited but not yet accepted, and
+     * outsiders, may not.
+     *
+     * @param userId The user looking at lotteries.
+     * @return True when this lottery belongs in that user's list.
+     */
+    fun visibleTo(userId: String): Boolean = userId == ownerId || userId in joinedOwnerIds
+
+    /**
+     * This lottery as it is once [userId] accepts its invitation (US 02.04.08): they move
+     * from invited to joining and every other field, the dates and winner settings down to
+     * the id, stays as it is, which is what keeps a joining owner from changing the
+     * lottery's parameters. Returns this unchanged when [userId] was not invited.
+     *
+     * @param userId The invited owner accepting.
+     * @return Updated copy of this lottery, or this if [userId] was not invited.
+     */
+    fun withInvitationAcceptedBy(userId: String): Lottery {
+        if (userId !in invitedOwnerIds) {
+            return this
+        }
+        return Lottery(
+            ownerId = ownerId,
+            campsiteIds = campsiteIds,
+            registrationStart = registrationStart,
+            registrationEnd = registrationEnd,
+            bookingStart = bookingStart,
+            bookingEnd = bookingEnd,
+            numberOfWinners = numberOfWinners,
+            waitlistCapacity = waitlistCapacity,
+            drawn = drawn,
+            winnerIds = winnerIds,
+            invitedOwnerIds = invitedOwnerIds - userId,
+            joinedOwnerIds = joinedOwnerIds + userId
+        ).also { it.id = this.id }
+    }
+
+    /**
+     * This lottery covering only [chosen] campsite ids, with every other field including the
+     * id unchanged. This is a joining owner's edit (US 02.04.08): they add or remove their
+     * own campsites, and the parameters come from the lottery as it already is.
+     *
+     * @param chosen The campsite ids the edited lottery covers.
+     * @return Updated copy of this lottery.
+     */
+    fun withCampsiteIds(chosen: List<String>): Lottery = Lottery(
+        ownerId = ownerId,
+        campsiteIds = chosen,
+        registrationStart = registrationStart,
+        registrationEnd = registrationEnd,
+        bookingStart = bookingStart,
+        bookingEnd = bookingEnd,
+        numberOfWinners = numberOfWinners,
+        waitlistCapacity = waitlistCapacity,
+        drawn = drawn,
+        winnerIds = winnerIds,
+        invitedOwnerIds = invitedOwnerIds,
+        joinedOwnerIds = joinedOwnerIds
+    ).also { it.id = this.id }
 
 }

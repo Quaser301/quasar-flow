@@ -42,13 +42,6 @@ open class LotteryRepository {
         Database.Lotteries.readEngine().query().execute(onSuccess, onFailure)
     }
 
-    /** Reads lotteries belonging to a specific owner. */
-    open fun getLotteriesForOwner(ownerId: String, onSuccess: (List<Lottery>) -> Unit, onFailure: (Exception) -> Unit) {
-        Database.Lotteries.readEngine().query()
-            .whereEquals(Lottery::ownerId, ownerId)
-            .execute(onSuccess, onFailure)
-    }
-
     /** Reads the waiting list entries of one lottery. */
     open fun getEntries(
         lotteryId: String,
