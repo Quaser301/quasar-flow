@@ -2,8 +2,12 @@ package com.example.campbnb
 
 import android.widget.Toast
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
@@ -28,6 +32,7 @@ import com.example.campbnb.ui.components.UserRole
 import com.example.campbnb.ui.screens.HomeScreen
 import com.example.campbnb.ui.shared.roleFor
 import com.example.campbnb.viewModels.LotterySelectedViewModel
+import com.example.campbnb.ui.admin.ProfileRemovedDialog
 
 @Composable
 fun CampBnbApp(
@@ -56,6 +61,28 @@ fun CampBnbApp(
             Role.OWNER in privileges -> UserRole.OWNER
             else -> UserRole.CAMPER
         }
+    }
+
+    // True once an admin has deleted this user's profile and the pop-up has not been
+    // answered (US 03.02.01).
+    var showRemovedNotice by remember { mutableStateOf(false) }
+
+    // A running user whose profile an admin deletes is told about it and kicked back to
+    // the start screen; watching costs nothing when nothing removes the profile.
+    DisposableEffect(deps.deviceID) {
+        val stopWatching = deps.userController.watchForRemoval(
+            deps.deviceID,
+            onDeletedBySelf = {
+                deps.userModel.setCurrentUser(null)
+                nav.navigate(Screen.Start) {
+                    popUpTo(Screen.Start) {
+                        inclusive = true
+                    }
+                }
+            },
+            onRemoved = { showRemovedNotice = true }
+        )
+        onDispose { stopWatching() }
     }
 
     // One toast channel shared by the graph builders, the same the app-level screens
@@ -332,6 +359,8 @@ fun CampBnbApp(
             userController = deps.userController,
 
             userModel = deps.userModel,
+
+            adminController = deps.adminController,
         )
 
         // Home (Explore plus the role's bottom bar)
@@ -521,11 +550,29 @@ fun CampBnbApp(
                     userController = deps.userController,
 
                     userModel = deps.userModel,
+
+                    adminController = deps.adminController,
                 )
             }
         }
 
 
+    }
+
+    // The user stays where they are until they tap OK; only then do they go to the
+    // start screen (US 03.02.01: an admin deleted their profile while it was running).
+    if (showRemovedNotice) {
+        ProfileRemovedDialog(
+            onOk = {
+                showRemovedNotice = false
+                deps.userModel.setCurrentUser(null)
+                nav.navigate(Screen.Start) {
+                    popUpTo(Screen.Start) {
+                        inclusive = true
+                    }
+                }
+            }
+        )
     }
 
     LaunchedEffect(deps.pendingScreen) {

@@ -11,6 +11,7 @@ import com.example.campbnb.controller.UserController
 import com.example.campbnb.data.CampsiteRepository
 import com.example.campbnb.data.FirestoreMessageRepository
 import com.example.campbnb.data.FirestoreNotificationRepository
+import com.example.campbnb.data.LotteryRepository
 import com.example.campbnb.data.MessageRepository
 import com.example.campbnb.data.NotificationRepository
 import com.example.campbnb.data.NotificationPreferencesService
@@ -108,12 +109,20 @@ object AppContainer: Dependencies {
     }
 
     /**
-     * Creates the admin policy actions once, when first needed.
-     * Both actions act through the shared campsite and notification services so the site's
-     * creator is told what happened and why (US 02.10.02).
+     * Creates the admin controller once, when first needed.
+     * It carries both halves an admin needs: the deletions of profiles and campsites that
+     * break app policy, and the policy actions over someone else's listing (US 02.10.02).
+     * Both act through the shared user, campsite, lottery and notification services so the
+     * removed party is told what happened and why.
      */
     override val adminController: AdminController by lazy {
-        AdminController(campsiteRepository, notificationController)
+        AdminController(
+            userController,
+            userRepository,
+            campsiteRepository,
+            LotteryRepository(),
+            notificationController
+        )
     }
 
     /**

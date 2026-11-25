@@ -205,12 +205,6 @@ fun NavGraphBuilder.campsiteGraph(
                 mutableStateOf<String?>(null)
             }
 
-            // The saved record behind these details: a policy action acts on the listing
-            // itself, not on what is drawn.
-            var policyCampsite by remember(route.campsiteId) {
-                mutableStateOf<Campsite?>(null)
-            }
-
             LaunchedEffect(route.campsiteId) {
                 isLoading = true
                 errorMessage = null
@@ -228,8 +222,6 @@ fun NavGraphBuilder.campsiteGraph(
                             errorMessage = "Campsite could not be found."
                             isLoading = false
                         } else {
-                            policyCampsite = campsite
-
                             // Then retrieve ratings for this campsite.
                             campsiteRepo.getAllRatings(
                                 onSuccess = { allRatings ->
@@ -323,47 +315,20 @@ fun NavGraphBuilder.campsiteGraph(
                         lotteryButtonEnabled = detailsLotteryModel.entrantLottery != null,
                         lotteryButtonIsLeave = detailsLotteryModel.entrantIsOnWaitlist,
                         onDeleteSite = { reason ->
-                            val target = policyCampsite
-                            if (target != null) {
-                                admin.removeCampsite(
-                                    target,
-                                    reason,
-                                    currentUserId
-                                ) { ok ->
-                                    if (ok) {
-                                        toastGenerator(
-                                            "Site Removed",
-                                            Toast.LENGTH_SHORT
-                                        )
-                                    } else {
-                                        toastGenerator(
-                                            "Could not remove the site.",
-                                            Toast.LENGTH_LONG
-                                            )
-                                    }
-                                }
-                            }
-                        },
-                        onRemoveTag = { tag, reason ->
-                            val target = policyCampsite
-                            if (target != null) {
-                                admin.removeTag(
-                                    target,
-                                    tag,
-                                    reason,
-                                    currentUserId
-                                ) { ok ->
-                                    if (ok) {
-                                        toastGenerator(
-                                            "Tag Removed.",
-                                            Toast.LENGTH_SHORT
-                                        )
-                                    } else {
-                                        toastGenerator(
-                                            "Tag Removal Failed.",
-                                            Toast.LENGTH_LONG
-                                        )
-                                    }
+                            admin.deleteCampsite(
+                                route.campsiteId,
+                                reason
+                            ) { ok, message ->
+                                if (ok) {
+                                    toastGenerator(
+                                        "Site Removed",
+                                        Toast.LENGTH_SHORT
+                                    )
+                                } else {
+                                    toastGenerator(
+                                        message,
+                                        Toast.LENGTH_LONG
+                                    )
                                 }
                             }
                         },

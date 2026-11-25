@@ -5,6 +5,7 @@ import androidx.navigation.NavGraphBuilder
 import androidx.navigation.compose.composable
 import androidx.navigation.navigation
 import com.example.campbnb.Screen
+import com.example.campbnb.controller.AdminController
 import com.example.campbnb.controller.UserController
 import com.example.campbnb.data.NotificationRepository
 import com.example.campbnb.models.UserModel
@@ -20,7 +21,9 @@ fun NavGraphBuilder.DebugGraph(
 
     userController: UserController,
 
-    userModel: UserModel
+    userModel: UserModel,
+
+    adminController: AdminController
 ) {
     navigation<NavGraphNodes.DebugGraph>(startDestination = Screen.AdminProfileView) {
 
@@ -30,7 +33,8 @@ fun NavGraphBuilder.DebugGraph(
             }
             AdminProfilesScreen(
                 onNavBack,
-                userModel
+                userModel,
+                adminController
             )
         }
 

@@ -53,6 +53,17 @@ open class LotteryRepository {
             .execute(onSuccess, onFailure)
     }
 
+    /** Reads every waiting-list entry one user has (used when an admin deletes that user's profile). */
+    open fun getEntriesByUser(
+        userId: String,
+        onSuccess: (List<WaitingListEntry>) -> Unit,
+        onFailure: (Exception) -> Unit
+    ) {
+        Database.WaitingListEntries.readEngine().query()
+            .whereEquals(WaitingListEntry::userId, userId)
+            .execute(onSuccess, onFailure)
+    }
+
     /** Adds an entrant to a waiting list. */
     open fun addEntry(entry: WaitingListEntry, onComplete: (Result<Exception?>) -> Unit) {
         Database.WaitingListEntries.writeEngine().save(entry, onComplete)

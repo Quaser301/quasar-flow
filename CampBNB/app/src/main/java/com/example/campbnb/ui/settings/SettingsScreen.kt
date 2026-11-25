@@ -3,19 +3,27 @@ package com.example.campbnb.ui.settings
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.font.FontStyle
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -38,8 +46,14 @@ import com.example.campbnb.viewModels.AppViewSettingController
 import com.example.campbnb.viewModels.EntrantSettingsController
 import com.example.campbnb.viewModels.OwnerSettingsController
 import com.example.campbnb.viewModels.SettingsDisplayController
+import com.example.campbnb.R
 
-
+/**
+ * 25-11-26: Prompted Gemini 3.6 to add a scrollable popup to the app policy button
+ * to display the policy text that will be stored in the string xml.
+ * 25-11-26: Prompted Claude Sonnet 5.5 to write a standard app policy and format it for the
+ * strings.xml file
+ */
 /** The dropdown groups the Settings screen can mount, by stable name. */
 enum class SettingsGroupId {
     APP_VIEW_SWITCH, ADMIN_SETTINGS, ENTRANT_SETTINGS, OWNER_SETTINGS
@@ -108,6 +122,7 @@ fun SettingsScreen(
 ) {
     val display = remember { SettingsDisplayController() }
     val currentView = viewSettings.viewSetting.collectAsStateWithLifecycle()
+    var showPolicyDialog by remember { mutableStateOf(false) }
 
     Column(
         modifier = Modifier.padding(top = 32.dp),
@@ -133,6 +148,46 @@ fun SettingsScreen(
                 }
             }
         }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // App Policy displays for all roles as I feel it's relevant for more than just entrant
+        GradientBarButton(
+            text = "App Policy",
+            onClick = { showPolicyDialog = true },
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 6.dp)
+        )
+
+        if (showPolicyDialog) {
+            AlertDialog(
+                onDismissRequest = { showPolicyDialog = false },
+                title = {
+                    Text(
+                        text = "App Policy",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold
+                    )
+                },
+                text = {
+                    Box(
+                        modifier = Modifier
+                            .heightIn(max = 400.dp) // Constrains popup height
+                            .verticalScroll(rememberScrollState()) // Makes text scrollable
+                    ) {
+                        Text(
+                            text = stringResource(id = R.string.app_policy),
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                    }
+                },
+                confirmButton = {
+                    TextButton(onClick = { showPolicyDialog = false }) {
+                        Text("Close")
+                    }
+                }
+            )
+        }
+
     }
 }
 

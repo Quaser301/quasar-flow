@@ -30,13 +30,13 @@ import com.example.campbnb.ui.components.EyeGlyph
 import com.example.campbnb.ui.components.GradientButton
 import com.example.campbnb.ui.components.GradientBarButton
 import com.example.campbnb.ui.components.StarGlyph
-import com.example.campbnb.models.PolicyReason
-import com.example.campbnb.models.policyReasonLabel
 import com.example.campbnb.ui.components.UserRole
 import com.example.campbnb.ui.screens.RoleBottomBar
 import com.example.campbnb.ui.screens.tabsFor
 import com.example.campbnb.ui.theme.*
 import kotlin.math.roundToInt
+import com.example.campbnb.models.RemovalReason
+import com.example.campbnb.ui.admin.ConfirmRemovalDialog
 
 /** Everything the details screen shows about one campsite. */
 data class CampsiteDetails(
@@ -85,10 +85,8 @@ fun placeholderDetails(id: String) = CampsiteDetails(
  * @param onTabSelected Called with the Screen a bottom bar circle's tab shows when that
  *     circle is tapped.
  * @param onEnterLottery Called when a camper chooses the lottery action from their menu.
- * @param onDeleteSite Called with the picked app-policy reason after an admin confirms
- *     deleting the site (US 02.10.02).
- * @param onRemoveTag Called with a tag and the app-policy reason when an admin removes one
- *     tag from the listing (US 02.10.01).
+ * @param onDeleteSite Called with the app-policy reason the admin picked for the deletion,
+ *     after they confirm deleting the site (US 03.01.01).
  * @param onSeeReviews Called when "See all reviews" is tapped.
  */
 @Composable
@@ -101,8 +99,7 @@ fun CampsiteDetailsScreen(
     lotteryButtonText: String = "Enter Lottery",
     lotteryButtonEnabled: Boolean = true,
     lotteryButtonIsLeave: Boolean = false,
-    onDeleteSite: (PolicyReason) -> Unit = {},
-    onRemoveTag: (tag: String, reason: PolicyReason) -> Unit = { _, _ -> },
+    onDeleteSite: (RemovalReason?) -> Unit = {},
     onSeeReviews: () -> Unit = {},
     entrantContent: @Composable () -> Unit = {}
 ) {
@@ -110,14 +107,13 @@ fun CampsiteDetailsScreen(
     var showAllTags by remember { mutableStateOf(false) }
     var confirmDelete by remember { mutableStateOf(false) }
 
-    // The admin's policy actions (US 02.10.02, US 02.10.01): no action is offered until a
-    // policy reason has been picked, so the reason always accompanies the action.
-    var adminReasonPicked by remember { mutableStateOf<PolicyReason?>(null) }
     // One menu per role (feature 2); the menus used to be split and never opened
     // (fix 10: nothing ever set those flags true, so the actions stayed disabled).
     var lotteryMenuOpen by remember { mutableStateOf(false) }
-    var adminMenuOpen by remember { mutableStateOf(false) }
-
+    // The admin's delete asks which app policy the site broke before it is deleted
+    // (US 03.01.01): confirming the delete opens the reason picker, and the picker is
+    // what calls [onDeleteSite] with the reason.
+    var pickReason by remember { mutableStateOf(false) }
     val hasFloatingButton = role != UserRole.OWNER
 
     Scaffold(
@@ -240,63 +236,16 @@ fun CampsiteDetailsScreen(
                         )
                     }
                 }
-                UserRole.ADMIN -> Column(
-                    Modifier.align(Alignment.BottomCenter).padding(horizontal = 24.dp, vertical = 12.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    // One admin hamburger: the policy reason is picked inside it first, and
-                    // only once a reason is picked do the actions appear, in the same open
-                    // menu — an action without a named reason is never offered (US 02.10.02,
-                    // US 02.10.01).
-                    GradientBarButton(
-                        text = "Site Administration",
-                        modifier = Modifier.testTag("admin_menu_bar"),
-                        onClick = { adminMenuOpen = true }
-                    )
-                    DropdownMenu(
-                        expanded = adminMenuOpen,
-                        onDismissRequest = { adminMenuOpen = false }
-                    ) {
-                        PolicyReason.values().forEach { reason ->
-                            DropdownMenuItem(
-                                text = {
-                                    // The reason already picked renders in the admin's
-                                    // interaction colour so the admin can see which
-                                    // reason the actions below will carry.
-                                    if (adminReasonPicked == reason) {
-                                        Text(policyReasonLabel(reason), color = AdminInteractionColor)
-                                    } else {
-                                        Text(policyReasonLabel(reason))
-                                    }
-                                },
-                                onClick = { adminReasonPicked = reason },
-                                modifier = Modifier.testTag("admin_reason_choice")
-                            )
-                        }
-
-                        val chosenReason = adminReasonPicked
-                        if (chosenReason != null) {
-                            DropdownMenuItem(
-                                text = { Text("Delete Site") },
-                                modifier = Modifier.testTag("admin_delete_site"),
-                                onClick = {
-                                    adminMenuOpen = false
-                                    confirmDelete = true
-                                }
-                            )
-                            campsite.tags.forEach { tag ->
-                                DropdownMenuItem(
-                                    text = { Text("Remove Tag: $tag") },
-                                    modifier = Modifier.testTag("admin_remove_tag"),
-                                    onClick = {
-                                        adminMenuOpen = false
-                                        onRemoveTag(tag, chosenReason)
-                                    }
-                                )
-                            }
-                        }
-                    }
-                }
+                UserRole.ADMIN -> GradientButton(
+                    text = "Delete Site",
+                    onClick = { confirmDelete = true },
+                    brush = DeleteGradient,
+                    height = 52.dp,
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .padding(horizontal = 24.dp, vertical = 12.dp)
+                        .testTag("delete_site")
+                )
                 UserRole.OWNER -> Unit
             }
         }
@@ -322,17 +271,27 @@ fun CampsiteDetailsScreen(
             text = { Text("${campsite.name} will be removed. This can't be undone.") },
             confirmButton = {
                 TextButton(
-                    modifier = Modifier.testTag("admin_delete_confirm"),
-                    onClick = {
-                        confirmDelete = false
-                        val reason = adminReasonPicked
-                        if (reason != null) {
-                            onDeleteSite(reason)
-                        }
-                    }
+                    onClick = { confirmDelete = false; pickReason = true },
+                    modifier = Modifier.testTag("confirm_delete_site")
                 ) { Text("Delete") }
             },
             dismissButton = { TextButton(modifier = Modifier.testTag("admin_delete_cancel"), onClick = { confirmDelete = false }) { Text("Cancel") } }
+        )
+    }
+
+    // Second step: the admin says which app policy the site broke before it is deleted.
+    if (pickReason) {
+        ConfirmRemovalDialog(
+            title = "Which policy was broken?",
+            message = "${campsite.name} will be permanently deleted and its owner will be told why. " +
+                    "This cannot be undone.",
+            confirmLabel = "Delete",
+            reasonRequired = true,
+            onConfirm = { reason ->
+                pickReason = false
+                onDeleteSite(reason)
+            },
+            onDismiss = { pickReason = false }
         )
     }
 }

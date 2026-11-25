@@ -87,6 +87,41 @@ class NotificationController(
     }
 
     /**
+     * Sends one plain notice with the given [title] and [message] to [recipientId], for
+     * events that have no notification type of their own (such as an admin removing a
+     * profile). Saved as an OWNER_NOTICE so it appears in the recipient's inbox.
+     *
+     * @param onDone called once with success or the failure; defaults to ignoring it, so a
+     * failed notice never fails the action that caused it
+     */
+    fun sendNotice(
+        recipientId: String,
+        title: String,
+        message: String,
+        onDone: (Result<Unit>) -> Unit = {}
+    ) {
+        if (recipientId.isBlank()) {
+            onDone(Result.failure(IllegalArgumentException("recipientId is required")))
+            return
+        }
+        optOutChecker.filterAllowed(listOf(recipientId)) { allowed ->
+            val notification = Notification(
+                recipientId = recipientId,
+                type = NotificationType.OWNER_NOTICE,
+                title = title,
+                message = message,
+                pushAllowed = recipientId in allowed
+            )
+            repo.run(
+                NotificationCommand.Save(
+                    records = listOf(notification),
+                    onDone = onDone
+                )
+            )
+        }
+    }
+
+    /**
      * Starts a live listener for one user's notifications.
      *
      * @return a function that stops the listener. Call when the screen goes away, otherwise

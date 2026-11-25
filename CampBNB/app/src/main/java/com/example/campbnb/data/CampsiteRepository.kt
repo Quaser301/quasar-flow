@@ -38,6 +38,30 @@ open class CampsiteRepository {
         Database.Ratings.readEngine().query().execute(onSuccess, onFailure)
     }
 
+    /** Reads one campsite by its document id; the result is null if it no longer exists. */
+    open fun getById(campsiteId: String, onSuccess: (Campsite?) -> Unit, onFailure: (Exception) -> Unit) {
+        Database.Campsites.readEngine().getById(campsiteId, onSuccess, onFailure)
+    }
+
+    /** Reads the ratings one campsite has received (used when an admin deletes that campsite). */
+    open fun getRatingsByCampsite(campsiteId: String, onSuccess: (List<Rating>) -> Unit, onFailure: (Exception) -> Unit) {
+        Database.Ratings.readEngine().query()
+            .whereEquals(Rating::campsiteId, campsiteId)
+            .execute(onSuccess, onFailure)
+    }
+
+    /** Reads the ratings one user has given (used when an admin deletes that user's profile). */
+    open fun getRatingsByUser(userId: String, onSuccess: (List<Rating>) -> Unit, onFailure: (Exception) -> Unit) {
+        Database.Ratings.readEngine().query()
+            .whereEquals(Rating::userId, userId)
+            .execute(onSuccess, onFailure)
+    }
+
+    /** Deletes one rating by its document id. */
+    open fun deleteRating(ratingId: String, onComplete: (Result<Exception?>) -> Unit) {
+        Database.Ratings.writeEngine().delete(ratingId, onComplete)
+    }
+
     /** Saves a rating; rating again replaces the old one because the id is the same. */
     open fun saveRating(rating: Rating, onComplete: (Result<Exception?>) -> Unit) {
         Database.Ratings.writeEngine().save(rating, onComplete)

@@ -2,13 +2,17 @@ package com.example.campbnb
 
 import com.example.campbnb.controller.AdminController
 import com.example.campbnb.controller.NotificationController
+import com.example.campbnb.controller.UserController
 import com.example.campbnb.data.CampsiteRepository
+import com.example.campbnb.data.LotteryRepository
 import com.example.campbnb.data.NotificationCommand
 import com.example.campbnb.data.NotificationRepository
+import com.example.campbnb.data.UserRepository
 import com.example.campbnb.models.Campsite
 import com.example.campbnb.models.Notification
 import com.example.campbnb.models.NotificationType
 import com.example.campbnb.models.PolicyReason
+import com.example.campbnb.models.UserModel
 import com.example.campbnb.models.policyReasonText
 import org.junit.Assert
 import org.junit.Before
@@ -81,7 +85,16 @@ class AdminPolicyTest {
     fun setup() {
         listings = FakeListingStore()
         notices = NoticeStore()
-        adminController = AdminController(listings, NotificationController(notices))
+        // The policy actions below act only through the listing store and the notice
+        // store; the user and lottery services belong to the deletions half of the
+        // controller and are left empty here.
+        adminController = AdminController(
+            UserController(UserModel(), UserRepository()),
+            UserRepository(),
+            listings,
+            LotteryRepository(),
+            NotificationController(notices)
+        )
     }
 
     /** The listing every case below describes: someone else's, with two tags. */

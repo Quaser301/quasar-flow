@@ -5,8 +5,6 @@ import com.example.campbnb.models.Role
 import com.example.campbnb.models.User
 import com.example.campbnb.models.UserModel
 
-// Todo: deleting a profile does not yet delete the user's waiting-list entries, ratings or reservations.
-
 // Prompted Claude Sonnet 5.5 for UserController implementation, providing it the relevant constraints
 // and design decisions.
 
@@ -19,6 +17,10 @@ class UserController(
     private val model: UserModel,
     private val repo: UserRepository
 ) : OptOutChecker {
+
+    // True from the moment the signed-in user asks to delete their own profile, so the removal
+    // watcher can tell that apart from an admin removing the profile.
+    private var deletingOwnProfile = false
 
     /**
      * Looks up the user for this device. Calls [onFound] with the user (and sets it as the
@@ -133,6 +135,7 @@ class UserController(
             onDone(false)
             return
         }
+        deletingOwnProfile = true
         repo.delete(
             user.id,
             onComplete = { result ->
@@ -141,11 +144,50 @@ class UserController(
                     model.setStatusMessage("Profile deleted")
                     onDone(true)
                 } else {
+                    deletingOwnProfile = false
                     model.setStatusMessage("Could not delete your profile")
                     onDone(false)
                 }
             }
         )
+    }
+
+    /**
+     * Calls [onRemoved] if this device's profile is deleted while the app is running, so the
+     * app can sign the user out (US 03.02.01). Returns a function that stops watching.
+     */
+    /**
+     * Watches this device's profile while the app is running (US 03.02.01). Calls
+     * [onDeletedBySelf] if the user deleted their own profile, or [onRemoved] if someone else
+     * (an admin) did. Returns a function that stops watching.
+     */
+    fun watchForRemoval(
+        userId: String,
+        onDeletedBySelf: () -> Unit = {},
+        onRemoved: () -> Unit
+    ): () -> Unit {
+        return repo.listenForRemoval(userId) {
+            if (deletingOwnProfile) {
+                deletingOwnProfile = false
+                onDeletedBySelf()
+            } else {
+                onRemoved()
+            }
+        }
+    }
+
+    /** True if the signed-in user holds the ADMIN role. Admin features ask here instead of checking roles themselves. */
+    fun isAdmin(): Boolean {
+        val user = model.currentUser
+        if (user == null) {
+            return false
+        }
+        return user.hasRole(Role.ADMIN)
+    }
+
+    /** The signed-in user's id, or an empty string if nobody is signed in. */
+    fun currentUserId(): String {
+        return model.currentUserId()
     }
 
     /** Loads every user into the model for the admin (US 03.05.01). */
