@@ -22,9 +22,11 @@ import com.example.campbnb.viewModels.AppView
  */
 @Serializable
 sealed interface Screen {
-    // the app's entry point.
+    // the app's entry point. `tab` names the bottom-bar tab to open ON, as the Screen
+    // its content shows (a caller that sends the app back into Home names it); null
+    // means no tab was named and the bar opens on its first tab.
     @Serializable
-    data class Home(val role: UserRole, val tab: Int = 0): Screen
+    data class Home(val role: UserRole, val tab: Screen? = null): Screen
 
     // the screen where a Campsite Owner registers a new campsite.
     @Serializable

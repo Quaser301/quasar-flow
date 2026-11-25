@@ -12,6 +12,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.toRoute
 import com.example.campbnb.Screen
+import com.example.campbnb.graphs.StartupGraph
 import com.example.campbnb.graphs.startupGraph
 import com.example.campbnb.graphs.exploreGraph
 import com.example.campbnb.graphs.campsiteGraph
@@ -23,7 +24,6 @@ import com.example.campbnb.graphs.DebugGraph
 import com.example.campbnb.controller.CampsiteController
 import com.example.campbnb.models.CampsiteModel
 import com.example.campbnb.ui.components.UserRole
-import com.example.campbnb.ui.screens.tabsFor
 import com.example.campbnb.ui.screens.HomeScreen
 import com.example.campbnb.ui.shared.roleFor
 import com.example.campbnb.viewModels.LotterySelectedViewModel
@@ -65,7 +65,11 @@ fun CampBnbApp(
     // screens; the app root keeps its own for the campsite monitor below.
     val campsiteGraphModel = remember { CampsiteModel() }
 
-    NavHost(navController = nav, startDestination = Screen.Start) {
+    // The app graph opens ON the sign-in graph, not on a screen inside it: a
+    // NavHost's start destination must be a direct child of its own graph, and
+    // entering a graph node loads that graph's start destination (Screen.Start)
+    // by itself. Naming the screen instead would crash at instantiation.
+    NavHost(navController = nav, startDestination = StartupGraph) {
 
         // Sign-in flow: Start, Login, SignUp, Role. The graph applies the view the
         // signed-in user's privileges give and then asks Home to open.
@@ -151,10 +155,7 @@ fun CampBnbApp(
             // tab, and landed the owner on Explore (reported regression 9). Naming
             // the tab sends Home's nested graph the right one.
             onNavHome = {
-                nav.goHome(
-                    currentRole(),
-                    tabIndexOf(currentRole(), Screen.MyCampsites)
-                )
+                nav.goHome(currentRole(), Screen.MyCampsites)
             },
             onOpenMyCampsites = {
                 nav.navigate(Screen.CampsiteMonitor(currentRole()))
@@ -374,10 +375,7 @@ fun CampBnbApp(
                         homeNav.navigateUp()
                     },
                     onNavHome = {
-                        nav.goHome(
-                            currentRole(),
-                            tabIndexOf(currentRole(), Screen.MyCampsites)
-                        )
+                        nav.goHome(currentRole(), Screen.MyCampsites)
                     },
                     onOpenMyCampsites = {
                         nav.navigate(Screen.CampsiteMonitor(currentRole()))
@@ -507,21 +505,12 @@ fun CampBnbApp(
 }
 
 /**
- * Index of a tab in a role's bottom bar; -1 when that role has no such tab.
- *
- * @param role The role whose tab bar is meant.
- * @param destination The tab's screen to find.
- */
-private fun tabIndexOf(role: UserRole, destination: Screen): Int =
-    tabsFor(role).indexOfFirst { it.destination == destination }
-
-/**
  * Goes to the home page on the given tab, clearing any screens opened on top of it.
  *
  * @param role The signed-in role, which decides the bottom bar.
- * @param tab Index of the bottom bar tab to open.
+ * @param tab The screen the named tab shows, or null for the bar's first tab.
  */
-private fun NavController.goHome(role: UserRole, tab: Int = 0) {
+private fun NavController.goHome(role: UserRole, tab: Screen? = null) {
     navigate(Screen.Home(role = role, tab = tab)) {
         popUpTo<Screen.Home> { inclusive = true }
         launchSingleTop = true

@@ -26,6 +26,7 @@ the spec describes that state (tip + working tree) as it is.
 | `viewModels.md` | package `viewModels` — the ViewModel-backed state holders (view/setting controllers, inbox message model, display controllers, factory helpers) | full |
 | `app.md` | root package — `Dependencies` seam, `AppContainer` (the only provider), `MainActivity` startup order, the `Screen` sealed navigation vocabulary, the `CampBnbApp` route graph and its typed pending-`Screen` bridges | wiring-contract depth (this area is glue; its rules point into the full files above) |
 | `ui.md` | packages `ui.*` — screens and shared components | split ON PURPOSE: the pure helpers (role maps, tab/group vocabularies, label and text functions, the inbox ViewModel) at full depth — they are the testable surface; Composable screens at wiring-contract depth (parameters + what they call) |
+| `graphs.md` | package `graphs` — the feature sub-graphs (`NavGraphBuilder` extensions), their node routes, start destinations, and the name traps | wiring-contract depth: what each graph registers and the start rule the roots follow (NOT JVM-reachable; call-site routing rules stay in `app.md`) |
 | `functions.md` | `CampBNB/functions/` (TypeScript) — the scheduled lottery draw | descriptive only: it writes the same WIN records `models.md`/`database.md` parse; NOT reachable from the Kotlin suites, and the file says so |
 
 ## How the test-writing agent uses this spec
@@ -62,8 +63,9 @@ the spec describes that state (tip + working tree) as it is.
 
 ## Coverage truth
 
-All eight Kotlin package areas plus the app root and the TypeScript functions directory are
-covered by the files above; every file listed exists and is complete. At the time this spec
+All nine Kotlin package areas (the eight original ones plus `graphs`) plus the app root and
+the TypeScript functions directory are covered by the files above; every file listed exists
+and is complete. At the time this spec
 was written, the project's own test task reported 26 suites / 195 tests / 0 failures / 0
 errors (fresh result XML) — new tests written from this spec are additions to that set.
 No part of the spec is aspirational: where the code has a placeholder or a chosen quirk,

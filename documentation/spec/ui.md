@@ -120,9 +120,17 @@ nested graph, never the app's, and there is no separate destination enum any mor
 Screen seal itself names every tab. `HomeScreen` itself: tabs are RE-DERIVED from the live
 `AppView` (`AdminView→tabsFor(ADMIN)`, `OwnerView→OWNER`, `EntrantView→CAMPER`) through
 `remember(viewState, role)` — the live view decides the list and the `role` argument only
-keys the remembered value. The nested graph OPENS on `tabs[initialTab]` clamped into the
-live list: `goHome` naming a tab (the my-campsites back affordances and the details-page
-picker name it) lands the bar there; the default opens the first tab. The bar's circles
+keys the remembered value. The nested graph OPENS on the NODE that owns the tab `initialTab`
+NAMES — `initialTab` is a SCREEN or null, never an index, and the lookup is graphs.md's
+`graphNodeFor` in `GraphUtils.kt` (a `NavHost` may only start on a direct child of its own
+graph, so the start names the feature-graph node —
+Explore→`NavGraphNodes.ExploreGraph`, MyCampsites→`CampsiteGraph`, Messages/Bookings/Inbox→
+`CorrespondenceGraph`, Reservations→`ReservationGraph`, the admin debug tabs→`DebugGraph`;
+the Misc tabs Profile/Reports/Flagged start on the screen itself, being bare direct
+children — graphs.md). `goHome` naming a tab (the my-campsites back affordances and the
+details-page picker name it) lands the bar there; naming no tab, or naming a screen the live
+bar does not show, opens the first tab. The bar's
+circles
 navigate with `popUpTo(findStartDestination) { saveState }` + `restoreState` +
 `launchSingleTop`, so Explore (always first) stays under every other tab and switching
 back restores the passed-over tabs' saved state rather than rebuilding it.
@@ -131,7 +139,9 @@ a circle from the live nav position — `currentDestination.hierarchy` matched a
 tab's own class identifier, which the file-PRIVATE `routePrefixOf` reads off the screen
 object itself (nothing about a screen is spelled out); the details-page one has no live
 graph under its caller, so the caller names the lit `selectedIndex` and gets the tapped
-index back. `NavCircle` is file-PRIVATE. `PlaceholderTab(title)` is the temporary content
+tab's SCREEN back (`onSelect: (Screen) -> Unit`, called with `tab.destination` — the
+details-page picker needs the Screen to name that tab to Home; the lit position stays an
+index because it is display only, with no graph to name). `NavCircle` is file-PRIVATE. `PlaceholderTab(title)` is the temporary content
 for tabs without screens yet (Profile/Reports/Flagged today).
 
 `ui.screens/BookingsScreen.kt`: `enum class BookingTab { CONFIRMED, PENDING }` (vocabulary;

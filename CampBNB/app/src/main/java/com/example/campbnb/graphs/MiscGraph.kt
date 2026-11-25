@@ -3,7 +3,6 @@ package com.example.campbnb.graphs
 import androidx.compose.runtime.LaunchedEffect
 import androidx.navigation.NavGraphBuilder
 import androidx.navigation.compose.composable
-import androidx.navigation.navigation
 import androidx.navigation.toRoute
 import com.example.campbnb.Screen
 import com.example.campbnb.data.AppSettingsService
@@ -19,11 +18,6 @@ import com.example.campbnb.viewModels.AppViewSetting
 import com.example.campbnb.viewModels.AppViewSettingController
 import com.example.campbnb.viewModels.EntrantSettingsController
 import com.example.campbnb.viewModels.OwnerSettingsController
-import kotlinx.serialization.Serializable
-
-
-@Serializable
-data object MiscGraph
 
 
 fun NavGraphBuilder.MiscGraph(

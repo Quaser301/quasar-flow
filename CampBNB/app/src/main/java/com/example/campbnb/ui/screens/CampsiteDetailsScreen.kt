@@ -25,6 +25,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.campbnb.Screen
 import com.example.campbnb.ui.components.EyeGlyph
 import com.example.campbnb.ui.components.GradientButton
 import com.example.campbnb.ui.components.GradientBarButton
@@ -81,7 +82,8 @@ fun placeholderDetails(id: String) = CampsiteDetails(
  * @param role Decides the bottom bar and which role's action hamburger is shown.
  * @param campsite What to show.
  * @param onBack Called when the back circle is tapped.
- * @param onTabSelected Called with the tab index when a bottom bar circle is tapped.
+ * @param onTabSelected Called with the Screen a bottom bar circle's tab shows when that
+ *     circle is tapped.
  * @param onEnterLottery Called when a camper chooses the lottery action from their menu.
  * @param onDeleteSite Called with the picked app-policy reason after an admin confirms
  *     deleting the site (US 02.10.02).
@@ -94,7 +96,7 @@ fun CampsiteDetailsScreen(
     role: UserRole,
     campsite: CampsiteDetails,
     onBack: () -> Unit,
-    onTabSelected: (Int) -> Unit,
+    onTabSelected: (Screen) -> Unit,
     onEnterLottery: () -> Unit = {},
     lotteryButtonText: String = "Enter Lottery",
     lotteryButtonEnabled: Boolean = true,

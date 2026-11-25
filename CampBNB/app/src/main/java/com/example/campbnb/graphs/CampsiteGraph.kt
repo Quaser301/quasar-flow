@@ -67,7 +67,7 @@ import kotlinx.serialization.Serializable
  * @param onOpenLotteries Opens the owner's lottery list.
  * @param onOpenReservations Opens the reservations view.
  * @param onCampsiteDetailsClicked A details screen's tab was selected: go home naming
- *     the tab.
+ *     the tab by the Screen its content shows.
  * @param campsiteRepo The shared campsite storage boundary.
  * @param campsiteModel The shared campsite model.
  * @param toastGenerator Reports a result to the user; the caller owns the channel.
@@ -88,7 +88,7 @@ fun NavGraphBuilder.campsiteGraph(
     onOpenCampsiteReg: () -> Unit,
     onOpenCampsiteDetails: (role: UserRole, id: String) -> Unit,
     onOpenCampsiteEdit: (id: String) -> Unit,
-    onCampsiteDetailsClicked: (role: UserRole, tab: Int) -> Unit,
+    onCampsiteDetailsClicked: (role: UserRole, tab: Screen) -> Unit,
 
     campsiteRepo: CampsiteRepository,
     campsiteModel: CampsiteModel,
@@ -313,8 +313,8 @@ fun NavGraphBuilder.campsiteGraph(
                         role = shownRole,
                         campsite = shownDetails,
                         onBack = onNavBack,
-                        onTabSelected = { index ->
-                            onCampsiteDetailsClicked(route.role, index)
+                        onTabSelected = { tab ->
+                            onCampsiteDetailsClicked(route.role, tab)
                         },
                         onEnterLottery = {
                             detailsLotteryController.toggleEntrantMembership(deviceID)

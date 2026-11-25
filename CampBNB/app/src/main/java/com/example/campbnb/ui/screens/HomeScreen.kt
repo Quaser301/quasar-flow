@@ -27,6 +27,7 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.example.campbnb.Screen
+import com.example.campbnb.graphs.graphNodeFor
 import com.example.campbnb.ui.components.UserRole
 import com.example.campbnb.ui.theme.ButtonGradient
 import com.example.campbnb.ui.theme.FieldGrey
@@ -75,10 +76,11 @@ fun tabsFor(role: UserRole): List<HomeTab> = when (role) {
  *
  * @param role Decides which tabs appear in the bottom bar.
  * @param appViewSettings The app's view setting: the live view decides the tabs.
- * @param initialTab Which tab the nested graph opens on. A caller that sends the
- *     app back into Home names the tab to land on (the my-campsites back
- *     affordances and the details-page picker name it); the default opens the
- *     first tab, and an index outside the live tab list clamps into it.
+ * @param initialTab Which tab the nested graph opens on, named by the Screen its
+ *     content shows. A caller that sends the app back into Home names the tab to land
+ *     on (the my-campsites back affordances and the details-page picker name it); null
+ *     opens the first tab, and a screen the live bar does not show opens the first tab
+ *     too.
  * @param homeNavController The controller for the tab graph below Home. The caller
  *     supplies one so its tab content can hand back controls that move on this graph.
  * @param builder Registers the content of the tabs: the caller owns one node per tab
@@ -88,7 +90,7 @@ fun tabsFor(role: UserRole): List<HomeTab> = when (role) {
 fun HomeScreen(
     role: UserRole,
     appViewSettings: AppViewSetting,
-    initialTab: Int = 0,
+    initialTab: Screen? = null,
     homeNavController: NavHostController = rememberNavController(),
     builder: NavGraphBuilder.() -> Unit
 ) {
@@ -101,6 +103,10 @@ fun HomeScreen(
             AppView.EntrantView -> tabsFor(UserRole.CAMPER)
         }
     }
+
+    // The tab the nested graph opens on: the named screen's tab when the live bar
+    // shows it, otherwise the first tab.
+    val openingTab = tabs.firstOrNull { it.destination == initialTab } ?: tabs.first()
 
     val navBackStackEntry by homeNavController.currentBackStackEntryAsState()
     val currentDestination = navBackStackEntry?.destination
@@ -125,7 +131,7 @@ fun HomeScreen(
     ) { padding ->
         NavHost(
             navController = homeNavController,
-            startDestination = tabs[initialTab.coerceIn(0, tabs.size - 1)].destination as Any,
+            startDestination = graphNodeFor(openingTab.destination),
             modifier = Modifier
                 .padding(padding)
                 .fillMaxSize(),
@@ -169,17 +175,18 @@ fun RoleBottomBar(
 
 /**
  * The bar as the details page sees it: a tab picker with no live graph under it, so
- * the caller names the lit position by index instead of a nav position.
+ * the caller names the lit position by index instead of a nav position. The tap hands
+ * over the tab's Screen, which is what a caller needs to name that tab to Home.
  *
  * @param tabs The role's tabs, in bar order.
  * @param selectedIndex Which circle is lit right now.
- * @param onSelect Runs with the index of the tab the circle was tapped.
+ * @param onSelect Runs with the Screen the tapped tab shows.
  */
 @Composable
 fun RoleBottomBar(
     tabs: List<HomeTab>,
     selectedIndex: Int,
-    onSelect: (Int) -> Unit
+    onSelect: (Screen) -> Unit
 ) {
     Row(
         Modifier
@@ -191,7 +198,7 @@ fun RoleBottomBar(
         verticalAlignment = Alignment.CenterVertically
     ) {
         tabs.forEachIndexed { index, tab ->
-            NavCircle(tab.label, selected = index == selectedIndex) { onSelect(index) }
+            NavCircle(tab.label, selected = index == selectedIndex) { onSelect(tab.destination) }
         }
     }
 }

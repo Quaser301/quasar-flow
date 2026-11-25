@@ -144,7 +144,7 @@ SystemNotifier(applicationContext))`.
 One named type per screen the app can display; the seal makes every `is`-check
 exhaustible at COMPILE time (developer note: a renamed/removed screen breaks every
 window still referring to it — that is what keeps `navigate()` calls safe). Members,
-exact: `Home(role: UserRole, tab: Int = 0)`, `CampsiteRegistration`,
+exact: `Home(role: UserRole, tab: Screen? = null)`, `CampsiteRegistration`,
 `EditCampsite(campsiteId: String)`, `LotteryEdit`, `LotteryMonitor`,
 `LotteryDetails`, `LotteryWaitlist`, `Start`, `Login`, `SignUp`,
 `Role`, `Settings(role: UserRole)`, `Search(role, query: String = "", openFilter: Boolean = false,
@@ -163,14 +163,20 @@ notice names — the typed twin of notifications.md's `"reservations"` text),
 live code's link), `OldQRCode` (the dead-code notice) — the graph below registers
 content and bridge frames for every one of these.
 `UserRole` is the UI role (ui/components — ui.md); data-class payloads ARE the route
-arguments (`toRoute<T>()` reads them back). `Home.tab` is the index of the bottom-bar
-tab Home opens on (`HomeScreen`'s `initialTab` seed, clamped to the live tab list).
+arguments (`toRoute<T>()` reads them back). `Home.tab` NAMES the bottom-bar tab Home
+opens on, as the Screen its content shows (`HomeScreen`'s `initialTab`; null names no
+tab and the bar opens on its first tab — there is no index vocabulary anywhere).
 
 ## CampBnbApp (`@Composable fun CampBnbApp(deps: Dependencies)`) — the `NavHost` graph
 
-`startDestination = Screen.Start`. The graph is SPLIT (this branch's restructure,
-completed this batch): the `graphs/` sub-package holds one or more `NavGraphBuilder`
-extension functions per feature area, and the app calls EVERY one of them —
+`startDestination = StartupGraph` — the SIGN-IN GRAPH NODE, not a screen inside it
+(graphs.md: the rule is that a `NavHost` may only start on a DIRECT child of its own
+graph; entering a graph node loads that node's own start destination — here
+`Screen.Start` — by itself, so naming the screen at the root would crash at
+instantiation with "navigation destination … is not a direct child of this NavGraph").
+The graph is SPLIT (this branch's restructure, completed this batch): the `graphs/`
+sub-package holds one or more `NavGraphBuilder` extension functions per feature area,
+and the app calls EVERY one of them —
 `startupGraph`, `exploreGraph`, `campsiteGraph`, `LotteryGraph` (capital L),
 `CorrespondenceGraph` (from `NotificationGraph.kt`), `ReservationGraph`, `MiscGraph`,
 `DebugGraph` (from `DebuggingGraph.kt`) — TWICE where the feature has tab content: once
@@ -186,9 +192,11 @@ capitalised — the caller spelling IS the declared spelling, so a renamed entry
 the call site at compile time. `GraphUtils.kt` holds the sealed `@Serializable
 NavGraphNodes`: `ExploreGraph`/`CampsiteGraph`/`LotteryGraph`/`CorrespondenceGraph`/
 `ReservationGraph`/`DebugGraph` each wrap their nodes in
-`navigation<NavGraphNodes.X>(startDestination = …)`; `startupGraph` and `MiscGraph`
-register plain top-level composables (MiscGraph's own `@Serializable data object MiscGraph`
-sits unused in its file).
+`navigation<NavGraphNodes.X>(startDestination = …)`; `startupGraph` wraps its own in
+`navigation<StartupGraph>` — `StartupGraph` is a file-local `@Serializable object` in
+`StartupGraph.kt`, NOT a `NavGraphNodes` member (graphs.md names every node route and
+start destination); `MiscGraph` alone registers bare top-level composables and declares
+no node route at all.
 
 Model/controller instances: the `CampsiteModel`s the graph nodes run over are built at
 the app root and passed in — `exploreCampsiteModel` + `exploreCampsiteController` over
@@ -248,13 +256,22 @@ line each; `nav` is the app controller, `homeNav` the nested one, all calls as s
   pages, search, QR, the notice bridges — still run on the app `nav`, keeping this live
   Home frame mounted underneath them. The one exception is `DebugGraph`: its `onNavBack =
   nav.goHome(currentRole())` at BOTH mounts (a bare Home re-entry — the admin tabs' back,
-  as before). The nested graph OPENS on `tabs[initialTab]` clamped (the `initialTab`
-  seed: callers that NAME a tab land the bar there — the root passes `campsiteGraph`'s
-  `onNavHome` as `nav.goHome(currentRole(), tabIndexOf(currentRole(), Screen.MyCampsites))`
-  so the campsite monitor's back names My Campsites (reported regression 9: a bare Home
-  pop re-entered through the start = first tab and landed on Explore; the root's `tabIndexOf`
-  resolves the index by route equality against ui.md's `tabsFor`, a miss coercing to the
-  first tab); the details-page picker names the tapped tab; the default 0 opens Explore).
+  as before). The nested graph OPENS on the NODE that owns the tab `initialTab` NAMES
+  (graphs.md's `graphNodeFor` in `GraphUtils.kt`: a `NavHost` may only start on a direct
+  child of its own graph, and the Home builder registers whole feature graphs as nodes —
+  entering a node loads its start destination, so the start NAMES the node:
+  Explore→`NavGraphNodes.ExploreGraph`, MyCampsites→`NavGraphNodes.CampsiteGraph`,
+  Messages/Bookings/Inbox→`NavGraphNodes.CorrespondenceGraph`,
+  Reservations→`NavGraphNodes.ReservationGraph`, the admin's Profiles/Notifications
+  tabs→`NavGraphNodes.DebugGraph`; the Misc tabs Profile/Reports/Flagged open on the
+  screen itself, being bare direct children). The `initialTab` seed is a SCREEN, never an
+  index: callers that NAME a tab land the bar there — the root passes `campsiteGraph`'s
+  `onNavHome` as `nav.goHome(currentRole(), Screen.MyCampsites)` so the campsite
+  monitor's back names My Campsites (reported regression 9: a bare Home pop re-entered
+  through the start = first tab and landed on Explore; naming the tab is what keeps that
+  fixed). `HomeScreen` resolves the named screen against the live bar (`firstOrNull` on
+  `tabsFor`'s destinations), and no name or a screen the live bar does not show opens the
+  first tab, Explore).
   Which graph node serves which tab:
   - EXPLORE→`exploreGraph`'s start node: `ExploreScreen(recommended = cards, newSites = cards)`
     — the node loads `campsiteRepo.getAll` into its own card state itself
@@ -358,8 +375,10 @@ line each; `nav` is the app controller, `homeNav` the nested one, all calls as s
   once `adminReasonPicked == reason`, and the action runs with that chosen reason — admin
   interaction visible in the admin colour (reported regression 5; precedent: NotificationLogScreen
   renders admin copy in that colour). The details page carries the bottom-bar PICKER:
-  `onTabSelected = { index -> onCampsiteDetailsClicked(route.role, index) }`, the graph's callback
-  passed by the app root as `{ role, tab -> nav.goHome(role, tab) }` — Home opens on the named tab.
+  `onTabSelected = { tab -> onCampsiteDetailsClicked(route.role, tab) }` — the picker hands
+  over the tab's SCREEN (ui.md's `CampsiteDetailsScreen.onTabSelected: (Screen) -> Unit`), the
+  graph's callback passed by the app root as `{ role, tab -> nav.goHome(role, tab) }` — Home
+  opens on the named tab.
   Entrant content = `CampsiteRatingSection` + `LotteryJoinSection`.
 - Lottery edit/monitor/details/waitlist (registered by `lotteryGraph`, entered at LotteryMonitor):
   each composable `remember`s an ACTIVITY CLASS
@@ -380,10 +399,11 @@ line each; `nav` is the app controller, `homeNav` the nested one, all calls as s
   ui's activity class the renderer; registered by `campsiteGraph` — reached ONLY from the
   My Campsites tab's `onOpenMyCampsites`, a push on the app graph, so the live node is
   always the APP mount's): ctor gets `goHome` = the graph's `onNavHome` (the root passes
-  `nav.goHome(currentRole(), tabIndexOf(currentRole(), Screen.MyCampsites))` — back opens
-  Home NAMING the My Campsites tab and the bar lands there; reported regression 9: back
-  used to open the first tab; the root's `tabIndexOf` resolves the index by route equality
-  against ui.md's `tabsFor`, a miss coercing to the first tab) and `goBack` = the graph's
+  `nav.goHome(currentRole(), Screen.MyCampsites)` — back opens Home NAMING the My Campsites
+  tab and the bar lands there; reported regression 9: back used to open the first tab. The
+  name is a Screen, so no index is resolved anywhere: `HomeScreen` matches it against the
+  live bar's `tabsFor` destinations, a screen that bar does not show opening the first tab)
+  and `goBack` = the graph's
   `onNavBack` (the app mount passes `nav.navigateUp()` — pops the Monitor frame and
   re-exposes the live Home, whose nested graph is still on My Campsites) — plus
   `goToRegisterCampsite` = `onOpenCampsiteReg` (plain push →
@@ -417,13 +437,13 @@ line each; `nav` is the app controller, `homeNav` the nested one, all calls as s
   Explore-not-restored complaint; the design stays owner-approved as push-not-hoist — only the
   mechanism changed: a typed pop can never name a parameterized Home frame (see the
   regression-7 note in the Explore bridge), so the bridge simply does not pop.
-- `private fun NavController.goHome(role, tab = 0)` = navigate `Home(role, tab)` with
+- `private fun NavController.goHome(role, tab = null)` = navigate `Home(role, tab)` with
   `popUpTo<Screen.Home> { inclusive = true }; launchSingleTop = true` — kept as-is: even though
   the typed pop cannot name a live PARAMETERIZED Home frame (no instance route equals the class
   pattern, so it empties the stack), the following push re-establishes the Home frame, and the
-  net effect is a fresh `[Home]` whose NESTED graph restarts at `tabs[tab]` clamped
-  (`HomeScreen.initialTab`): callers that name a tab (CampsiteMonitor's back, the details-page
-  picker) land the bar there; the default opens the first tab.
+  net effect is a fresh `[Home]` whose NESTED graph restarts at the node owning the NAMED tab
+  (`HomeScreen.initialTab`, a Screen): callers that name a tab (CampsiteMonitor's back, the
+  details-page picker) land the bar there; naming none opens the first tab.
 
 **Pending-SCREEN bridge (typed)** — there are NO string route nodes left in the graph: the
 app's routing vocabulary is the sealed `Screen` set alone. Route TEXTS exist at one crossing
