@@ -88,6 +88,7 @@ import kotlin.collections.emptyList
 import com.example.campbnb.controller.AdminController
 import com.example.campbnb.ui.shared.toRole
 import com.example.campbnb.ui.admin.ProfileRemovedDialog
+import com.example.campbnb.ui.profile.ProfileScreen
 import com.example.campbnb.ui.campsite.CampsiteReviewsScreen
 
 @Composable
@@ -356,7 +357,83 @@ fun CampBnbApp(
                                 returnFunc = { nav.goHome(role) }
                             )
                         }
+                        HomeDestination.PROFILE -> {
+                            val user = deps.userModel.currentUser
+                            var isSaving by remember { mutableStateOf(false) }
+                            var isDeleting by remember { mutableStateOf(false) }
 
+                            ProfileScreen(
+                                role = role,
+                                initialName = user?.name ?: "",
+                                initialEmail = user?.email ?: "",
+                                initialPhone = user?.phone ?: "",
+                                isSaving = isSaving,
+                                isDeleting = isDeleting,
+                                onSave = { name, email, phone ->
+                                    val current = deps.userModel.currentUser
+                                    when {
+                                        current == null || isSaving -> Unit
+
+                                        current.name == name && current.email == email && current.phone == phone ->
+                                            Toast.makeText(context, "No changes to save", Toast.LENGTH_SHORT).show()
+
+                                        else -> {
+                                            isSaving = true
+                                            // Only these three fields are written to Firestore
+                                            val changes = mapOf(
+                                                "name" to name,
+                                                "email" to email,
+                                                "phone" to phone
+                                            )
+                                            Database.Users.writeEngine().update(current.id, changes) { result ->
+                                                isSaving = false
+                                                if (result.isSuccess) {
+                                                    deps.userModel.setCurrentUser(
+                                                        User(
+                                                            deviceId = current.deviceId,
+                                                            name = name,
+                                                            email = email,
+                                                            phone = phone,
+                                                            roles = current.roles
+                                                        )
+                                                    )
+                                                    Toast.makeText(context, "Profile saved", Toast.LENGTH_SHORT).show()
+                                                } else {
+                                                    Toast.makeText(
+                                                        context,
+                                                        "Couldn't save your profile. Try again.",
+                                                        Toast.LENGTH_SHORT
+                                                    ).show()
+                                                }
+                                            }
+                                        }
+                                    }
+                                },
+                                onDeleteProfile = {
+                                    val current = deps.userModel.currentUser
+                                    if (current != null && !isDeleting) {
+                                        isDeleting = true
+                                        Database.Users.writeEngine().delete(current.id) { result ->
+                                            isDeleting = false
+                                            if (result.isSuccess) {
+                                                deps.userModel.setCurrentUser(null)
+                                                nav.navigate(Screen.Start) {
+                                                    popUpTo(Screen.Start) { inclusive = true }
+                                                }
+                                            } else {
+                                                Toast.makeText(
+                                                    context,
+                                                    "Couldn't delete your profile. Try again.",
+                                                    Toast.LENGTH_SHORT
+                                                ).show()
+                                            }
+                                        }
+                                    }
+                                },
+                                onOpenSettings = { nav.navigate(Screen.Settings(role)) },
+                                onManageCampsites = { nav.navigate(Screen.CampsiteMonitorActivity(role)) }
+                            )
+                        }
                         else -> {
                             PlaceholderTab(destination)
                         }
