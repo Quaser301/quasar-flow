@@ -27,6 +27,7 @@ import com.example.campbnb.controller.CampsiteController
 import com.example.campbnb.controller.NotificationController
 import com.example.campbnb.controller.UserController
 import com.example.campbnb.data.CampsiteRepository
+import com.example.campbnb.data.NotificationCommand
 import com.example.campbnb.data.NotificationRepository
 import com.example.campbnb.data.NotificationUpdate
 import com.example.campbnb.data.UserRepository
@@ -97,25 +98,17 @@ private class ReviewsUiFakeCampsiteRepository : CampsiteRepository() {
 private class ReviewsUiFakeNotificationRepository : NotificationRepository {
     val saved = mutableListOf<Notification>()
 
-    override fun saveAll(notifications: List<Notification>, onDone: (Result<Unit>) -> Unit) {
-        saved.addAll(notifications)
-        onDone(Result.success(Unit))
-    }
-
-    override fun readAll(onSuccess: (List<Notification>) -> Unit, onFailure: (Exception) -> Unit) {
-        onSuccess(saved.toList())
-    }
-
-    override fun listenForUser(
-        userId: String,
-        onUpdate: (NotificationUpdate) -> Unit,
-        onError: (Exception) -> Unit
-    ): () -> Unit {
-        return {}
-    }
-
-    override fun markRead(notificationId: String, onDone: (Result<Unit>) -> Unit) {
-        onDone(Result.success(Unit))
+    override fun run(command: NotificationCommand) {
+        if (command is NotificationCommand.Save) {
+            saved.addAll(command.records)
+            command.onDone(Result.success(Unit))
+        } else if (command is NotificationCommand.Read) {
+            command.onSuccess(saved.toList())
+        } else if (command is NotificationCommand.Watch) {
+            command.onListening({})
+        } else if (command is NotificationCommand.MarkRead) {
+            command.onDone(Result.success(Unit))
+        }
     }
 }
 
