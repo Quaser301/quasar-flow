@@ -88,6 +88,27 @@ class CampsiteModel : ObservableModel<CampsiteModel>() {
         return 0
     }
 
+    /** The rating (with its review) this user gave a campsite, or null if they have not rated it. */
+    fun findRating(campsiteId: String, userId: String): Rating? {
+        for (rating in ratings) {
+            if (rating.campsiteId == campsiteId && rating.userId == userId) {
+                return rating
+            }
+        }
+        return null
+    }
+
+    /** Every rating (with its review) one campsite has received, for the reviews screen. */
+    fun ratingsFor(campsiteId: String): List<Rating> {
+        val found = mutableListOf<Rating>()
+        for (rating in ratings) {
+            if (rating.campsiteId == campsiteId) {
+                found.add(rating)
+            }
+        }
+        return found
+    }
+
     /** Stores the campsites that belong to the signed-in owner (US 02.03.01). */
     fun setOwnedCampsites(list: List<Campsite>) {
         ownedCampsites = list

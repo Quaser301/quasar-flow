@@ -146,8 +146,14 @@ class CampsiteController (
         model.selectCampsite(found)
     }
 
-    /** Saves a 1-5 star rating; rating again replaces the old one (US 01.13.01). */
-    fun saveRating(campsiteId: String, userId: String, stars: Int) {
+    /**
+     * Saves a 1-5 star rating; rating again replaces the old one (US 01.13.01). The review
+     * the user already wrote stays attached to the new rating.
+     *
+     * @param userName The name shown beside the rating on the reviews screen. If blank, the
+     * name saved with the user's earlier rating (if any) is kept.
+     */
+    fun saveRating(campsiteId: String, userId: String, stars: Int, userName: String = "") {
         if (userId.isBlank()) {
             model.setStatusMessage("Please sign in before rating")
             return
@@ -156,7 +162,16 @@ class CampsiteController (
             model.setStatusMessage("Rating must be between 1 and 5 stars")
             return
         }
-        val rating = Rating(campsiteId, userId, stars)
+        var review = ""
+        var shownName = userName
+        val earlier = model.findRating(campsiteId, userId)
+        if (earlier != null) {
+            review = earlier.review
+            if (shownName.isBlank()) {
+                shownName = earlier.userName
+            }
+        }
+        val rating = Rating(campsiteId, userId, stars, shownName, review)
         repo.saveRating(
             rating,
             onComplete = { result ->
@@ -165,6 +180,51 @@ class CampsiteController (
                     model.setStatusMessage("Thanks for rating!")
                 } else {
                     model.setStatusMessage("Could not save your rating")
+                }
+            }
+        )
+    }
+
+    /**
+     * Posts the written review attached to the user's star rating of a campsite, or replaces
+     * their earlier review (US 01.13.02). The user must have rated the campsite first, because
+     * the rating and the review are saved together.
+     *
+     * @param userName The name shown beside the review on the reviews screen.
+     * @param text The review. Blank text is refused; surrounding spaces are removed.
+     */
+    fun saveReview(campsiteId: String, userId: String, userName: String, text: String) {
+        if (userId.isBlank()) {
+            model.setStatusMessage("Please sign in before posting a review")
+            return
+        }
+        val earlier = model.findRating(campsiteId, userId)
+        if (earlier == null) {
+            model.setStatusMessage("Tap a star rating first, then post your review")
+            return
+        }
+        val review = text.trim()
+        if (review.isEmpty()) {
+            model.setStatusMessage("Please write a review before posting")
+            return
+        }
+        if (review.length > MAX_REVIEW_LENGTH) {
+            model.setStatusMessage("Reviews can be at most " + MAX_REVIEW_LENGTH + " characters")
+            return
+        }
+        var shownName = userName
+        if (shownName.isBlank()) {
+            shownName = earlier.userName
+        }
+        val rating = Rating(campsiteId, userId, earlier.stars, shownName, review)
+        repo.saveRating(
+            rating,
+            onComplete = { result ->
+                if (result.isSuccess) {
+                    replaceRating(rating)
+                    model.setStatusMessage("Review posted!")
+                } else {
+                    model.setStatusMessage("Could not post your review")
                 }
             }
         )
@@ -319,5 +379,10 @@ class CampsiteController (
             onSuccess = { campsites -> model.setOwnedCampsites(campsites) },
             onFailure = { error -> model.setStatusMessage("Could not load your campsites: " + error.message) }
         )
+    }
+
+    companion object {
+        /** The longest review allowed, so a review card stays a sensible size. */
+        const val MAX_REVIEW_LENGTH = 500
     }
 }

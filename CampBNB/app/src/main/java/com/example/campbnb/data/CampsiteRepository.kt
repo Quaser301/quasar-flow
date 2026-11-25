@@ -57,6 +57,11 @@ open class CampsiteRepository {
             .execute(onSuccess, onFailure)
     }
 
+    /** Reads one rating by its document id; the result is null if it no longer exists. */
+    open fun getRatingById(ratingId: String, onSuccess: (Rating?) -> Unit, onFailure: (Exception) -> Unit) {
+        Database.Ratings.readEngine().getById(ratingId, onSuccess, onFailure)
+    }
+
     /** Deletes one rating by its document id. */
     open fun deleteRating(ratingId: String, onComplete: (Result<Exception?>) -> Unit) {
         Database.Ratings.writeEngine().delete(ratingId, onComplete)
