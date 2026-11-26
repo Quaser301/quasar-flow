@@ -32,7 +32,8 @@ object NotificationRoutes {
         NotificationType.OWNER_NOTICE,
         NotificationType.CONFIRMATION,
         NotificationType.CANCELLATION,
-        NotificationType.REJECTION -> RESERVATIONS
+        NotificationType.REJECTION,
+        NotificationType.INVITE -> NOTIFICATIONS
 
         NotificationType.MESSAGE ->
             if (n.reservationId.isNotBlank()) "$CHAT/${n.reservationId}" else

@@ -31,7 +31,8 @@ fun BookingsScreen(
     pendingBookings: List<BookingCardData>,
     selectedTab: BookingTab,
     onTabSelected: (BookingTab) -> Unit,
-    onBookingClick: (BookingCardData) -> Unit = {}
+    onBookingClick: (BookingCardData) -> Unit = {},
+    onMessageOwnerClick: (BookingCardData) -> Unit = {}
 ) {
     val displayedBookings = when (selectedTab) {
         BookingTab.CONFIRMED -> confirmedBookings
@@ -117,9 +118,11 @@ fun BookingsScreen(
                         displayedBookings,
                         key = { it.id }
                     ) { booking ->
-                        BookingCard(booking) {
-                            onBookingClick(booking)
-                        }
+                        BookingCard(
+                            booking = booking,
+                            onClick = { onBookingClick(booking) },
+                            onMessageOwnerClick = { onMessageOwnerClick(booking) }
+                        )
                     }
                 }
             }
@@ -157,7 +160,8 @@ private fun BookingTabButton(
 @Composable
 private fun BookingCard(
     booking: BookingCardData,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    onMessageOwnerClick: () -> Unit
 ) {
     Card(
         modifier = Modifier.fillMaxWidth().testTag("booking_card").clickable(onClick = onClick),
@@ -189,6 +193,17 @@ private fun BookingCard(
 
             if (booking.guests > 0) {
                 Text("Guests: ${booking.guests}")
+            }
+
+            // allows entrants to start a conversation with the campsite owner
+            Button(
+                onClick = onMessageOwnerClick,
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = BookingGreen
+                )
+            ) {
+                Text("Message Owner")
             }
         }
     }
