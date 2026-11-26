@@ -378,54 +378,40 @@ class LotteryEditActivity(
                         ExposedDropdownMenuDefaults.TrailingIcon(expanded = inviteDropdownExpanded)
                     },
                     colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors(),
-                    modifier = Modifier.testTag("invite_field").fillMaxWidth()
+                    // the menu anchors on this field; without the anchor the panel
+                    // below has no owner and the dropdown never opens (regression 4)
+                    modifier = Modifier
+                        .testTag("invite_field")
+                        .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable)
+                        .fillMaxWidth()
                 )
 
-                // The invited-owner list scrolls with a locked height: the app can
-                // hold more owners than fit on the screen, and the menu used to
-                // grow to fit them all at once. Six candidate rows stay visible
-                // at a time and the rest are reached by scrolling.
-                if (inviteDropdownExpanded) {
-                    val inviteRowHeight = 56.dp
-                    val visibleInviteRows = 6
-                    Surface(
-                        color = Color.White,
-                        shape = RoundedCornerShape(16.dp),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(inviteRowHeight * visibleInviteRows)
-                    ) {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .verticalScroll(rememberScrollState())
-                                .padding(horizontal = 12.dp, vertical = 8.dp),
-                            verticalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            if (inviteeChoices.isEmpty()) {
-                                Text(
-                                    text = "No other owners to invite",
-                                    style = MaterialTheme.typography.bodyLarge
-                                )
-                            } else {
-                                inviteeChoices.forEach { candidate ->
-                                    val isSelected = candidate in checkedInvitees
+                // The invited-owner list is a dropdown menu, the same shape the campsite
+                // picker above uses: tapping a row checks that owner, and every candidate
+                // the app holds is offered.
+                ExposedDropdownMenu(
+                    expanded = inviteDropdownExpanded,
+                    onDismissRequest = { inviteDropdownExpanded = false }
+                ) {
+                    if (inviteeChoices.isEmpty()) {
+                        DropdownMenuItem(
+                            text = { Text("No other owners to invite") },
+                            modifier = Modifier.testTag("invite_choice"),
+                            onClick = { inviteDropdownExpanded = false }
+                        )
+                    } else {
+                        inviteeChoices.forEach { candidate ->
+                            val isSelected = candidate in checkedInvitees
+                            DropdownMenuItem(
+                                text = {
                                     Row(
                                         verticalAlignment = Alignment.CenterVertically,
                                         horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                        modifier = Modifier.fillMaxWidth().height(inviteRowHeight)
+                                        modifier = Modifier.fillMaxWidth()
                                     ) {
                                         Checkbox(
                                             checked = isSelected,
-                                            modifier = Modifier.testTag("invite_choice"),
-                                            onCheckedChange = { checked ->
-                                                checkedInvitees =
-                                                    if (checked) {
-                                                        checkedInvitees + candidate
-                                                    } else {
-                                                        checkedInvitees - candidate
-                                                    }
-                                            }
+                                            onCheckedChange = null
                                         )
                                         Column {
                                             Text(
@@ -441,8 +427,16 @@ class LotteryEditActivity(
                                             }
                                         }
                                     }
+                                },
+                                modifier = Modifier.testTag("invite_choice"),
+                                onClick = {
+                                    checkedInvitees = if (isSelected) {
+                                        checkedInvitees - candidate
+                                    } else {
+                                        checkedInvitees + candidate
+                                    }
                                 }
-                            }
+                            )
                         }
                     }
                 }
@@ -562,13 +556,24 @@ class LotteryEditActivity(
                 // close and draw now; the booking window moves onto today so the whole
                 // lifecycle can be tested
                 val closingLottery = initialLottery
+                // A lottery is force-closed once: once the draw is stored the button is
+                // no longer offered, and the edit form is left so the lottery view shows
+                // the closed record rather than the parameters this form still holds.
+                var forceClosed by remember { mutableStateOf(false) }
                 Button(
+                    enabled = !forceClosed,
                     onClick = {
                         controller.forceCloseLottery(
                             lottery = closingLottery,
                             nameOfCampsite = { id ->
                                 ownerCampsitesList.firstOrNull { it.id == id }?.campName
                                     ?: id
+                            },
+                            onDone = { stored ->
+                                if (stored) {
+                                    forceClosed = true
+                                    navigateBackwards()
+                                }
                             }
                         )
                     },

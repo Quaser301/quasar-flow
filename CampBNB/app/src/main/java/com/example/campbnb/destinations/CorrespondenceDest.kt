@@ -32,14 +32,16 @@ fun CorrespondenceDestination(
     openTab: String,
     openReservationId: String? = null,
     onNavBack: () -> Unit = {},
-    currentUserIsOwner: Boolean,
+    // Asked again each time the screen draws, so a user who signed in after the app's
+    // graph was built gets the tab shape their own role names.
+    currentUserIsOwner: () -> Boolean,
     userId: String,
     repo: NotificationRepository,
     notifController: NotificationController,
     msgController: MessageController,
     onNavToNotif: (screen: Screen) -> Unit,
 ) {
-    if (currentUserIsOwner) {
+    if (currentUserIsOwner()) {
         CorrespondenceScreen(
             tabLabels = listOf(
                 CorrespondenceTabs.NOTIFICATIONS_TAB,

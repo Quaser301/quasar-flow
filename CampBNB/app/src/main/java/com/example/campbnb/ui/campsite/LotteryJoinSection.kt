@@ -54,7 +54,8 @@ fun lotteryStatusText(lottery: Lottery?, joined: Boolean, position: Int): String
         return "No active lottery"
     }
     if (joined) {
-        return "You are on the waiting list (Position: $position)"
+        // joining names the lottery itself: the waiting list is a different thing
+        return "You have joined the lottery (Position: $position)"
     }
     return "Lottery open for entries"
 }

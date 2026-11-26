@@ -281,7 +281,9 @@ fun CampBnbApp(
         // notice resolves to, and these invisible frames open the view the notice
         // points at and pop themselves out of the stack.
         CorrespondenceGraph(
-            currentUserIsOwner = deps.currentUserIsOwner,
+            // read on each draw, not once when the graph is built (see the graph's own
+            // parameter): the sign-in runs after this graph exists
+            currentUserIsOwner = { deps.currentUserIsOwner },
             userId = deps.deviceID,
 
             userRepo = deps.userRepository,
@@ -485,7 +487,9 @@ fun CampBnbApp(
                 // Messages, Inbox and Bookings tabs: the same destinations, with
                 // a tap of a notice still running the app's own bridges above.
                 CorrespondenceGraph(
-                    currentUserIsOwner = deps.currentUserIsOwner,
+                    // read on each draw, not once when the graph is built (see the graph's own
+                    // parameter): the sign-in runs after this graph exists
+                    currentUserIsOwner = { deps.currentUserIsOwner },
                     userId = deps.deviceID,
 
                     userRepo = deps.userRepository,

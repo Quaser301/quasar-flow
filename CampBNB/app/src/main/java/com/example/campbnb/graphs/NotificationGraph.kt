@@ -30,7 +30,10 @@ import com.example.campbnb.ui.screens.CampsiteCardData
 
 
 fun NavGraphBuilder.CorrespondenceGraph(
-    currentUserIsOwner: Boolean,
+    // Asked again each time a screen draws, rather than read once when this graph is
+    // built: the sign-in runs after the app's graph exists, so a value taken here would
+    // name the wrong correspondence shape for every user who signs in later.
+    currentUserIsOwner: () -> Boolean,
     userId: String,
 
     userRepo: UserRepository,
@@ -59,7 +62,7 @@ fun NavGraphBuilder.CorrespondenceGraph(
             // viewer received: an owner's own list is the sent one, so their received notices
             // live under the Received tab, while every other viewer has a single notices tab.
             CorrespondenceDestination(
-                openTab = if (currentUserIsOwner) CorrespondenceTabs.RECEIVED_TAB else CorrespondenceTabs.NOTIFICATIONS_TAB,
+                openTab = if (currentUserIsOwner()) CorrespondenceTabs.RECEIVED_TAB else CorrespondenceTabs.NOTIFICATIONS_TAB,
                 onNavBack = onNavBack,
                 currentUserIsOwner = currentUserIsOwner,
                 userId = userId,

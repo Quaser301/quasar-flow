@@ -53,9 +53,6 @@ fun NavGraphBuilder.MiscGraph(
             back = onNavBack,
             role = role,
             viewSettings = appViewSettings,
-            entrantSettings = entrantSettings,
-            ownerSettings = ownerSettings,
-            notificationPreferences = notificationPreferences,
             appSettings = appSettings,
             userIdForSettings = userIdForSettings
         )
@@ -65,7 +62,9 @@ fun NavGraphBuilder.MiscGraph(
     // fields are written through the database and the delete drops the profile and
     // returns to the start. The role the profile shows is the signed-in user's own
     // privileges, the same derivation the sign-in and the code links use, so the
-    // profile never shows a role the user does not hold.
+    // profile never shows a role the user does not hold. The signed-in user's own
+    // settings are shown here too, which is why the settings controllers are handed
+    // to this mount rather than to the Settings screen.
     composable<Screen.Profile> {
         val context = LocalContext.current
         var isSaving by remember { mutableStateOf(false) }
@@ -123,6 +122,10 @@ fun NavGraphBuilder.MiscGraph(
                     }
                 }
             },
+            entrantSettings = entrantSettings,
+            ownerSettings = ownerSettings,
+            notificationPreferences = notificationPreferences,
+            userIdForSettings = userIdForSettings,
             onDeleteProfile = {
                 val current = userModel.currentUser
                 if (current != null && !isDeleting) {

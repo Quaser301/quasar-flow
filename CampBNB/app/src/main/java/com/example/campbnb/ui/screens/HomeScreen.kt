@@ -54,13 +54,17 @@ fun tabsFor(role: UserRole): List<HomeTab> = when (role) {
         HomeTab("Inbox", Screen.Inbox),
         HomeTab("Profile", Screen.Profile)
     )
+    // An admin acts as an owner, so their bar carries the screens an owner reaches:
+    // the correspondence Inbox and their own Profile, alongside the admin's own views.
     UserRole.ADMIN -> listOf(
         HomeTab("Explore", Screen.Explore),
         HomeTab("Messages", Screen.Messages),
+        HomeTab("Inbox", Screen.Inbox),
         HomeTab("Reports", Screen.Reports),
         HomeTab("Flagged", Screen.Flagged),
         HomeTab("Profiles", Screen.AdminProfileView),
-        HomeTab("Notifications", Screen.AdminNotificationView)
+        HomeTab("Notifications", Screen.AdminNotificationView),
+        HomeTab("Profile", Screen.Profile)
     )
 }
 
@@ -167,7 +171,11 @@ fun RoleBottomBar(
                 dest.route == routePrefix || dest.route?.startsWith("$routePrefix/") == true
             } == true
 
-            NavCircle(tab.label, selected = isSelected) { onSelect(tab) }
+            NavCircle(
+                tab.label,
+                selected = isSelected,
+                edgeDp = navCircleEdgeDp(tabs.size)
+            ) { onSelect(tab) }
         }
     }
 }
@@ -198,17 +206,25 @@ fun RoleBottomBar(
         verticalAlignment = Alignment.CenterVertically
     ) {
         tabs.forEachIndexed { index, tab ->
-            NavCircle(tab.label, selected = index == selectedIndex) { onSelect(tab.destination) }
+            NavCircle(
+                tab.label,
+                selected = index == selectedIndex,
+                edgeDp = navCircleEdgeDp(tabs.size)
+            ) { onSelect(tab.destination) }
         }
     }
 }
 
 
+// A bar that names more than six tabs draws its circles smaller: at the default size
+// eight of them no longer fit across the page and the last tabs are clipped out.
+private fun navCircleEdgeDp(tabCount: Int): Float = if (tabCount > 6) 40f else 52f
+
 @Composable
-private fun NavCircle(label: String, selected: Boolean, onClick: () -> Unit) {
+private fun NavCircle(label: String, selected: Boolean, edgeDp: Float = 52f, onClick: () -> Unit) {
     Box(
         Modifier
-            .size(52.dp)
+            .size(edgeDp.dp)
             .clip(CircleShape)
             .background(if (selected) Color.White else FieldGrey)
             .testTag("home_tab")

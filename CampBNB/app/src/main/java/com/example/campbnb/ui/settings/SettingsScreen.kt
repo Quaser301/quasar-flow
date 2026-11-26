@@ -68,7 +68,7 @@ fun groupLabel(groupId: SettingsGroupId): String = when (groupId) {
 }
 
 /**
- * Which dropdown groups the Settings screen shows, and in what order.
+ * Which dropdown groups a role's settings menu names, and in what order.
  *
  * An admin's own settings come first with the app view switch first there, and
  * while the admin is currently viewing as another role, that role's settings
@@ -105,18 +105,14 @@ fun settingsGroupsFor(role: UserRole, currentView: AppView): List<SettingsGroupI
  * done separately: this composable is only the body. Pressing back calls the passed-in
  * lambda, so the user goes back to the screen they were just on.
  *
- * The settings controllers should be created and kept by the caller, so their values
- * stay alive across re-renders; the defaults only serve standalone use.
+ * A user's own settings are no longer shown here: they live on the Profile view. This
+ * screen keeps the app view switch (only an admin may switch) and the app policy.
  */
 @Composable
 fun SettingsScreen(
     back: () -> Unit,
     role: UserRole,
     viewSettings: AppViewSettingController,
-    entrantSettings: EntrantSettingsController = EntrantSettingsController(),
-    ownerSettings: OwnerSettingsController = OwnerSettingsController(),
-    adminSettingsContent: @Composable () -> Unit = { AdminSettingsPlaceholder() },
-    notificationPreferences: NotificationPreferencesService = NoNotificationPreferencesService(),
     appSettings: AppSettingsService = NoAppSettingsService(),
     userIdForSettings: String = "",
 ) {
@@ -129,25 +125,16 @@ fun SettingsScreen(
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         BarWithBackChevronAndHeaderCentered(back, "Settings")
-        settingsGroupsFor(role, currentView.value).forEach { groupId ->
-            SettingsDropdown(display, groupId) {
-                when (groupId) {
-                    SettingsGroupId.APP_VIEW_SWITCH -> ViewSwitchMenu(
-                        display,
-                        viewSettings,
-                        appSettings,
-                        userIdForSettings
-                    )
-                    SettingsGroupId.ADMIN_SETTINGS -> adminSettingsContent()
-                    SettingsGroupId.ENTRANT_SETTINGS -> EntrantSettingsItems(
-                        settings = entrantSettings,
-                        notificationPreferences = notificationPreferences,
-                        userId = userIdForSettings
-                    )
-                    SettingsGroupId.OWNER_SETTINGS -> OwnerSettingsItems(ownerSettings)
+        // Only the app view switch is mounted here any more: the settings groups a
+        // role's menu names are drawn on that user's Profile view instead, and an
+        // admin holds no settings of their own.
+        settingsGroupsFor(role, currentView.value)
+            .filter { it == SettingsGroupId.APP_VIEW_SWITCH }
+            .forEach { groupId ->
+                SettingsDropdown(display, groupId) {
+                    ViewSwitchMenu(display, viewSettings, appSettings, userIdForSettings)
                 }
             }
-        }
 
         Spacer(modifier = Modifier.height(16.dp))
 
@@ -269,9 +256,15 @@ private fun ViewSwitchMenu(
     )
 }
 
-/** The entrant settings group: the entrant's settings entries. */
+/**
+ * The entrant settings entries, drawn by the signed-in user's Profile view.
+ *
+ * @param settings The holder of the entrant's own setting values.
+ * @param notificationPreferences The storage that keeps the chosen notification settings.
+ * @param userId The user whose record the chosen settings are saved under.
+ */
 @Composable
-private fun EntrantSettingsItems(
+fun EntrantSettingsItems(
     settings: EntrantSettingsController,
     notificationPreferences: NotificationPreferencesService,
     userId: String,
@@ -316,9 +309,13 @@ private fun EntrantSettingsItems(
     }
 }
 
-/** The owner settings group: the owner's placeholder settings entries. */
+/**
+ * The owner settings entries, drawn by the signed-in user's Profile view.
+ *
+ * @param settings The holder of the owner's own setting values.
+ */
 @Composable
-private fun OwnerSettingsItems(settings: OwnerSettingsController) {
+fun OwnerSettingsItems(settings: OwnerSettingsController) {
     val listingVisibility = settings.listingVisibilitySetting.collectAsStateWithLifecycle()
     val lotteryAccepting = settings.lotteryOpenSetting.collectAsStateWithLifecycle()
     val availabilityNotice = settings.availabilityNoticeSetting.collectAsStateWithLifecycle()
@@ -330,17 +327,6 @@ private fun OwnerSettingsItems(settings: OwnerSettingsController) {
     }
 }
 
-/** Placeholder admin settings groups: the admin's section is worked separately. */
-@Composable
-private fun AdminSettingsPlaceholder() {
-    Column (
-        verticalArrangement = Arrangement.spacedBy(16.dp)
-    )
-    {
-        SettingsEntry("Policy review", "placeholder")
-        SettingsEntry("Flagged content", "placeholder")
-    }
-}
 
 /** One label-and-current-value row of an opened group. */
 @Composable

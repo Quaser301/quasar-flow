@@ -56,12 +56,13 @@ object AppContainer: Dependencies {
     override var currentUserId by mutableStateOf(DEMO_ENTRANT)
 
     /**
-     * Whether the signed-in user holds the owner role, as recorded on their saved profile.
-     * This is what decides the owner's own sent notices view, so an owner reaches it
-     * however they signed in, not only as one of the demo users.
+     * Whether the signed-in user may act as an owner, as recorded on their saved profile:
+     * the owner role itself, or an admin, who acts as an owner and reaches every screen
+     * an owner does. This is what decides the owner's own sent notices view, so a user
+     * reaches it however they signed in, not only as one of the demo users.
      */
     override val currentUserIsOwner: Boolean
-        get() = userModel.currentUser?.roles?.contains(Role.OWNER) ?: false
+        get() = userModel.currentUser?.roles?.any { it == Role.OWNER || it == Role.ADMIN } ?: false
 
     /**
      * Creates the notification repository once, when first needed.

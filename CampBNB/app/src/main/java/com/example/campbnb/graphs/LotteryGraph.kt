@@ -143,10 +143,12 @@ fun NavGraphBuilder.LotteryGraph(
                     notification
                 ) { System.currentTimeMillis() }
             }
+            // the saved profiles name the entrants this screen lists
             activity.LotteryWaitlist(
                 model = model,
                 controller = controller,
-                selectedLottery = selectedLottery.value
+                selectedLottery = selectedLottery.value,
+                userRepository = userRepository
             )
         }
     }

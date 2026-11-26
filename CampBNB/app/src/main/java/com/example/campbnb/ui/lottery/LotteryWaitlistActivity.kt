@@ -37,6 +37,9 @@ import com.example.campbnb.controller.LotteryController
 import com.example.campbnb.models.Lottery
 import com.example.campbnb.models.LotteryModel
 import com.example.campbnb.models.WaitingListEntry
+import com.example.campbnb.data.UserRepository
+import com.example.campbnb.models.User
+import com.example.campbnb.ui.components.profileLabelOf
 import com.example.campbnb.ui.shared.AppViewModificationIsValidForCurrentWindowChecker
 import com.example.campbnb.ui.theme.ScreenGradient
 import com.example.campbnb.viewModels.AppView
@@ -65,18 +68,21 @@ class LotteryWaitlistActivity(
     /**
      * Renders the entrant waitlist for a selected lottery.
      *
-     * Loads waitlist entries via [controller] on launch and displays them in a scrollable
-     * list showing each entrant's user ID and timestamp when they joined.
+     * Loads the entries of a lottery via [controller] on launch and displays them in a
+     * scrollable list: these are the people who entered the lottery, so each one is named
+     * by their profile's display name and the time they joined.
      *
      * @param model The lottery state model shown by views.
      * @param controller The controller managing lottery database actions.
-     * @param selectedLottery The [Lottery] instance whose waitlist is displayed; null if none selected.
+     * @param selectedLottery The [Lottery] instance whose entrants are displayed; null if none selected.
+     * @param userRepository The saved profiles, which give an entrant reference the name to show.
      */
     @Composable
     fun LotteryWaitlist(
         model: LotteryModel,
         controller: LotteryController,
-        selectedLottery: Lottery? = null
+        selectedLottery: Lottery? = null,
+        userRepository: UserRepository = UserRepository()
     ) {
         AppViewModificationIsValidForCurrentWindowChecker(
             returnHome,
@@ -88,12 +94,19 @@ class LotteryWaitlistActivity(
         )
 
         var entriesList by remember { mutableStateOf<List<WaitingListEntry>>(emptyList()) }
+        var knownUsers by remember { mutableStateOf<List<User>>(emptyList()) }
 
         LaunchedEffect(selectedLottery) {
             if (selectedLottery != null && selectedLottery.id.isNotBlank()) {
                 controller.loadWaitlistEntries(selectedLottery.id) { entries ->
                     entriesList = entries
                 }
+                // an entry carries a profile reference, not a name, so the saved
+                // profiles are read once to name the entrants below
+                userRepository.getAll(
+                    onSuccess = { users -> knownUsers = users },
+                    onFailure = { }
+                )
             }
         }
 
@@ -125,7 +138,7 @@ class LotteryWaitlistActivity(
                         Text("Back")
                     }
                     Text(
-                        text = "Lottery Waitlist",
+                        text = "Lottery Entrants",
                         fontSize = 24.sp,
                         fontWeight = FontWeight.Bold,
                         color = Color.White
@@ -150,7 +163,7 @@ class LotteryWaitlistActivity(
                         verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
                         Text(
-                            text = "Entrant Waitlist (${entriesList.size})",
+                            text = "Lottery Entrants (${entriesList.size})",
                             style = MaterialTheme.typography.titleLarge,
                             fontWeight = FontWeight.Bold
                         )
@@ -163,7 +176,7 @@ class LotteryWaitlistActivity(
                             )
                         } else if (entriesList.isEmpty()) {
                             Text(
-                                text = "No entrants on this waitlist yet.",
+                                text = "No one has entered this lottery yet.",
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = Color.Gray,
                                 modifier = Modifier.padding(top = 16.dp)
@@ -185,7 +198,7 @@ class LotteryWaitlistActivity(
                                             verticalArrangement = Arrangement.spacedBy(4.dp)
                                         ) {
                                             Text(
-                                                text = "User ID: ${entry.userId}",
+                                                text = profileLabelOf(entry.userId, knownUsers),
                                                 style = MaterialTheme.typography.bodyMedium,
                                                 fontWeight = FontWeight.Bold
                                             )

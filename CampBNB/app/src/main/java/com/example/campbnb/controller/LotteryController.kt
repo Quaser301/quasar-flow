@@ -118,9 +118,10 @@ class LotteryController(
     }
 
     /**
-     * Puts the user on the waiting list if registration is open, there is room, and they
-     * are not already on it (US 01.01.06, 01.02.01). The result is reported through the
-     * model's status message.
+     * Puts the user into the lottery if registration is open, there is room, and they
+     * are not already in it (US 01.01.06, 01.02.01). The result is reported through the
+     * model's status message. The record that holds an entrant is still named for the
+     * waiting list, but what the user hears names the lottery, which is what they joined.
      */
     fun join(lottery: Lottery, userId: String) {
         if (userId.isBlank()) {
@@ -136,9 +137,9 @@ class LotteryController(
             lottery.id,
             onSuccess = { entries ->
                 if (containsUser(entries, userId)) {
-                    model.setStatusMessage("You are already on the waiting list")
+                    model.setStatusMessage("You are already in this lottery")
                 } else if (isWaitlistFull(lottery, entries.size)) {
-                    model.setStatusMessage("The waiting list is full")
+                    model.setStatusMessage("The lottery is full")
                 } else {
                     addToWaitlist(lottery, userId, now)
                 }
@@ -147,7 +148,7 @@ class LotteryController(
         )
     }
 
-    /** Takes the user off the waiting list (US 01.02.02). */
+    /** Takes the user out of the lottery they joined (US 01.02.02). */
     fun leave(lottery: Lottery, userId: String) {
         if (userId.isBlank()) {
             model.setStatusMessage("Please sign in before leaving a lottery")
@@ -158,10 +159,10 @@ class LotteryController(
             userId,
             onComplete = { result ->
                 if (result.isSuccess) {
-                    model.setStatusMessage("You left the waiting list")
+                    model.setStatusMessage("You left the lottery")
                     loadWaitlist(lottery, userId)
                 } else {
-                    model.setStatusMessage("Could not leave the waiting list")
+                    model.setStatusMessage("Could not leave the lottery")
                 }
             }
         )
@@ -173,10 +174,10 @@ class LotteryController(
             entry,
             onComplete = { result ->
                 if (result.isSuccess) {
-                    model.setStatusMessage("You joined the waiting list")
+                    model.setStatusMessage("You have joined the lottery")
                     loadWaitlist(lottery, userId)
                 } else {
-                    model.setStatusMessage("Could not join the waiting list")
+                    model.setStatusMessage("Could not join the lottery")
                 }
             }
         )

@@ -37,6 +37,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.campbnb.data.NoNotificationPreferencesService
+import com.example.campbnb.data.NotificationPreferencesService
+import com.example.campbnb.ui.settings.EntrantSettingsItems
+import com.example.campbnb.ui.settings.OwnerSettingsItems
+import com.example.campbnb.viewModels.EntrantSettingsController
+import com.example.campbnb.viewModels.OwnerSettingsController
 import com.example.campbnb.ui.components.UserRole
 
 private val CampGreen = Color(0xFF3B6D11)
@@ -61,6 +67,10 @@ private const val DELETE_PHRASE = "DELETE"
  * @param onDeleteProfile Called once the user has typed the confirmation phrase and confirmed.
  * @param isSaving True while a save is in flight; taps are ignored and the button shows "Saving…".
  * @param isDeleting True while a delete is in flight; the dialog's confirm button is locked.
+ * @param entrantSettings The signed-in camper's own setting values (camper only).
+ * @param ownerSettings The signed-in owner's own setting values (owner only).
+ * @param notificationPreferences The storage that keeps the chosen notification settings.
+ * @param userIdForSettings The user the chosen settings are saved under.
  *
  * @author Zino
  */
@@ -75,7 +85,11 @@ fun ProfileScreen(
     onManageCampsites: () -> Unit,
     onDeleteProfile: () -> Unit,
     isSaving: Boolean = false,
-    isDeleting: Boolean = false
+    isDeleting: Boolean = false,
+    entrantSettings: EntrantSettingsController = EntrantSettingsController(),
+    ownerSettings: OwnerSettingsController = OwnerSettingsController(),
+    notificationPreferences: NotificationPreferencesService = NoNotificationPreferencesService(),
+    userIdForSettings: String = "",
 ) {
     var name by remember(initialName) { mutableStateOf(initialName) }
     var email by remember(initialEmail) { mutableStateOf(initialEmail) }
@@ -184,6 +198,28 @@ fun ProfileScreen(
             modifier = Modifier.fillMaxWidth().height(48.dp)
         ) {
             Text(if (isSaving) "Saving…" else "Save changes")
+        }
+
+        // The user's own settings live on their profile: the Settings screen keeps only
+        // the app view switch and the app policy. An admin holds no settings of their own.
+        if (role != UserRole.ADMIN) {
+            Spacer(Modifier.height(16.dp))
+            Text(
+                "My settings",
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Medium,
+                modifier = Modifier.fillMaxWidth()
+            )
+            Spacer(Modifier.height(8.dp))
+            if (role == UserRole.CAMPER) {
+                EntrantSettingsItems(
+                    settings = entrantSettings,
+                    notificationPreferences = notificationPreferences,
+                    userId = userIdForSettings
+                )
+            } else {
+                OwnerSettingsItems(ownerSettings)
+            }
         }
 
         Spacer(Modifier.height(16.dp))
