@@ -110,10 +110,12 @@ sealed interface LogViewState {
 }
 class NotificationLogViewModel(
     source: NotificationRepository,               // SEAM — fake this (interface)
+    showDbIds: Boolean = true,                    // may this viewer read a raw db key?
     profileLabel: (String) -> String,             // resolver: pass a plain lambda
 ) : ViewModel()
     val state: StateFlow<LogViewState>            // starts Loading
     val openLogs: StateFlow<Set<String>>          // which dropdowns are open, starts EMPTY
+    fun entryIdFor(logId: String): String         // the db key an entry is looked up by
 ```
 
 Runs `readLog()` at construction (`init`).
@@ -138,6 +140,12 @@ Runs `readLog()` at construction (`init`).
   profiles loaded after the log opened re-resolve profile references — bar senders and
   receiver lines alike — to names.
 - The log is read again ONLY on demand (`readLog()` re-run by the screen's refresh tap).
+- `showDbIds` is handed to `notificationLogLinesFor` (`models.md`) on every line-building
+  step, so a viewer who may not read raw database keys never sees one.
+- `entryIdFor(logId)` answers the `notificationId` of the group a log line belongs to, or
+  `""` when no read has succeeded or the name matches no entry. The screens use it as the
+  id to hand a removal: the log's own name IS the entry's db key, so a delete control needs
+  no extra vocabulary of its own.
 
 This ViewModel IS JVM-reachable: fake the `NotificationRepository` (in-file fake of the
 interface handling `NotificationCommand.Read`), pass any `profileLabel` lambda

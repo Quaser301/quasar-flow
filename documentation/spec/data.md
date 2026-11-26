@@ -125,6 +125,7 @@ sealed interface NotificationCommand {
                      val onError: (Exception) -> Unit,
                      val onListening: (stop: () -> Unit) -> Unit) : NotificationCommand
     data class MarkRead(val notificationId: String, val onDone: (Result<Unit>) -> Unit) : NotificationCommand
+    data class Delete(val notificationId: String, val onDone: (Result<Unit>) -> Unit) : NotificationCommand
 }
 
 interface NotificationRepository {
@@ -140,6 +141,10 @@ Contracts:
   receives it. It is asked once per explicit tap, never followed.
 - `Watch` follows one user live; `onListening` is called exactly once with a function that
   stops following.
+- `Delete` removes ONE saved entry by its id — the entry stops existing, it is not marked as
+  read. A blank `notificationId` answers `Result.failure(IllegalArgumentException("notificationId is required"))`
+  with no write; a missing entry is left to the store (the real provider's document delete
+  succeeds on a missing id, the fake answers a failure so a test can see the miss).
 - `NotificationUpdate.all` = every notification that user currently has;
   `NotificationUpdate.added` = only the ones new since the previous update.
 
@@ -158,6 +163,9 @@ Provider contracts:
   `all` and only `documentChanges` of type ADDED as `added`.
 - `MarkRead` writes field `status = NotificationStatus.READ.name` and
   `readAt = server timestamp`.
+- `Delete` removes the document at `notificationId` (`collection.document(id).delete()`), so
+  the entry stops appearing in every listing — the sent half, the received half and the log
+  alike. A blank id answers the `IllegalArgumentException` above without touching the store.
 
 ## SentNotificationsRepository.kt — a permission-scoped VIEW over a store
 
@@ -262,6 +270,27 @@ fun markRejected(reservationId, onSuccess, onFailure)                // == close
 Internal rules worth knowing for fake engines: date release never blocks — a failed delete
 is skipped, and an empty date list calls its continuation immediately.
 
+## CampsiteRemovalRepository.kt — the clean-up boundary after an admin deletes a campsite
+
+`open class CampsiteRemovalRepository` — no constructor parameters; all members `open`. It
+wraps the existing `ReservationRepository` and the lottery engines rather than changing them,
+so an admin's deletion (US 03.01.01) has one seam to fake. The wrapped `ReservationRepository`
+is built on first use, so constructing this class never touches Firebase.
+
+```kotlin
+open fun getActiveReservations(campsiteId, onSuccess: (List<ReservationModel>) -> Unit,
+    onFailure: (Exception) -> Unit)                    // delegates to reservations.getActive
+open fun getActiveReservationsOfEntrant(entrantId, onSuccess: (List<ReservationModel>) -> Unit,
+    onFailure: (Exception) -> Unit)                    // reservations.getForEntrant, then kept
+                                                      // only if status == ACTIVE AND endDate >= today
+open fun cancelReservation(reservationId, onComplete: (Result<Unit>) -> Unit)  // markCancelled, mapped
+open fun deleteLottery(lotteryId, onComplete: (Result<Exception?>) -> Unit)
+open fun saveLottery(lottery, onComplete: (Result<Exception?>) -> Unit)       // id already set: replaces
+```
+
+`cancelReservation` maps the wrapped store's continuations into one `Result<Unit>`; the
+reservation's id IS the lottery entry id, which is what makes cancelling it free the dates.
+
 ## UserRepository.kt — users
 
 `open class UserRepository` — no constructor parameters; all members `open`.
@@ -272,11 +301,17 @@ open fun save(user: User, onComplete: (Result<Exception?>) -> Unit)
 open fun delete(userId: String, onComplete: (Result<Exception?>) -> Unit)
 open fun getAll(onSuccess: (List<User>) -> Unit, onFailure: (Exception) -> Unit)
 open fun getOptedOut(onSuccess: (List<User>) -> Unit, onFailure: (Exception) -> Unit)
+open fun listenForRemoval(userId, onRemoved: () -> Unit): (() -> Unit)
 ```
 
 - `findByDeviceId` reads by document id; a missing id answers `null`, not an error.
 - `save` creates or replaces; `delete` removes.
 - `getOptedOut` answers users whose `notificationsEnabled` field is false.
+- `listenForRemoval` follows ONE document and answers `onRemoved` only on the transition
+  from existing to gone — the first snapshot that shows the document sets a flag, and only a
+  later snapshot without it fires. A blank `userId` never watches and hands back a no-op `{}`.
+  The return value is the stop function (`registration.remove()`); a caller must call it when
+  the screen that started watching goes away.
 
 ## FileDownloadWriter.kt — the shared download sink
 

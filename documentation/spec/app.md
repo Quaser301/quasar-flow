@@ -328,23 +328,26 @@ line each; `nav` is the app controller, `homeNav` the nested one, all calls as s
     back is that mount's `onNavBack` = `homeNav.navigateUp()` (pops the tab's own frame;
     Explore stays under every other tab — the same net effect as the old
     `goBack = nav.goHome(role)`). The view's grouping rules are the graph's, below.
-  - PROFILE/REPORTS/FLAGGED→`MiscGraph`'s `PlaceholderTab(label)` nodes; its `Settings`
-    node is same-mounted but is no tab — only the Explore settings button reaches it, and
-    that callback runs on the app `nav`, so the reachable `Settings` is the APP mount's.
-    The button pushes `Screen.Settings(signedInRole())`, NOT `currentRole()`: the Settings
-    screen's `role` is the role the signed-in profile holds (`deps.userModel.currentUser`'s
-    roles, ADMIN > OWNER > ENTRANT — the same pick the sign-in makes), while its view comes
-    from the shared `AppViewSettingController`. The two are different things and the screen
-    needs both: `settingsGroupsFor` keeps the app-view switch and the admin settings mounted
-    for an admin who is currently viewing as another role, and a view-derived role would hide
-    the switch, which is what locked an admin out of their admin abilities for good after
-    they switched views and closed the app.
+  - PROFILE/REPORTS/FLAGGED→`MiscGraph`'s nodes; PROFILE is `ProfileScreen`, which now
+    carries the whole settings surface (see the Profile node below). Its `Settings` node is
+    same-mounted but is no tab — nothing reaches it any more: the Explore settings button and
+    the Profile's "Settings and app policy" row were both removed once every setting was read
+    from the Profile view, so the node stays registered (the owner has not asked to delete it)
+    but is currently unreachable. Whether it is dropped or given an entry is the owner's call.
+    The `role` a `Settings` frame carries is the role the signed-in profile holds
+    (`deps.userModel.currentUser`'s roles, ADMIN > OWNER > ENTRANT — the same pick the sign-in makes),
+    while its view comes from the shared `AppViewSettingController`. The two are different
+    things and a settings surface needs both: a view-derived role would hide the app-view
+    switch, which is what locked an admin out of their admin abilities for good after they
+    switched views and closed the app.
   - ADMIN_PROFILE_VIEW→`DebugGraph`'s start node: `loadAllUsers()` then
     `AdminProfilesScreen(onNavBack, userModel)`; ADMIN_NOTIFICATION_VIEW→
     `NotificationLogScreen(title = "Notification Debugging", notificationSource =
     deps.notificationRepository, profileText = { userId -> profileLabelOf(userId,
-    userModel.allUsers) })` (the debug log resolves profile references via ui.md's
-    `profileLabelOf`, against the saved users loaded above). `DebugGraph`'s screens are
+    userModel.allUsers) }, deleteNotice = …)` (the debug log resolves profile references via ui.md's
+    `profileLabelOf`, against the saved users loaded above; it is the ONLY view that keeps the
+    raw `db id` segment, and its own `deleteNotice` runs the same `NotificationCommand.Delete`
+    with no toast channel of its own — the admin reading raw fields removes an entry outright). `DebugGraph`'s screens are
     only ever reachable through the bar — its app-mount copy stays registered and
     unreachable.
   (Screens with no entry at the mount that registers them — the APP mount's tab nodes
@@ -375,7 +378,14 @@ line each; `nav` is the app controller, `homeNav` the nested one, all calls as s
   `deps.adminController.removeCampsite(target, reason, deps.currentUserId)` Toast
   `"Removed the site and told its owner."`/`"Could not remove the site."`; `onRemoveTag`→
   `removeTag(target, tag, reason, …)` Toast `"Removed the tag and told the site's owner."`/`"Could not remove the tag."`
-  (controller.md owns the record-building rules). The action area is one hamburger per role (feature 2):
+  (controller.md owns the record-building rules). DIVERGENCE, left as the owner's call rather
+  than silently changed: the live `onDeleteSite` calls `adminController.deleteCampsite(campsiteId, reason)`
+  — the whole-record deletion that cascades through `CampsiteRemovalRepository` (controller.md
+  documents BOTH `removeCampsite` as the policy action and `deleteCampsite` as the whole-record
+  deletion; only the second is wired here). The tag picker lists the tags THIS page shows, which
+  fold the listing's own tags and its amenities together, while `removeTag` takes one out of
+  `campsite.tags` only — so picking an amenity answers the failure toast. Whether the two
+  vocabularies are meant to be one is the owner's call. The action area is one hamburger per role (feature 2):
   the CAMPER's whole "Lottery" action Column exists ONLY while the campsite has a lottery
   active for the signed-in camper — the graph passes `lotteryButtonEnabled =
   detailsLotteryModel.entrantLottery != null` and the ui half gates the ENTIRE Column on it,
@@ -440,15 +450,24 @@ line each; `nav` is the app controller, `homeNav` the nested one, all calls as s
   `"Could not load reservations: …"`. Hands `ReservationScreen(... csvPreferences = notificationPreferencesService,
   currentUserId = currentUserID, fileDownloadWriter …)` (CSV download ↔ controller.md's `generateReceiptCsv`).
 - The `Settings` node (`MiscGraph`): `SettingsScreen(back = onNavBack, role = route.role,
-  viewSettings = appViewSettings, entrantSettings, ownerSettings, notificationPreferences =
-  deps.notificationPreferencesService, appSettings = deps.appSettingsService,
+  viewSettings = appViewSettings, appSettings = deps.appSettingsService,
   userIdForSettings = deps.currentUserId)` — the app root's parameters; at the app mount
   `onNavBack = nav.navigateUp()`. That back pairs with the Explore settings button's PLAIN
-  push above: nothing was popped there, so Home is still mounted underneath and `navigateUp`
-  pops Settings and re-exposes the SAME live Home (Explore selected, cards intact). This was the
-  Explore-not-restored complaint; the design stays owner-approved as push-not-hoist — only the
-  mechanism changed: a typed pop can never name a parameterized Home frame (see the
-  regression-7 note in the Explore bridge), so the bridge simply does not pop.
+  push above: nothing was pushed any more (see the unreachable-node note above), so the pairing
+  is kept only in case the node is given an entry again.
+- The `Profile` node (`MiscGraph`, bare): `ProfileScreen(role, initialName/initialEmail/initialPhone
+  from `userModel.currentUser`, onSave writes ONLY those three fields through
+  `Database.Users.writeEngine().update`, onDeleteProfile deletes the profile and calls
+  `navToStart`, onManageCampsites opens My Campsites for an owner, isSaving/isDeleting guard
+  repeat taps)` PLUS the settings surface: the signed-in viewer's own settings (`EntrantSettingsItems`
+  for a camper, `OwnerSettingsItems` for an owner — the same public entries the settings package
+  owns, so the words live in one place), the app view switch for an ADMIN only (the same public
+  `SettingsDropdown` + `ViewSwitchMenu`, through a `SettingsDisplayController()` the view holds
+  itself, with `viewSettings = appViewSettings` and `appSettings = deps.appSettingsService`),
+  and the `App Policy` bar every role gets, opening the shared `AppPolicyDialog`. An admin
+  holds no settings of their own, so where their own-settings section would sit is the switch.
+  The settings controllers are handed to this mount rather than to the Settings screen, which
+  is why the app root builds them here.
 - `fun NavController.goHome(role, tab = null)` — a LOCAL extension of the app's `nav`, inside
   `CampBnbApp`, because it needs `deps`: it writes `deps.homeTab = tab` and THEN navigates
   `Home(role)` with `popUpTo<Screen.Home> { inclusive = true }; launchSingleTop = true`. The
@@ -560,7 +579,14 @@ destination owns where back and outward jumps go. Signatures (as declared):
   onNavToNotif: (screen: Screen) -> Unit)`: ui's `CorrespondenceScreen` with the tabs this
   viewer has (tab wiring above); `openTab` names which one opens (`CorrespondenceTabs`,
   ui.md); a non-null `openReservationId` opens the Messages tab straight into that
-  reservation's chat.
+  reservation's chat. Every branch is handed a `deleteNotice: (String) -> Unit`: the graph
+  builds one that runs data.md's `NotificationCommand.Delete` over the entry the viewer was
+  shown and toasts `"Removed the notice."`/`"Could not remove the notice."` on failure, so
+  each viewer can remove their OWN notices from either half — the sent list is scoped to the
+  viewer, the received list is theirs by recipient, and either way the entry stops existing
+  rather than being marked read. The sent half also draws its bars with `rawIdsAllowed = false`:
+  a person reading the notices they caused is not reading database keys, and only the admin's
+  own debug view leaves that default true.
 - `destinations/InvitationDest.kt` — `InvitationDestination(viewerId, notificationController,
   navToLotteryMon, navToReservations, goToReservations, lotteryId = null)`: one lottery's
   invitation panel (bridge section above; the accept runs through a fresh

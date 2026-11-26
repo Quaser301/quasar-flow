@@ -365,6 +365,27 @@ shows):
 - INCOMPLETE_LISTING → text `"it was never complete enough to book"`, label `"Never complete"`
 Both are top-level functions (import as `com.example.campbnb.models.policyReasonText` etc.).
 
+## RemovalReason — the vocabulary an admin picks when deleting a whole record
+
+```kotlin
+enum class RemovalReason(val label: String) {
+    INAPPROPRIATE_CONTENT("Inappropriate content"),
+    HARASSMENT("Harassment or abuse"),
+    SPAM_OR_FAKE("Spam or fake information"),
+    FRAUD("Fraud or scam"),
+    OTHER("Other policy violation")
+}
+```
+
+A separate vocabulary from `PolicyReason`: `PolicyReason` is what the app's own policy acts
+on (a listing edited out of someone else's record, `controller.md`'s `removeCampsite`/
+`removeTag`); `RemovalReason` is what an admin names when the whole record is deleted
+(`deleteProfile`, `deleteCampsite`) and is what a reason picker shows. The `label` is the
+only text: the same words appear in the picker and in the affected user's notice
+(`controller.md` appends ` Reason: <label>.`). The reason is OPTIONAL for a deletion — with
+`null` the notice simply says the record was removed for violating the app policy. The
+wording is a placeholder until further implementation.
+
 ## Notification log — grouping saved records into log lines
 
 From `NotificationLogModel.kt` (a model area, not a class — data + pure functions):
@@ -375,7 +396,8 @@ data class NotificationLogGroup(logId, senderId: String, recipientIds: List<Stri
 data class NotificationLogLine(lineKey, logId, text: String, style: LogLineStyle)
 fun notificationLogKeyOf(notification: Notification): String
 fun notificationLogGroupsFor(notifications: List<Notification>): List<NotificationLogGroup>
-fun notificationLogLinesFor(logs, openLogIds: Set<String>, profileLabel: (String) -> String): List<NotificationLogLine>
+fun notificationLogLinesFor(logs, openLogIds: Set<String>,
+    showDbIds: Boolean = true, profileLabel: (String) -> String): List<NotificationLogLine>
 ```
 - Group key joins the broadcast-describing fields, NOT the per-receiver ones:
   `"<senderId>_<type.name>_<title>_<message>_<lotteryId>_<reservationId>_<campsiteName>"`.
@@ -388,7 +410,7 @@ fun notificationLogLinesFor(logs, openLogIds: Set<String>, profileLabel: (String
   looks the entry up in the collection by (records of one broadcast differ only per
   receiver, so any of their keys resolves to the same raw field values).
   Entry order = input order (the CALLER sorts newest-first; this function does not sort).
-- `summaryLineOf` (collapsed bar text): `"sent by <senderId resolved through the caller's profileLabel; an empty senderId draws \"the system\">  -  <n> recipient(s)  -  <sentAtLabel>  -  opens <entry campsiteName when it is non-blank, ELSE the routeText>  -  db id <notificationId>"` — two spaces around the `-` separators. The bar NAMES both ends: the sender is resolved like every other reference, and the place a notice opens is drawn from the record's OWN copied name (generators copy the campsite name, falling back to the literal `"the campsite"`), so no route reference leaks; records that copied no name keep their plain section route, which carries no reference either. The `db id` segment is raw on purpose: it is the Notification UUID an admin looks the entry up in the database by to read raw field values.
+- `summaryLineOf` (collapsed bar text): `"sent by <senderId resolved through the caller's profileLabel; an empty senderId draws \"the system\">  -  <n> recipient(s)  -  <sentAtLabel>  -  opens <entry campsiteName when it is non-blank, ELSE the routeText>  -  db id <notificationId>"` — two spaces around the `-` separators. The bar NAMES both ends: the sender is resolved like every other reference, and the place a notice opens is drawn from the record's OWN copied name (generators copy the campsite name, falling back to the literal `"the campsite"`), so no route reference leaks; records that copied no name keep their plain section route, which carries no reference either. The `db id` segment is raw on purpose and appears ONLY while `showDbIds` is true: it is the Notification UUID an admin looks the entry up in the database by to read raw field values, and a viewer who is not reading raw fields gets a bar that ends where the notice opens. `showDbIds` sits BEFORE `profileLabel` in the parameter list so a caller that hands the resolver as a trailing lambda keeps working.
 - `notificationLogLinesFor`: a CLOSED entry yields only its bar (`"<summary> - tap to open"`,
   style DROPDOWN, key = logId); an OPEN one yields bar (`"... - open"`) then one line per
   receiver (`profileLabel(receiver)`, key `"<logId>#receiver#<receiver>"`, style RECIPIENT),

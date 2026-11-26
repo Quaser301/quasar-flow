@@ -76,6 +76,8 @@ object Conversations {
 class NotificationController(private val repo: NotificationRepository,
     private val optOutChecker: OptOutChecker = OptOutChecker.AllowAll)
 fun notify(intent: NotificationIntent, onDone: (Result<Int>) -> Unit = {})
+fun sendNotice(recipientId, title, message,
+    actorId: String = "", onDone: (Result<Unit>) -> Unit = {})
 fun listen(userId, onUpdate: (NotificationUpdate) -> Unit, onError: (Exception) -> Unit): (() -> Unit)
 fun readAll(onSuccess: (List<Notification>) -> Unit, onFailure: (Exception) -> Unit)
 fun markRead(notificationId: String, onDone: (Result<Unit>) -> Unit = {})
@@ -143,6 +145,17 @@ Record wording — exact per family (`recordFor`; a family not listed for a type
     body `The tag <removedTag> was removed from your campsite <place> because <policyReasonText(reason)>.`
   - `senderId = actorUserId` (the admin), `campsiteName = <place>`.
 
+`sendNotice` is the one entry point for an event that has NO `NotificationIntent` of its own
+— an admin deleting a whole record names a title and a body directly rather than adding a
+type to the event vocabulary. Blank `recipientId` → `Result.failure(IllegalArgumentException("recipientId is required"))`,
+nothing stored. Otherwise `filterAllowed` over the single recipient, then ONE record
+`type = OWNER_NOTICE`, `pushAllowed` from the allowed list, saved through `Save`. `onDone`
+defaults to ignoring the result, so a notice that failed to store never fails the action that
+caused it. `actorId` names the person who caused the notice and becomes the record's `senderId`
+— an admin who removed someone else's listing caused it, so the notice sits in that admin's
+sent half and in the owner's received half, never in the owner's own sent half. A blank
+`actorId` leaves `senderId` blank: the app itself caused it and no person is named.
+
 `listen`: runs `Watch` and returns the stop function the repository hands to
 `onListening` — the repository MUST invoke `onListening` synchronously inside `run`
 (the provider does); if it never does, `listen` returns a no-op `{}`. A fake store that
@@ -151,14 +164,27 @@ will be `listen`ed to must call `onListening`.
 `readAll` passes `Read` straight through (one read, never followed — the debug log's own
 rule); `markRead` passes `MarkRead` through.
 
-## AdminController — policy actions over someone else's listing
+## AdminController — admin removals, and policy actions over someone else's listing
 
 ```kotlin
-class AdminController(private val campsiteRepository: CampsiteRepository,
-    private val notificationController: NotificationController)
+class AdminController(private val userController: UserController,
+    private val userRepo: UserRepository,
+    private val campsiteRepo: CampsiteRepository,
+    private val lotteryRepo: LotteryRepository,
+    private val notifier: NotificationController,
+    private val removalRepo: CampsiteRemovalRepository = CampsiteRemovalRepository())
 fun removeCampsite(campsite, reason: PolicyReason, actorUserId, onDone: (Boolean) -> Unit = {})
 fun removeTag(campsite, tag: String, reason: PolicyReason, actorUserId, onDone: (Boolean) -> Unit = {})
+fun deleteProfile(userId, reason: RemovalReason?, onDone: (Boolean, String) -> Unit)
+fun deleteCampsite(campsiteId, reason: RemovalReason?, onDone: (Boolean, String) -> Unit)
 ```
+
+One class carries both kinds of admin action. The policy actions (`removeCampsite`,
+`removeTag`) name an app-policy `PolicyReason` and tell the listing's own creator; they do
+NOT ask `isAdmin()` — the graph that offers them has already established the role. The
+removals (`deleteProfile`, `deleteCampsite`) are the whole-record deletions: each one DOES
+ask `userController.isAdmin()` first, names an optional `RemovalReason` (see `models.md`),
+and answers through `onDone` with a message the screen can show.
 
 - `removeCampsite`: deletes at `campsite.id`. Store failure → `onDone(false)` and NO
   notice (an action that did not happen is never announced). Success → tell the
@@ -170,6 +196,30 @@ fun removeTag(campsite, tag: String, reason: PolicyReason, actorUserId, onDone: 
   — same record, one tag fewer; an edit must not open a second listing. Save failure →
   false. Success → the `CampsiteTagRemoved` event carries the ORIGINAL campsite (the notice
   describes what happened to it), then true.
+- `deleteProfile`: refused (nothing written, message names why) when `!isAdmin()`
+  (`Only an admin can delete profiles`), `userId` blank (`No profile selected`), `userId` is
+  the signed-in user (`You cannot delete your own profile here`), the profile is gone
+  (`That profile no longer exists`), or it holds `Role.ADMIN` (`Admin profiles cannot be
+  deleted`). The profile is read fresh with `findByDeviceId`, not from the list on screen.
+  Otherwise its data is removed FIRST (ratings by user, then waiting-list entries, then its
+  active reservations cancelled) and only then the profile itself (`userRepo.delete`); a data
+  failure keeps the profile so the admin can retry (`Could not remove this profile's data, so
+  it was not deleted`). Success → notice to the removed user (`Your profile was removed`,
+  body from `removalText`: `An admin removed your profile for violating the app policy.` plus
+  ` Reason: <label>.` when a reason was given), then `loadAllUsers()` so the admin's list
+  refreshes, then `onDone(true, "Profile deleted")`.
+- `deleteCampsite`: refused when `!isAdmin()` (`Only an admin can delete campsites`), `campsiteId`
+  blank (`No campsite selected`), or the campsite is gone (`That campsite no longer exists`) —
+  read fresh with `getById`, which is also where the owner comes from for the notice. The
+  deletion runs in steps and stops at the FIRST failure, leaving the campsite in place: ratings
+  of the campsite → active reservations cancelled (each entrant gets a queued
+  `Your reservation was cancelled` notice) → every lottery that includes the campsite
+  (a lottery for this campsite alone is deleted with its waiting list, and each entry holder is
+  queued a `Your lottery entry was removed` notice; a multi-campsite lottery only loses this
+  id) → the campsite itself. Only then are the queued notices sent, so a deletion that failed
+  tells nobody. Owner's notice: `Your campsite was removed`, body `An admin removed your
+  campsite "<name>" for violating the app policy.` plus the reason as above. Then
+  `onDone(true, "Campsite deleted")`.
 
 ## CampsiteController — browse, details, ratings, registering, QR codes
 
@@ -384,6 +434,14 @@ class UserController(private val model: UserModel, private val repo: UserReposit
   success → model's currentUser becomes null, `Profile deleted`, true; failure →
   `Could not delete your profile`, false.
 - `loadAllUsers()`: whole store into the model; failure `Could not load users: <msg>`.
+- `isAdmin(): Boolean` — the signed-in user holds `Role.ADMIN`, false when nobody is signed
+  in. Admin features ask here instead of checking roles themselves.
+- `currentUserId(): String` — the signed-in user's id, or `""` when nobody is.
+- `watchForRemoval(userId, onDeletedBySelf = {}, onRemoved): (() -> Unit)` — watches this
+  device's profile through the store's `listenForRemoval` and splits the two ways a profile
+  disappears: the user's OWN deletion (`deleteProfile` sets a flag first, which is cleared
+  and answers `onDeletedBySelf`) versus an admin's (`onRemoved`). Returns the stop function;
+  the app root calls it when the root goes away.
 - `filterAllowed(userIds, onResult)` (the OptOutChecker member): the store's `getOptedOut`
   users are blocked; anything NOT opted out is allowed; a read failure allows NOBODY —
   a failure can never push to someone who opted out. Note the pairs of `AllowAll` and the
@@ -442,7 +500,11 @@ class NoticeStore : NotificationRepository { …override run… }          // in
 
 private lateinit var adminController: AdminController
 @Before fun setup() {
-    adminController = AdminController(listings, NotificationController(notices))
+    // The policy actions act only through the listing store and the notice store; the
+    // user and lottery services belong to the deletions half and are left empty.
+    adminController = AdminController(
+        UserController(UserModel(), UserRepository()), UserRepository(), listings,
+        LotteryRepository(), NotificationController(notices))
 }
 
 @Test fun removedListing_isToldToItsCreatorWithTheReason() {

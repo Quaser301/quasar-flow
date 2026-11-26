@@ -193,16 +193,26 @@ ADMIN while viewing OwnerView → `[APP_VIEW_SWITCH, ADMIN_SETTINGS, OWNER_SETTI
 ADMIN while viewing EntrantView → `[APP_VIEW_SWITCH, ADMIN_SETTINGS, ENTRANT_SETTINGS]`
 (the role's own settings mount BELOW admin settings while the admin views as that role);
 OWNER → `[OWNER_SETTINGS]`; CAMPER → `[ENTRANT_SETTINGS]`.
-`SettingsScreen(back, role, viewSettings: AppViewSettingController, entrantSettings = EntrantSettingsController(), ownerSettings = OwnerSettingsController(), adminSettingsContent = { AdminSettingsPlaceholder() }, notificationPreferences: NotificationPreferencesService = NoNotificationPreferencesService(), appSettings: AppSettingsService = NoAppSettingsService(), userIdForSettings: String = "")`
-mounts one dropdown per group; expansion state lives in a `remember`ed
+`SettingsScreen(back, role, viewSettings: AppViewSettingController, appSettings: AppSettingsService = NoAppSettingsService(), userIdForSettings: String = "")`
+mounts the app view switch ONLY — a person's own settings are read from their Profile view
+(app.md), and an admin's are the switch itself, so this screen keeps nothing a viewer would
+have to go fetch elsewhere. Expansion state lives in a `remember`ed
 `SettingsDisplayController` (viewModels.md). The app-view switch group's dropdown renders
 its items as centered rows — the shared `AppDropDownMenu` with `centered = true` (feature 3). Its doc warns: controllers should be kept by
 the CALLER (defaults are standalone-use only) — app.md shows the shared instances. The
 app view switch group's selection does TWO things per chosen view: `viewSettings.changeViewTo(view)`
 AND `appSettings.setAppViewChoice(userIdForSettings, view)` (data.md owns the record and
 its merge rules: saving one group never erases the others; `applyLoadedSettings` is the
-restart half, app.md's `init` runs it). The placeholder owner/entrant entries have NO
-editing affordance yet, so the service's other groups save only from controller-level calls.
+restart half, app.md's `init` runs it).
+
+The pieces this screen is built from are PUBLIC so the Profile view mounts the same ones
+rather than a second copy that could disagree: `SettingsDropdown(display, groupId, content)`
+(the labelled bar + menu), `ViewSwitchMenu(display, viewSettings, appSettings, userId)` (the
+three-view menu), and `AppPolicyDialog(onDismiss)` (the policy pop-up: titled `App Policy`,
+body `stringResource(R.string.app_policy)` from `res/values/strings.xml`, closed by OK or by
+dismissing, doing nothing else). The `App Policy` bar is offered to EVERY role (it is not a
+`SettingsGroupId` — it is not role-gated) and both this screen and the Profile view open the
+same `AppPolicyDialog`.
 
 ### ui.inbox — correspondence tabs + the live inbox ViewModel
 
@@ -278,6 +288,33 @@ uppercase tokens `ENTRANT`/`OWNER`/`ADMIN` separated by `/` in the user's stored
 `ui.admin/AdminActivity.kt` + `PolicyActivity.kt` are near-empty placeholder classes
 (admin actions go through `AdminController`, controller.md).
 
+The screen itself is `AdminProfilesScreen(back, userModel, adminController)` — the third
+argument carries out the deletion an admin confirms (app.md shows the shared instance). Its
+drawn surface: each row offers a delete action; confirming opens `ConfirmRemovalDialog` with
+`reasonRequired = false` (a profile may be deleted without naming a reason), and the message
+the action answers with is drawn back into the list under testTag `profiles_message` while it
+is non-blank.
+
+### ui.admin — the removal dialogs (shared view)
+
+`ui.admin/ConfirmRemovalDialog.kt` — the one "are you sure?" pop-up every admin removal uses;
+each story supplies only its own text:
+```kotlin
+fun ConfirmRemovalDialog(title, message, confirmLabel, reasonRequired: Boolean,
+    onConfirm: (RemovalReason?) -> Unit, onDismiss: () -> Unit)
+```
+The dialog lists every `RemovalReason` as a radio row (testTag `reason_<ENUM_NAME>`, e.g.
+`reason_SPAM_OR_FAUD`… the name is the enum's) under a heading that says `Reason (optional)`
+or `Reason (required)`; the red confirm button (testTag `confirm_removal`) is DISABLED until a
+reason is picked when `reasonRequired` is true. `onConfirm` gets the picked reason, or null
+when none was required; `onDismiss` is also what tapping outside the pop-up calls.
+
+`ui.admin/ProfileRemovedDialog.kt` — `fun ProfileRemovedDialog(onOk: () -> Unit)`: the notice
+for the RUNNING user whose profile an admin deleted (title `Your profile was deleted`, body
+says their reservations were cancelled and lottery entries removed, and to tap OK to return to
+sign-in). Its only button is OK, testTag `profile_removed_ok`; app.md owns the navigation it
+starts.
+
 ### ui.campsite — rating and lottery text (pure) + owner screens
 
 `ui.campsite/RatingStars.kt`:
@@ -351,11 +388,22 @@ this hid every invitee past the visible items (reported regression 10).
 — app.md passes the real one for the debug view only, and the view model's watch per viewModels.md
 makes late-loaded profiles re-resolve profile references — bar senders and receiver lines
 alike; the default is a private model that is never
-notified). Reads the log through the
+notified), `rawIdsAllowed` (default true — a viewer who may NOT read a raw database key
+passes false and every bar ends where the notice opens; only the admin's own debug view
+leaves it true), `deleteNotice` (optional `(String) -> Unit` — when the caller can remove
+one saved notice, it hands the action and each bar grows a `log_delete` control that passes
+that bar's entry id, resolved through the view model's `entryIdFor`; with no action there is
+no control). Reads the log through the
 data.md `NotificationCommand.Read` contract and draws the group/line output per models.md's
 `notificationLogGroupsFor`/`notificationLogLinesFor`. Nothing testable beyond the lower
 packages' contracts; the debug-log title strings (`"Notification Debugging"`, `"Sent
 Notifications"`) are app.md integration copy.
+
+`ui/inbox/NotificationActivity.kt` (`NotificationInboxScreen`, `NotificationRow`) and
+`ui/notification/tabs/NoticeTabs.kt` (`SentNoticesTab`, `ReceivedNoticesTab`) take the same
+optional `deleteNotice`: a row of one notice carries a `notification_delete` control, and the
+sent tab passes `rawIdsAllowed = false` — a person reading the notices they caused is not
+reading database keys.
 
 ### ui.theme, ui.profile, ui.booking — no test surface
 
