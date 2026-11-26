@@ -13,7 +13,8 @@ fun toCardData(campsite: Campsite, model: CampsiteModel): CampsiteCardData {
         location = campsite.campLoc,
         maxOccupancy = campsite.maxOccupancy,
         rating = model.averageRating(campsite.id),
-        ratingCount = model.ratingCount(campsite.id)
+        ratingCount = model.ratingCount(campsite.id),
+        imageData = campsite.campImg
     )
 }
 

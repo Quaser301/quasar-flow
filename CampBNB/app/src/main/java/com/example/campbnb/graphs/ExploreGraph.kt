@@ -22,6 +22,7 @@ import com.example.campbnb.ui.screens.QrScannerScreen
 import com.example.campbnb.ui.search.SearchScreen
 import com.example.campbnb.ui.shared.observeModel
 import kotlinx.serialization.Serializable
+import com.example.campbnb.models.Campsite
 
 
 
@@ -64,19 +65,18 @@ fun NavGraphBuilder.exploreGraph(
 ) {
     navigation<NavGraphNodes.ExploreGraph>(startDestination = Screen.Explore) {
         composable<Screen.Explore> {
-            var newCampsiteCards by remember {
-                mutableStateOf<List<CampsiteCardData>>(emptyList())
-            }
-            var recommendedCampsiteCards by remember {
-                mutableStateOf<List<CampsiteCardData>>(emptyList())
+            var loadedCampsites by remember {
+                mutableStateOf<List<Campsite>>(emptyList())
             }
 
+            // Redraws the cards when the ratings arrive in the shared model.
+            observeModel(campsiteModel)
+
             LaunchedEffect(Unit) {
+                campsiteControl.loadRatings()
                 campsiteRepo.getAll(
                     onSuccess = { campsites ->
-                        newCampsiteCards = campsites.map { campsite ->
-                            campsite.toCampsiteCardData()
-                        }
+                        loadedCampsites = campsites
                     },
                     onFailure = { error ->
                         toastGenerator(
@@ -86,9 +86,11 @@ fun NavGraphBuilder.exploreGraph(
                 )
             }
 
+            val cards = toCardList(loadedCampsites, campsiteModel)
+
             ExploreScreen(
-                recommended = newCampsiteCards,
-                newSites = newCampsiteCards,
+                recommended = cards,
+                newSites = cards,
                 onSettingsClick = navToSettings,
                 onCampsiteClick = navToCampsite,
                 onSearch = navToSearch,
