@@ -3,10 +3,12 @@ package com.example.campbnb.viewModels
 import androidx.lifecycle.ViewModel
 import com.example.campbnb.models.NotificationSettings
 import com.example.campbnb.models.AppSettingsModel
+import com.example.campbnb.models.ConfirmationDelivery
+import com.example.campbnb.models.confirmationDeliveryOf
+import com.example.campbnb.models.settingsWithDelivery
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.update
 
 
 // Same shape as AppViewSettingController: a ViewModel keeps these values alive across
@@ -45,6 +47,32 @@ class EntrantSettingsController: ViewModel() {
     private val _notificationSettings = MutableStateFlow(listOf(NotificationSettings.PUSH))
     val notificationSettings = _notificationSettings.asStateFlow()
 
+    private val _pendingDelivery = MutableStateFlow<ConfirmationDelivery?>(null)
+    val pendingDelivery = _pendingDelivery.asStateFlow()
+
+    /** The delivery choice that is saved right now. */
+    fun savedDelivery(): ConfirmationDelivery = confirmationDeliveryOf(_notificationSettings.value)
+
+    /** The entrant clicked a dropdown option. Picking the saved value again clears the pending change. */
+    fun chooseDelivery(choice: ConfirmationDelivery) {
+        _pendingDelivery.value = if (choice == savedDelivery()) null else choice
+    }
+
+    /** Update pressed: the pending choice becomes the live setting at once. Returns the list to persist. */
+    fun commitPending(): List<NotificationSettings> {
+        val pending = _pendingDelivery.value
+        if (pending != null) {
+            _notificationSettings.value = settingsWithDelivery(_notificationSettings.value, pending)
+            _pendingDelivery.value = null
+        }
+        return _notificationSettings.value
+    }
+
+    /** The entrant chose to leave without saving: the held change is dropped. */
+    fun discardPending() {
+        _pendingDelivery.value = null
+    }
+
     /**
      * Switches the bookings ordering placeholder.
      *
@@ -70,16 +98,6 @@ class EntrantSettingsController: ViewModel() {
      */
     fun changeMessageFilterTo(newFilter: String) {
         _messageFilterSetting.value = newFilter
-    }
-
-    fun toggleNotificationSetting(setting: NotificationSettings, enabled: Boolean) {
-        _notificationSettings.update { currentList ->
-            if (enabled) {
-                if (setting !in currentList) currentList + setting else currentList
-            } else {
-                currentList - setting
-            }
-        }
     }
 
     /**
