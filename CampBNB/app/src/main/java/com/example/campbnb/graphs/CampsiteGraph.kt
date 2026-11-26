@@ -63,8 +63,10 @@ import kotlinx.serialization.Serializable
  * @param notification The shared notification behavior service.
  * @param admin The shared admin policy actions over other users' listings.
  * @param currentUserId The signed-in user's id, for the policy actions' messages.
- * @param currentUserName The signed-in user's name, shown beside their own rating on the
- *     reviews screen before the saved rating is reloaded.
+ * @param currentUserName Asks for the signed-in user's name, shown beside their own rating
+ *     on the reviews screen before the saved rating is reloaded. Asked while drawing, never
+ *     read once here: the sign-in runs after this graph exists, so a name read at build time
+ *     would name no one for every user.
  * @param onNavBack Returns to whatever opened the current screen.
  * @param onOpenMyCampsites Opens the owner's campsite list.
  * @param onOpenLotteries Opens the owner's lottery list.
@@ -81,7 +83,7 @@ fun NavGraphBuilder.campsiteGraph(
     notification: NotificationController,
     admin: AdminController,
     currentUserId: String,
-    currentUserName: String,
+    currentUserName: () -> String,
     fileDownloadWriter: FileDownloadWriter,
 
     onNavBack: () -> Unit,
@@ -411,7 +413,7 @@ fun NavGraphBuilder.campsiteGraph(
                                 campsiteController,
                                 route.campsiteId,
                                 deviceID,
-                                currentUserName
+                                currentUserName()
                             )
                             LotteryJoinSection(
                                 detailsLotteryModel,

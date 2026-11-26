@@ -18,7 +18,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -65,7 +65,11 @@ fun CorrespondenceScreen(
     messagesTabContent: @Composable () -> Unit,
     onNavBack: () -> Unit,
 ) {
-    var selectedTab by rememberSaveable {
+    // The tab this entry asked to open is the tab that opens: the value is keyed on the
+    // request, so an entry that names a tab lands on it rather than on whichever tab an
+    // earlier entry left selected (a saved value carried across entries and ignored what
+    // this entry asked for).
+    var selectedTab by remember(openTab, tabLabels) {
         mutableIntStateOf(tabLabels.indexOf(openTab).coerceAtLeast(0))
     }
 

@@ -20,7 +20,6 @@ import androidx.compose.material3.TextFieldColors
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.rememberDateRangePickerState
 import androidx.compose.runtime.*
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
@@ -78,12 +77,16 @@ fun SearchScreen(
     onQrClick: () -> Unit = {},
     onClose: () -> Unit
 ) {
-    var query by rememberSaveable { mutableStateOf(initialQuery) }
-    var searchMode by rememberSaveable {
+    // The opening state belongs to the entry that asked for this view, so it is keyed on
+    // what that entry asked for: a saved value survived the entry and made a second
+    // "Search History" or filter entry open whatever section the first one had left showing
+    // instead of the one this entry named (the route's arguments are the request).
+    var query by remember(initialQuery) { mutableStateOf(initialQuery) }
+    var searchMode by remember(initialQuery) {
         mutableStateOf(initialQuery.isNotBlank())
     }
-    var showFilter by rememberSaveable { mutableStateOf(initialShowFilter) }
-    var showHistory by rememberSaveable { mutableStateOf(initialShowHistory) }
+    var showFilter by remember(initialShowFilter) { mutableStateOf(initialShowFilter) }
+    var showHistory by remember(initialShowHistory) { mutableStateOf(initialShowHistory) }
     var menuOpen by remember { mutableStateOf(false) }
     var filters by remember { mutableStateOf(SearchFilters()) }
 

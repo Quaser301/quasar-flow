@@ -223,7 +223,7 @@ fun CampBnbApp(
             notification = deps.notificationController,
             admin = deps.adminController,
             currentUserId = deps.currentUserId,
-            currentUserName = deps.userModel.currentUser?.name ?: "",
+            currentUserName = { deps.userModel.currentUser?.name ?: "" },
             fileDownloadWriter = deps.fileDownloadWriter,
 
             onNavBack = {
@@ -456,7 +456,7 @@ fun CampBnbApp(
                     notification = deps.notificationController,
                     admin = deps.adminController,
                     currentUserId = deps.currentUserId,
-                    currentUserName = deps.userModel.currentUser?.name ?: "",
+                    currentUserName = { deps.userModel.currentUser?.name ?: "" },
                     fileDownloadWriter = deps.fileDownloadWriter,
 
                     onNavBack = {
