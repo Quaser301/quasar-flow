@@ -141,16 +141,20 @@ private fun describeSavedAt(sentAt: Timestamp?): String {
 private fun summaryLineOf(
     group: NotificationLogGroup,
     profileLabel: (String) -> String,
+    showDbIds: Boolean = true,
 ): String {
     // The bar resolves its sender like every other reference in the log: the listing
     // names people, never the references it holds. No sender means the system's own.
     val sender = if (group.senderId.isEmpty()) "the system" else profileLabel(group.senderId)
     // The place a notice opens is named by the record's own copy; only records that
-    // copied no name fall back to their route. The db key stays raw: it is the lookup
-    // handle an admin reads the record's raw values by.
+    // copied no name fall back to their route.
     val opens = group.campsiteName.ifBlank { group.routeText }
+    // The db key is the lookup handle an admin reads a record's raw field values by, so
+    // only a viewer who may see raw references is shown it. A viewer who may not gets a
+    // bar that ends at where the notice opens.
+    val dbSegment = if (showDbIds) "  -  db id ${group.notificationId}" else ""
     return "sent by $sender  -  ${group.recipientIds.count()} recipient(s)  -  " +
-        "${group.sentAtLabel}  -  opens $opens  -  db id ${group.notificationId}"
+        "${group.sentAtLabel}  -  opens $opens$dbSegment"
 }
 
 /**
@@ -197,14 +201,19 @@ fun notificationLogGroupsFor(notifications: List<Notification>): List<Notificati
  * @param logs The log entries, in the order they are shown.
  * @param openLogIds The entries whose dropdown is open.
  * @param profileLabel How one profile reference is drawn; the caller resolves references.
+ * @param showDbIds Whether a viewer may see the raw database key of an entry; a viewer
+ *     who may not gets bars that end at where the notice opens.
  * @return The lines to draw, one per entry plus the detail of each open entry.
  */
 fun notificationLogLinesFor(
     logs: List<NotificationLogGroup>,
     openLogIds: Set<String>,
+    // Placed before the label resolver so a caller that hands one as a trailing lambda
+    // keeps working.
+    showDbIds: Boolean = true,
     profileLabel: (String) -> String,
 ): List<NotificationLogLine> =
-    logs.flatMap { group -> logLinesOf(group, group.logId in openLogIds, profileLabel) }
+    logs.flatMap { group -> logLinesOf(group, group.logId in openLogIds, profileLabel, showDbIds) }
 
 /**
  * The lines of one entry: its bar, and when that bar is open, its receivers and its notice.
@@ -213,11 +222,12 @@ private fun logLinesOf(
     group: NotificationLogGroup,
     expanded: Boolean,
     profileLabel: (String) -> String,
+    showDbIds: Boolean = true,
 ): List<NotificationLogLine> {
     val bar = NotificationLogLine(
         group.logId,
         group.logId,
-        summaryLineOf(group, profileLabel) + if (expanded) " - open" else " - tap to open",
+        summaryLineOf(group, profileLabel, showDbIds) + if (expanded) " - open" else " - tap to open",
         LogLineStyle.DROPDOWN
     )
     if (!expanded) {

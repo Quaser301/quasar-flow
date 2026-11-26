@@ -16,6 +16,7 @@ import com.example.campbnb.controller.NotificationController
 import com.example.campbnb.controller.UserController
 import com.example.campbnb.data.CampsiteRepository
 import com.example.campbnb.data.NotificationRepository
+import com.example.campbnb.data.NotificationCommand
 import com.example.campbnb.data.ReservationRepository
 import com.example.campbnb.data.UserRepository
 import com.example.campbnb.destinations.CorrespondenceDestination
@@ -56,6 +57,25 @@ fun NavGraphBuilder.CorrespondenceGraph(
     toastGen: (String, Int) -> Unit,
 
 ) {
+    // Removing one of their own notices: the record is gone rather than marked, so neither
+    // the inbox nor a log lists it again. A viewer who cannot reach the store is told.
+    val removeNotice: (String) -> Unit = { id ->
+        notifRepo.run(
+            NotificationCommand.Delete(
+                notificationId = id,
+                onDone = { result ->
+                    if (result.isFailure) {
+                        val reason = result.exceptionOrNull()?.message ?: "the notice could not be removed"
+                        toastGen(
+                            "Could not remove that notice: $reason",
+                            Toast.LENGTH_SHORT
+                        )
+                    }
+                }
+            )
+        )
+    }
+
     navigation<NavGraphNodes.CorrespondenceGraph>(startDestination = Screen.Notifications) {
         composable<Screen.Notifications> {
             // Notification and message destinations. Tapping a notification opens the notices a
@@ -69,7 +89,8 @@ fun NavGraphBuilder.CorrespondenceGraph(
                 repo = notifRepo,
                 notifController = notifControl,
                 msgController = msgControl,
-                onNavToNotif = navToNotif
+                onNavToNotif = navToNotif,
+                deleteNotice = removeNotice
             )
         }
 
@@ -192,7 +213,8 @@ fun NavGraphBuilder.CorrespondenceGraph(
                 repo = notifRepo,
                 notifController = notifControl,
                 msgController = msgControl,
-                onNavToNotif = navToNotif
+                onNavToNotif = navToNotif,
+                deleteNotice = removeNotice
             )
         }
 
@@ -205,7 +227,8 @@ fun NavGraphBuilder.CorrespondenceGraph(
                 repo = notifRepo,
                 notifController = notifControl,
                 msgController = msgControl,
-                onNavToNotif = navToNotif
+                onNavToNotif = navToNotif,
+                deleteNotice = removeNotice
             )
         }
 
@@ -254,7 +277,8 @@ fun NavGraphBuilder.CorrespondenceGraph(
                 notifController = notifControl,
                 msgController = msgControl,
                 onNavToNotif = navToNotif,
-                openReservationId = reservationID
+                openReservationId = reservationID,
+                deleteNotice = removeNotice
             )
         }
     }

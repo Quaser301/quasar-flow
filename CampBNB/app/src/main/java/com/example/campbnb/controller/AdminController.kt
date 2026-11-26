@@ -289,14 +289,16 @@ class AdminController(
                 notifier.sendNotice(
                     rating.userId,
                     "Your rating was removed",
-                    ratingRemovalText(rating, campsiteName, reason)
+                    ratingRemovalText(rating, campsiteName, reason),
+                    actorId = userController.currentUserId()
                 )
             },
             onFailure = {
                 notifier.sendNotice(
                     rating.userId,
                     "Your rating was removed",
-                    ratingRemovalText(rating, "a campsite", reason)
+                    ratingRemovalText(rating, "a campsite", reason),
+                    actorId = userController.currentUserId()
                 )
             }
         )
@@ -484,15 +486,20 @@ class AdminController(
 
     /** Last step: delete the campsite itself, then send the owner's notice and every queued notice. */
     private fun finishCampsiteDeletion(job: RemovalJob) {
+        // Every notice below is the admin's own action, so each record names the admin as
+        // its cause: a listing of the notices a viewer caused must not read an action the
+        // admin took over that viewer's listing as one of the viewer's own.
+        val causedBy = userController.currentUserId()
         campsiteRepo.deleteCampsite(job.campsite.id) { result ->
             if (result.isSuccess) {
                 notifier.sendNotice(
                     job.campsite.ownerId,
                     "Your campsite was removed",
-                    campsiteRemovalText(job.campsite, job.reason)
+                    campsiteRemovalText(job.campsite, job.reason),
+                    actorId = causedBy
                 )
                 for (notice in job.notices) {
-                    notifier.sendNotice(notice.recipientId, notice.title, notice.text)
+                    notifier.sendNotice(notice.recipientId, notice.title, notice.text, actorId = causedBy)
                 }
                 job.onDone(true, "Campsite deleted")
             } else {
@@ -523,7 +530,12 @@ class AdminController(
             } else {
                 userRepo.delete(userId) { result ->
                     if (result.isSuccess) {
-                        notifier.sendNotice(userId, "Your profile was removed", removalText(reason))
+                        notifier.sendNotice(
+                            userId,
+                            "Your profile was removed",
+                            removalText(reason),
+                            actorId = userController.currentUserId()
+                        )
                         userController.loadAllUsers()
                         onDone(true, "Profile deleted")
                     } else {

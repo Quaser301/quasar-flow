@@ -201,6 +201,13 @@ fun NavGraphBuilder.campsiteGraph(
                 mutableStateOf<CampsiteDetails?>(null)
             }
 
+            // A policy action over the listing (removing one of its tags) edits the SAVED
+            // record, never the drawn view: the view folds tags and amenities together and
+            // carries no fields to write back.
+            var policyCampsite by remember(route.campsiteId) {
+                mutableStateOf<Campsite?>(null)
+            }
+
             var isLoading by remember(route.campsiteId) {
                 mutableStateOf(true)
             }
@@ -213,6 +220,7 @@ fun NavGraphBuilder.campsiteGraph(
                 isLoading = true
                 errorMessage = null
                 campsiteDetails = null
+                policyCampsite = null
 
                 // First, retrieve the campsite.
                 campsiteRepo.getAll(
@@ -226,6 +234,7 @@ fun NavGraphBuilder.campsiteGraph(
                             errorMessage = "Campsite could not be found."
                             isLoading = false
                         } else {
+                            policyCampsite = campsite
                             // Then retrieve ratings for this campsite.
                             campsiteRepo.getAllRatings(
                                 onSuccess = { allRatings ->
@@ -333,6 +342,37 @@ fun NavGraphBuilder.campsiteGraph(
                                         message,
                                         Toast.LENGTH_LONG
                                     )
+                                }
+                            }
+                        },
+                        // One tag out of the SAVED record, not out of the drawn view: the
+                        // view folds tags and amenities into one list and carries no fields
+                        // to write back (controller.md owns the record-building rules).
+                        onRemoveTag = { tag, reason ->
+                            val listing = policyCampsite
+                            if (listing == null) {
+                                toastGenerator(
+                                    "Could not remove the tag.",
+                                    Toast.LENGTH_SHORT
+                                )
+                            } else {
+                                admin.removeTag(
+                                    listing,
+                                    tag,
+                                    reason,
+                                    deviceID
+                                ) { ok ->
+                                    if (ok) {
+                                        toastGenerator(
+                                            "Removed the tag and told the site's owner.",
+                                            Toast.LENGTH_SHORT
+                                        )
+                                    } else {
+                                        toastGenerator(
+                                            "Could not remove the tag.",
+                                            Toast.LENGTH_LONG
+                                        )
+                                    }
                                 }
                             }
                         },

@@ -7,6 +7,7 @@ import com.example.campbnb.Screen
 import com.example.campbnb.controller.AdminController
 import com.example.campbnb.controller.UserController
 import com.example.campbnb.data.NotificationRepository
+import com.example.campbnb.data.NotificationCommand
 import com.example.campbnb.models.UserModel
 import com.example.campbnb.ui.admin.AdminProfilesScreen
 import com.example.campbnb.ui.components.profileLabelOf
@@ -29,6 +30,18 @@ fun NavGraphBuilder.DebugGraph(
     // always loads that graph's own start destination — which here was the profile view,
     // so the notification debugger could never be opened at all. Registered bare, the
     // screen itself is the start, the way the settings and profile tabs already are.
+    // The admin's debug tool can remove any entry it lists: the record is gone, so it
+    // stops appearing in every listing. A failed removal leaves the entry and the admin
+    // taps again, so nothing here reports it.
+    val removeNotice: (String) -> Unit = { id ->
+        notificationRepository.run(
+            NotificationCommand.Delete(
+                notificationId = id,
+                onDone = {}
+            )
+        )
+    }
+
     composable<Screen.AdminProfileView> {
         LaunchedEffect(Unit) {
             userController.loadAllUsers()
@@ -55,7 +68,8 @@ fun NavGraphBuilder.DebugGraph(
             profileText = { userId ->
                 profileLabelOf(userId, userModel.allUsers)
             },
-            savedUsers = userModel
+            savedUsers = userModel,
+            deleteNotice = removeNotice
         )
     }
 }

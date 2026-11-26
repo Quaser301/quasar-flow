@@ -93,12 +93,15 @@ class NotificationController(
      *
      * @param onDone called once with success or the failure; defaults to ignoring it, so a
      * failed notice never fails the action that caused it
+     * @param actorId the user who caused the notice, so a viewer listing the notices they
+     * caused finds it; an empty one means the app itself created it
      */
     fun sendNotice(
         recipientId: String,
         title: String,
         message: String,
-        onDone: (Result<Unit>) -> Unit = {}
+        onDone: (Result<Unit>) -> Unit = {},
+        actorId: String = "",
     ) {
         if (recipientId.isBlank()) {
             onDone(Result.failure(IllegalArgumentException("recipientId is required")))
@@ -107,6 +110,7 @@ class NotificationController(
         optOutChecker.filterAllowed(listOf(recipientId)) { allowed ->
             val notification = Notification(
                 recipientId = recipientId,
+                senderId = actorId,
                 type = NotificationType.OWNER_NOTICE,
                 title = title,
                 message = message,

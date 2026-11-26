@@ -32,6 +32,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.example.campbnb.models.Notification
 import com.example.campbnb.models.NotificationStatus
 import com.example.campbnb.notifications.NotificationPermissionCard
@@ -39,7 +40,10 @@ import com.example.campbnb.notifications.NotificationPermissionCard
 @Composable
 fun NotificationInboxScreen(
     viewModel: NotificationViewModel,
-    navToNotification: (Notification) -> Unit
+    navToNotification: (Notification) -> Unit,
+    // Asked with the database key of the notice a row shows, when this viewer may remove
+    // their own notices. Passing nothing leaves the rows without a delete control.
+    deleteNotice: ((String) -> Unit)? = null,
 ) {
     val state by viewModel.state.collectAsState()
 
@@ -95,7 +99,10 @@ fun NotificationInboxScreen(
                             items = current.items,
                             key = { it.id }
                         ) { notification ->
-                            NotificationRow(notification = notification) {
+                            NotificationRow(
+                                notification = notification,
+                                deleteNotice = deleteNotice
+                            ) {
                                 viewModel.open(notification)
                                 navToNotification(notification)
                             }
@@ -111,6 +118,7 @@ fun NotificationInboxScreen(
 @Composable
 private fun NotificationRow(
     notification: Notification,
+    deleteNotice: ((String) -> Unit)? = null,
     onClick: () -> Unit
 ) {
     val unread = notification.status == NotificationStatus.UNREAD
@@ -160,6 +168,20 @@ private fun NotificationRow(
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
+
+            // The notice itself is what a viewer removes, so the control sits on the row
+            // rather than behind a menu.
+            val remove = deleteNotice
+            if (remove != null) {
+                TextButton(
+                    onClick = { remove(notification.id) },
+                    modifier = Modifier
+                        .testTag("notification_delete")
+                        .padding(start = 12.dp)
+                ) {
+                    Text("Delete", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
         }
     }
 }

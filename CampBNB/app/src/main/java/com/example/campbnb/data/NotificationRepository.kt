@@ -31,6 +31,7 @@ data class NotificationUpdate(
  * @memberproperty Read Ask for every saved notification, whichever user receives them.
  * @memberproperty Watch Follow one user's notifications live.
  * @memberproperty MarkRead Record that one notification has been opened.
+ * @memberproperty Delete Remove one saved notification.
  */
 sealed interface NotificationCommand {
     /**
@@ -75,6 +76,20 @@ sealed interface NotificationCommand {
 
     /** marks one notification as READ and records when */
     data class MarkRead(
+        val notificationId: String,
+        val onDone: (Result<Unit>) -> Unit
+    ) : NotificationCommand
+
+    /**
+     * removes one saved notification, so it is no longer listed anywhere
+     *
+     * A viewer deleting one of its own notices asks for this: the record is gone rather
+     * than marked, so neither the inbox nor the debug log will show it again.
+     *
+     * @param notificationId the database key of the record to remove
+     * @param onDone called exactly once, with success or with the failure
+     */
+    data class Delete(
         val notificationId: String,
         val onDone: (Result<Unit>) -> Unit
     ) : NotificationCommand

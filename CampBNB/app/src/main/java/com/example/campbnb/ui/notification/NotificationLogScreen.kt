@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -72,6 +73,11 @@ import com.example.campbnb.ui.theme.AdminInteractionColor
  * @param savedUsers The saved-user model the log watches, so a late arrival of profiles
  *     re-resolves the receiver lines of what was already read. The default is a private model
  *     nothing ever notifies, which resolves only at the read time.
+ * @param rawIdsAllowed Whether this viewer may read the raw database key an entry is looked
+ *     up by. Only the admin's own debug view may; a viewer listing their own correspondence
+ *     gets bars that end at where the notice opens.
+ * @param deleteNotice Asked with the database key of the entry a bar names, when this viewer
+ *     may remove their own notices. Passing nothing leaves the entries without a delete control.
  */
 @Composable
 fun NotificationLogScreen(
@@ -80,9 +86,19 @@ fun NotificationLogScreen(
     returnFunc: (() -> Unit)? = null,
     profileText: (String) -> String = unresolvableProfileLabel,
     savedUsers: UserModel = UserModel(),
+    // Only the admin's own debug view may read the raw database keys an entry is looked
+    // up by; a viewer listing their own correspondence may not.
+    rawIdsAllowed: Boolean = true,
+    // Asked with the database key of the entry a bar names, when this viewer may remove
+    // their own notices. Passing nothing leaves the entries without a delete control.
+    deleteNotice: ((String) -> Unit)? = null,
 ) {
     val display = viewModel {
-        NotificationLogViewModel(notificationSource, profileText)
+        NotificationLogViewModel(
+            source = notificationSource,
+            showDbIds = rawIdsAllowed,
+            profileLabel = profileText
+        )
     }
     val state by display.state.collectAsState()
 
@@ -146,7 +162,7 @@ fun NotificationLogScreen(
                 } else {
                     LazyColumn(modifier = Modifier.fillMaxSize()) {
                         items(items = shown.lines, key = { it.lineKey }) { line ->
-                            NotificationLogLineDisplay(display, line)
+                            NotificationLogLineDisplay(display, line, deleteNotice)
                         }
                     }
                 }
@@ -163,11 +179,14 @@ fun NotificationLogScreen(
  *
  * @param display The holder of the dropdown expansion state, so a bar can open its entry.
  * @param line The line to draw.
+ * @param deleteNotice Asked with the database key of an entry when the viewer may remove
+ *     their own notices; nothing passed means the entries have no delete control.
  */
 @Composable
 private fun NotificationLogLineDisplay(
     display: NotificationLogViewModel,
     line: NotificationLogLine,
+    deleteNotice: ((String) -> Unit)? = null,
 ) {
     when (line.style) {
         LogLineStyle.DROPDOWN -> {
@@ -181,6 +200,24 @@ private fun NotificationLogLineDisplay(
                 contentAlignment = Alignment.CenterStart
             ) {
                 Text(line.text, fontSize = 18.sp, color = DataColor)
+            }
+            // The entry itself is what a viewer removes, so the control sits on the bar
+            // rather than on every line of the entry.
+            val remove = deleteNotice
+            if (remove != null) {
+                TextButton(
+                    onClick = {
+                        val entryId = display.entryIdFor(line.logId)
+                        if (entryId.isNotEmpty()) {
+                            remove(entryId)
+                        }
+                    },
+                    modifier = Modifier
+                        .testTag("log_delete")
+                        .padding(start = 24.dp, bottom = 4.dp)
+                ) {
+                    Text("Delete", fontSize = 14.sp, color = DataColorImportant)
+                }
             }
         }
 

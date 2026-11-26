@@ -56,9 +56,14 @@ sealed interface LogViewState {
  *     caller that can resolve references against the saved users gets real names and one that
  *     cannot gets references labeled unknown. Resolved once per receiver while the lines are
  *     built, and again when [reflowLines] is asked for after the users change.
+ * @param showDbIds Whether this viewer may see the raw database key of an entry; only the
+ *     admin's own debug view may.
  */
 class NotificationLogViewModel(
     private val source: NotificationRepository,
+    // Placed before the label resolver so a caller that hands one as a trailing lambda
+    // keeps working; only a viewer who may read raw database keys passes this one.
+    private val showDbIds: Boolean = true,
     private val profileLabel: (String) -> String,
 ) : ViewModel() {
     private val _state = MutableStateFlow<LogViewState>(LogViewState.Loading)
@@ -100,7 +105,7 @@ class NotificationLogViewModel(
      */
     private fun showNotificationLog(groups: List<NotificationLogGroup>) {
         readLogs = groups
-        _state.value = LogViewState.Ready(groups, notificationLogLinesFor(groups, _openLogs.value, profileLabel))
+        _state.value = LogViewState.Ready(groups, notificationLogLinesFor(groups, _openLogs.value, showDbIds = showDbIds, profileLabel = profileLabel))
     }
 
     /**
@@ -121,9 +126,20 @@ class NotificationLogViewModel(
 
         val read = readLogs
         if (read != null) {
-            _state.value = LogViewState.Ready(read, notificationLogLinesFor(read, nowOpen, profileLabel))
+            _state.value = LogViewState.Ready(read, notificationLogLinesFor(read, nowOpen, showDbIds = showDbIds, profileLabel = profileLabel))
         }
     }
+
+    /**
+     * The database key of the entry a dropdown bar names, so the screen can ask for that
+     * entry to be removed. An entry that was never read has no key.
+     *
+     * @param logId The stable name of the log entry, as its bar carries it.
+     * @return The database key of a record of that entry, or an empty when no such entry
+     *     was read.
+     */
+    fun entryIdFor(logId: String): String =
+        readLogs?.firstOrNull { it.logId == logId }?.notificationId ?: ""
 
     /**
      * Re-derives the lines of the entries already read, without reading them again: asked for

@@ -26,6 +26,8 @@ import com.example.campbnb.ui.inbox.CorrespondenceTabs
  *     this destination owns where back goes.
  * @param onNavToNotif Runs when a notice is tapped, with the typed [Screen] route that
  *     notice names: the caller that opened this destination owns the navigation.
+ * @param deleteNotice Runs when a notice is removed, with its database key: the caller that
+ *     opened this destination owns the store and what a failed removal says.
  */
 @Composable
 fun CorrespondenceDestination(
@@ -40,6 +42,7 @@ fun CorrespondenceDestination(
     notifController: NotificationController,
     msgController: MessageController,
     onNavToNotif: (screen: Screen) -> Unit,
+    deleteNotice: (String) -> Unit = {},
 ) {
     if (currentUserIsOwner()) {
         CorrespondenceScreen(
@@ -49,12 +52,13 @@ fun CorrespondenceDestination(
                 CorrespondenceTabs.MESSAGES_TAB
             ),
             openTab = openTab,
-            notificationsTabContent = { SentNoticesTab(userId, repo) },
+            notificationsTabContent = { SentNoticesTab(userId, repo, deleteNotice) },
             receivedTabContent = {
                 ReceivedNoticesTab(
                     userId,
                     notifController,
-                    onNavToNotif
+                    onNavToNotif,
+                    deleteNotice
                 )
              },
             messagesTabContent = { MessagesTab(openReservationId, userId, msgController) },
@@ -71,7 +75,8 @@ fun CorrespondenceDestination(
                 ReceivedNoticesTab(
                     userId,
                     notifController,
-                    onNavToNotif
+                    onNavToNotif,
+                    deleteNotice
                 )
             },
             messagesTabContent = { MessagesTab(openReservationId, userId, msgController) },

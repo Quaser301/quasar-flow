@@ -72,6 +72,17 @@ class FakeNotificationRepository : NotificationRepository {
                 notification.status = NotificationStatus.READ
                 command.onDone.invoke(Result.success(Unit))
             }
+
+            is NotificationCommand.Delete -> {
+                if (!saved.containsKey(command.notificationId)) {
+                    command.onDone.invoke(
+                        Result.failure(NoSuchElementException(command.notificationId))
+                    )
+                    return
+                }
+                saved.remove(command.notificationId)
+                command.onDone.invoke(Result.success(Unit))
+            }
         }
     }
 }

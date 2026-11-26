@@ -11,6 +11,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -38,6 +39,8 @@ import com.example.campbnb.ui.theme.*
 import java.util.Locale
 import kotlin.math.roundToInt
 import com.example.campbnb.models.RemovalReason
+import com.example.campbnb.models.PolicyReason
+import com.example.campbnb.models.policyReasonLabel
 import com.example.campbnb.ui.admin.ConfirmRemovalDialog
 
 /** Everything the details screen shows about one campsite. */
@@ -98,6 +101,9 @@ private const val TAGS_SHOWN = 3
  * @param onEnterLottery Called when a camper chooses the lottery action from their menu.
  * @param onDeleteSite Called with the app-policy reason the admin picked for the deletion,
  *     after they confirm deleting the site (US 03.01.01).
+ * @param onRemoveTag Called with one of the listing's own tags and the app-policy reason
+ *     the admin picked for taking it out, after they confirm removing that tag. The listing
+ *     keeps the rest of itself.
  * @param onSeeReviews Called when "See all reviews" is tapped.
  * @param reviewsContent The reviews screen. "See all reviews" swaps it in for the details (the
  *     role's bottom bar stays); it gets a function that closes it and shows the details again.
@@ -115,6 +121,9 @@ fun CampsiteDetailsScreen(
     lotteryButtonEnabled: Boolean = true,
     lotteryButtonIsLeave: Boolean = false,
     onDeleteSite: (RemovalReason?) -> Unit = {},
+    // Asked with the tag and the app policy it broke, when an admin removes one tag of a
+    // listing rather than the whole listing.
+    onRemoveTag: (String, PolicyReason) -> Unit = { _, _ -> },
     onSeeReviews: () -> Unit = {},
     reviewsContent: @Composable (onClose: () -> Unit) -> Unit = {},
     entrantContent: @Composable () -> Unit = {}
@@ -127,6 +136,13 @@ fun CampsiteDetailsScreen(
     // (US 03.01.01): confirming the delete opens the reason picker, and the picker is
     // what calls [onDeleteSite] with the reason.
     var pickReason by remember { mutableStateOf(false) }
+    // Removing one tag of a listing is the same two steps as deleting the whole listing:
+    // the admin picks the tag from the tags the page shows, then names the app policy that
+    // tag broke. The tag is not the admin's judgement left to the owner to guess at.
+    var removeTagMenuOpen by remember { mutableStateOf(false) }
+    var tagPicked by remember { mutableStateOf<String?>(null) }
+    var confirmRemoveTag by remember { mutableStateOf(false) }
+    var tagReasonPicked by remember { mutableStateOf<PolicyReason?>(null) }
     // "See all reviews" swaps the reviews screen in for the details (the reviews screen
     // is handed through reviewsContent, where the app knows it); the system back button
     // closes it too.
@@ -221,13 +237,39 @@ fun CampsiteDetailsScreen(
                                         )
                                     }
                                 }
-                                UserRole.ADMIN -> GradientButton(
-                                    text = "Delete Site",
-                                    onClick = { confirmDelete = true },
-                                    brush = DeleteGradient,
-                                    height = 52.dp,
-                                    modifier = Modifier.testTag("delete_site")
-                                )
+                                UserRole.ADMIN -> Column {
+                                    GradientButton(
+                                        text = "Delete Site",
+                                        onClick = { confirmDelete = true },
+                                        brush = DeleteGradient,
+                                        height = 52.dp,
+                                        modifier = Modifier.testTag("delete_site")
+                                    )
+                                    // The tags an admin may remove are the ones this page
+                                    // already shows, so the menu is built from the same list
+                                    // rather than a second copy the page could disagree with.
+                                    GradientBarButton(
+                                        text = "Remove Tag",
+                                        modifier = Modifier.fillMaxWidth().testTag("remove_tag_menu_bar"),
+                                        onClick = { removeTagMenuOpen = true }
+                                    )
+                                    DropdownMenu(
+                                        expanded = removeTagMenuOpen,
+                                        onDismissRequest = { removeTagMenuOpen = false }
+                                    ) {
+                                        campsite.tags.forEach { tag ->
+                                            DropdownMenuItem(
+                                                text = { Text(tag) },
+                                                modifier = Modifier.testTag("remove_tag_choice"),
+                                                onClick = {
+                                                    removeTagMenuOpen = false
+                                                    tagPicked = tag
+                                                    confirmRemoveTag = true
+                                                }
+                                            )
+                                        }
+                                    }
+                                }
                                 UserRole.OWNER -> Unit
                             }
                         }
@@ -278,6 +320,74 @@ fun CampsiteDetailsScreen(
                 onDeleteSite(reason)
             },
             onDismiss = { pickReason = false }
+        )
+    }
+
+    // Second step of removing one tag: the admin names the app policy the tag broke, in
+    // the app's own words, and the chosen reason is drawn in the admin's own colour so the
+    // pick is visible on the page (the same touch the notification log makes admin copy).
+    if (confirmRemoveTag) {
+        AlertDialog(
+            onDismissRequest = { confirmRemoveTag = false },
+            title = { Text("Remove this tag?") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text(
+                        "The tag ${tagPicked} will be removed from ${campsite.name} and its owner will be told which policy this broke. This cannot be undone."
+                    )
+                    Text("Reason (required)", fontSize = 14.sp)
+                    PolicyReason.values().forEach { reason ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { tagReasonPicked = reason },
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            RadioButton(
+                                selected = tagReasonPicked == reason,
+                                onClick = { tagReasonPicked = reason }
+                            )
+                            Text(
+                                policyReasonLabel(reason),
+                                color =
+                                    if (tagReasonPicked == reason) {
+                                        AdminInteractionColor
+                                    } else {
+                                        BodyGrey
+                                    }
+                            )
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    enabled = tagReasonPicked != null,
+                    onClick = {
+                        val tag = tagPicked!!
+                        val reason = tagReasonPicked!!
+                        confirmRemoveTag = false
+                        tagPicked = null
+                        tagReasonPicked = null
+                        onRemoveTag(tag, reason)
+                    },
+                    modifier = Modifier.testTag("confirm_remove_tag")
+                ) {
+                    Text("Remove")
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    modifier = Modifier.testTag("admin_remove_tag_cancel"),
+                    onClick = {
+                        confirmRemoveTag = false
+                        tagPicked = null
+                        tagReasonPicked = null
+                    }
+                ) {
+                    Text("Cancel")
+                }
+            }
         )
     }
 }

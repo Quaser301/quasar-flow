@@ -24,6 +24,7 @@ fun ReceivedNoticesTab(
     userId: String,
     notificationController: NotificationController,
     onNavToNotif: (screen: Screen) -> Unit,
+    deleteNotice: (String) -> Unit = {},
 ) {
     val inboxViewModel: NotificationViewModel = viewModel(
         key = "notification-inbox-$userId",
@@ -33,17 +34,24 @@ fun ReceivedNoticesTab(
     )
     NotificationInboxScreen(viewModel = inboxViewModel, navToNotification = { notification ->
         onNavToNotif(NotificationRoutes.screenFor(notification))
-    })
+    }, deleteNotice = deleteNotice)
 }
 
 /**
  * The "Sent Notifications" of the current viewer: the notices they caused, read through a
- * repository scoped to their own id, drawn by the notification log.
+ * repository scoped to their own id, drawn by the notification log. A viewer listing their
+ * own correspondence is not shown the raw database keys an admin looks entries up by.
  */
 @Composable
-fun SentNoticesTab(userId: String, repo: NotificationRepository) {
+fun SentNoticesTab(
+    userId: String,
+    repo: NotificationRepository,
+    deleteNotice: (String) -> Unit = {},
+) {
     NotificationLogScreen(
         title = "Sent Notifications",
-        notificationSource = SentNotificationsRepository(repo, userId)
+        notificationSource = SentNotificationsRepository(repo, userId),
+        rawIdsAllowed = false,
+        deleteNotice = deleteNotice
     )
 }

@@ -32,6 +32,8 @@ class FirestoreNotificationRepository (
             )
 
             is NotificationCommand.MarkRead -> markOpened(command.notificationId, command.onDone)
+
+            is NotificationCommand.Delete -> removeNotice(command.notificationId, command.onDone)
         }
     }
 
@@ -111,6 +113,17 @@ class FirestoreNotificationRepository (
                     "readAt" to FieldValue.serverTimestamp()
                 )
             )
+            .addOnSuccessListener { onDone(Result.success(Unit)) }
+            .addOnFailureListener { onDone(Result.failure(it)) }
+    }
+
+    private fun removeNotice(notificationId: String, onDone: (Result<Unit>) -> Unit) {
+        if (notificationId.isBlank()) {
+            onDone(Result.failure(IllegalArgumentException("notificationId is required")))
+            return
+        }
+        collection.document(notificationId)
+            .delete()
             .addOnSuccessListener { onDone(Result.success(Unit)) }
             .addOnFailureListener { onDone(Result.failure(it)) }
     }
