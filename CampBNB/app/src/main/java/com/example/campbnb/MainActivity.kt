@@ -69,9 +69,10 @@ class MainActivity : ComponentActivity() {
 
         // The scanner screen needs the device's camera, and only this app can ask the
         // device to let it be used: the ask belongs to the activity the app runs on,
-        // not to a screen. It is asked once, at start, and the answer is carried as a
-        // fact the scanner reads, so the screen opens its camera when the answer says
-        // yes and stays on its typed and file paths when it says no.
+        // not to a screen. It is asked once, at start, and only a NO is carried as a
+        // fact the scanner reads, so the screen opens its camera unless the device
+        // says no. A device that shows no dialog and never calls back keeps its
+        // camera, and the camera's own failure is what the screen then reports.
         requestPermissions(arrayOf(android.Manifest.permission.CAMERA), cameraAnswerId)
 
         setContent {
@@ -93,8 +94,8 @@ class MainActivity : ComponentActivity() {
     }
 
     /** The answer to the camera ask above: the device calls back with what the user
-     * chose, and the app carries it as a fact the scanner reads. The default answer
-     * still runs, so the dialog the device shows is the device's own. */
+     * chose, and the app carries only a NO as a fact the scanner reads. A device
+     * that never calls back leaves the fact false, so its camera is still opened. */
     override fun onRequestPermissionsResult(
         requestCode: Int,
         permissions: Array<String>,
@@ -102,8 +103,8 @@ class MainActivity : ComponentActivity() {
     ) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         if (requestCode == cameraAnswerId) {
-            AppContainer.cameraAllowed = grantResults.all { outcome ->
-                outcome == permissionAllowed
+            AppContainer.cameraRefused = grantResults.any { outcome ->
+                outcome != permissionAllowed
             }
         }
     }

@@ -218,7 +218,12 @@ fun NavGraphBuilder.campsiteGraph(
                 mutableStateOf<String?>(null)
             }
 
-            LaunchedEffect(route.campsiteId) {
+            // Reading the listing is one step, written once: the node runs it when the
+            // page opens, and runs it again after a policy action has changed the saved
+            // record, so the page shows the record as it now is rather than as it was
+            // when the page opened (a tag taken out of the record is gone from the page
+            // too, not still drawn from the copy the page opened with).
+            fun reloadListing() {
                 isLoading = true
                 errorMessage = null
                 campsiteDetails = null
@@ -283,6 +288,10 @@ fun NavGraphBuilder.campsiteGraph(
                         isLoading = false
                     }
                 )
+            }
+
+            LaunchedEffect(route.campsiteId) {
+                reloadListing()
             }
 
             when {
@@ -373,6 +382,11 @@ fun NavGraphBuilder.campsiteGraph(
                                             "Removed the tag and told the site's owner.",
                                             Toast.LENGTH_SHORT
                                         )
+                                        // The page reads the listing again so the tag that
+                                        // is gone is gone from the page: the page drew its
+                                        // tags when it opened, and the removal edited the
+                                        // saved record, not that copy.
+                                        reloadListing()
                                     } else {
                                         toastGenerator(
                                             "Could not remove the tag.",

@@ -152,7 +152,7 @@ private fun summaryLineOf(
     // The db key is the lookup handle an admin reads a record's raw field values by, so
     // only a viewer who may see raw references is shown it. A viewer who may not gets a
     // bar that ends at where the notice opens.
-    val dbSegment = if (showDbIds) "  -  db id ${group.notificationId}" else ""
+    val dbSegment = if (showDbIds) "  -  DB ID ${group.notificationId}" else ""
     return "sent by $sender  -  ${group.recipientIds.count()} recipient(s)  -  " +
         "${group.sentAtLabel}  -  opens $opens$dbSegment"
 }

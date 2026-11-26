@@ -58,16 +58,17 @@ import com.example.campbnb.ui.theme.FieldGrey
  *   its details page.
  * @param frameSource Where the next camera frame comes from; NoCameraFrame keeps the
  *   screen on typed text when this device gives no frames.
- * @param cameraAllowed Whether this device has let the app use its camera. Only the
- *   app can ask the device, so the answer arrives here as a fact: false keeps the
- *   frame area on its placeholder and the screen on its typed path.
+ * @param cameraRefused Whether the device said NO to the app using its camera. Only
+ *   the app can ask the device, so a refusal arrives here as a fact: true keeps the
+ *   frame area on its placeholder and the screen on its typed path. A device that
+ *   never answers is not a refusal, so its camera is opened.
  */
 @Composable
 fun QrScannerScreen(
     controller: CampsiteController,
     onOpenCampsite: (Campsite) -> Unit = {},
     frameSource: CameraFrameSource = NoCameraFrame(),
-    cameraAllowed: Boolean = false
+    cameraRefused: Boolean = false
 ) {
     var typedCode by remember { mutableStateOf("") }
     var scannedText by remember { mutableStateOf("") }
@@ -77,11 +78,13 @@ fun QrScannerScreen(
     // One camera session per screen opening (US 01.05.02, live scanner): the preview
     // surface arrives through the surface-request callback and is shown as it comes.
     // The device only lets a camera start once it has allowed the app to use it, and
-    // only the app itself can ask — so the app asked at start and the answer arrives
-    // here as [cameraAllowed]. The camera opens when that answer says yes, and the
-    // effect re-runs when the answer arrives, so the preview starts as soon as the
-    // user has allowed it. This device's camera path hands no byte frames, so the
-    // frame-reading flow below is untouched and still reads typed text.
+    // only the app itself can ask — so the app asked at start and only a refusal
+    // arrives here as [cameraRefused]. The camera opens unless the device said no,
+    // and the effect re-runs when that answer arrives, so the preview starts as soon
+    // as the user has allowed it. A device that shows no dialog and never answers is
+    // not a refusal: its camera is opened, and if it cannot start, the failure below
+    // says so. This device's camera path hands no byte frames, so the frame-reading
+    // flow below is untouched and still reads typed text.
     val context = LocalContext.current
     val lifecycleOwner = rememberLifecycleOwner()
 
@@ -105,8 +108,8 @@ fun QrScannerScreen(
         }
     }
 
-    LaunchedEffect(lifecycleOwner, cameraAllowed) {
-        if (cameraAllowed) {
+    LaunchedEffect(lifecycleOwner, cameraRefused) {
+        if (!cameraRefused) {
             openCamera()
         }
     }

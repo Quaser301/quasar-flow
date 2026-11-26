@@ -41,8 +41,8 @@ import com.example.campbnb.models.Campsite
  * @param campsiteModel The shared model the search results draw through.
  * @param campsiteControl The shared controller that loads and searches.
  * @param toastGenerator Reports a load failure to the user; the caller owns the channel.
- * @param cameraAllowed Whether this device has let the app use its camera; the camera
- *   scanner opens a camera only when this says yes.
+ * @param cameraRefused Whether the device said NO to the app using its camera; the
+ *   camera scanner opens a camera unless this says the device refused.
  */
 fun NavGraphBuilder.exploreGraph(
 
@@ -63,7 +63,7 @@ fun NavGraphBuilder.exploreGraph(
 
     toastGenerator: (reason: String, duration:Int) -> Unit,
 
-    cameraAllowed: Boolean = false
+    cameraRefused: Boolean = false
 ) {
     navigation<NavGraphNodes.ExploreGraph>(startDestination = Screen.Explore) {
         composable<Screen.Explore> {
@@ -145,7 +145,7 @@ fun NavGraphBuilder.exploreGraph(
                 onOpenCampsite = { campsite ->
                     navToCampDetails(route.role, campsite.id)
                 },
-                cameraAllowed = cameraAllowed
+                cameraRefused = cameraRefused
             )
         }
     }

@@ -66,9 +66,10 @@ in-source note records why a real provider cannot exist on this platform (camera
 `CameraManager` is a final class with a package-private constructor; frame planes keep
 bytes in a `java.io.ByteBuffer` type this runtime no longer exposes) — matches the
 night-run finding; do not try to build a camera provider in a test. The androidx.camera
-path (US 01.05.02, live scanner) CAN now start the device camera — once the device has
-granted the app its camera, which the manifest declares and the scanner screen asks for —
-and the scanner screen shows its live preview, but that path hands back no picture bytes
+path (US 01.05.02, live scanner) CAN now start the device camera — MainActivity asks the
+device for its camera at start and only a refusal is carried as an app-level fact, so the
+scanner screen opens a camera unless the device said no — and the scanner screen shows its
+live preview, but that path hands back no picture bytes
 either, so this seam stays frameless on the device.
 
 `ui.shared/DeviceId.kt`: `object DeviceId { fun get(context, src: () -> String = { …ANDROID_ID… }): String = src() }` —
@@ -154,12 +155,14 @@ reservations renderer (params per app.md). `ui.screens/DeviceSignInScreen.kt`, `
 `QrOldCodeNoticeScreen.kt` (`back: () -> Unit = {}` fires on its Back button), `SetUpScreens.kt`
 (StartScreen/SignUpScreen/RoleSelectScreen) — Composables, contract = their call sites in app.md.
 `QrScannerScreen` also opens the device camera via androidx.camera when the screen opens and
-draws its live preview once the preview surface arrives (US 01.05.02, live scanner). The camera
-only starts once the device has allowed the app to use it: `app/src/main/AndroidManifest.xml`
-declares `android.permission.CAMERA` and the screen asks for it through
-`ActivityResultContracts.RequestPermission()` before binding, opening the camera when the answer
-comes back granted (the same ask the notification card does for its own permission); a denial
-leaves the placeholder and the typed path. The in-app image-file scan (the `image_path_field`
+draws its live preview once the preview surface arrives (US 01.05.02, live scanner). The ask
+is NOT the screen's: only the running activity can ask a device, so MainActivity asks for
+`android.permission.CAMERA` once at start through plain `android.app.Activity.requestPermissions`
+(no `ActivityResultContracts` ask exists in this build's flow) and carries ONLY a refusal as the
+app-level fact `Dependencies.cameraRefused` (default false). The screen opens its camera UNLESS
+it reads a refusal — a device that shows no dialog and never calls back is not a refusal, so its
+camera is opened and the camera's own failure is what the screen reports, LOUD, in its notice.
+A refusal leaves the placeholder and the typed path. The in-app image-file scan (the `image_path_field`
 text field and its `image_scan` button) is GONE: the user called it bulky and the phone's own
 camera opens a code's link instead (the registered `campbnb` scheme, app.md); the screen keeps
 its live preview, the typed-code field, the frame-reading seam and the Open button. Screen-internal

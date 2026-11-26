@@ -112,6 +112,12 @@ Order inside `onCreate` (integration contract, exact):
    `handleQrLinkIntent(intent)` — a cold launch with either intent already set (a banner
    tapped, or the phone's own camera having opened a code's link, before this process
    started) still routes.
+4b. `requestPermissions(arrayOf(android.Manifest.permission.CAMERA), cameraAnswerId)` — only
+   the running activity can ask a device for its camera, so the ask lives here, once, at
+   start (NOT in the scanner screen, and no `ActivityResultContracts` ask is in this flow).
+   `onRequestPermissionsResult` carries ONLY a refusal, into `AppContainer.cameraRefused`
+   (default false): a device that shows no dialog and never calls back is not a refusal, so
+   the scanner still opens its camera and the camera's own failure is what the screen reports.
 5. `setContent { CampBnbTheme { LaunchedEffect(AppContainer.deviceID) { watcher.start(deviceID) };
    CampBnbApp(deps = AppContainer) } }` — the banner watcher starts for THIS device id
    (notifications.md's baseline rule then governs what banners appear).
@@ -368,7 +374,7 @@ line each; `nav` is the app controller, `homeNav` the nested one, all calls as s
     deps.notificationRepository, profileText = { userId -> profileLabelOf(userId,
     userModel.allUsers) }, deleteNotice = …)` (the debug log resolves profile references via ui.md's
     `profileLabelOf`, against the saved users loaded above; it is the ONLY view that keeps the
-    raw `db id` segment, and its own `deleteNotice` runs the same `NotificationCommand.Delete`
+    raw `DB ID` segment, and its own `deleteNotice` runs the same `NotificationCommand.Delete`
     with no toast channel of its own — the admin reading raw fields removes an entry outright). `DebugGraph`'s screens are
     only ever reachable through the bar — its app-mount copy stays registered and
     unreachable.
@@ -400,7 +406,12 @@ line each; `nav` is the app controller, `homeNav` the nested one, all calls as s
   `deps.adminController.removeCampsite(target, reason, deps.currentUserId)` Toast
   `"Removed the site and told its owner."`/`"Could not remove the site."`; `onRemoveTag`→
   `removeTag(target, tag, reason, …)` Toast `"Removed the tag and told the site's owner."`/`"Could not remove the tag."`
-  (controller.md owns the record-building rules). DIVERGENCE, left as the owner's call rather
+  (controller.md owns the record-building rules). A tag removal RELOADS the page: the node's
+  listing read is one step (`reloadListing()`) that the node runs when the page opens AND again
+  after a successful `removeTag`, so the page re-reads the SAVED record and the tag that was
+  taken out is gone from the drawn chips — the page drew its tags when it opened, and the
+  removal edited the record, not that copy. The reload re-runs the same `getAll` + ratings
+  read, so a failed reload keeps the last good view and its own error strings. DIVERGENCE, left as the owner's call rather
   than silently changed: the live `onDeleteSite` calls `adminController.deleteCampsite(campsiteId, reason)`
   — the whole-record deletion that cascades through `CampsiteRemovalRepository` (controller.md
   documents BOTH `removeCampsite` as the policy action and `deleteCampsite` as the whole-record

@@ -187,9 +187,9 @@ object AppContainer: Dependencies {
 
     override var homeTab: Screen? by mutableStateOf(null)
 
-    // The app asked the device for its camera at start; this is the answer that came
-    // back, and the scanner screen opens a camera only on a yes.
-    override var cameraAllowed by mutableStateOf(false)
+    // The app asked the device for its camera at start; the only answer that is
+    // carried is a NO, and the scanner screen opens a camera unless it reads one.
+    override var cameraRefused by mutableStateOf(false)
 
     fun init(context: android.content.Context) {
         deviceID = DeviceId.get(context)

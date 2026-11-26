@@ -32,12 +32,13 @@ interface Dependencies {
     val deviceID: String
 
     /**
-     * Whether this device has let the app use its camera. The app asks the device
-     * once, at start; the answer arrives back asynchronously, so a screen that opens
-     * a camera reads this instead of asking. False means no answer has arrived, or
-     * the device said no, and the screen keeps working without a camera.
+     * Whether this device said NO to the app using its camera. The app asks the
+     * device once, at start; the answer arrives back asynchronously, so a screen
+     * that opens a camera reads this instead of asking. Only an explicit refusal
+     * is carried: a device that never answers keeps its camera, because the ask
+     * is what gates it and not every device sends an answer back at all.
      */
-    var cameraAllowed: Boolean
+    var cameraRefused: Boolean
 
     /** Shared user state, including roles and the signed-in user. */
     val userModel: UserModel

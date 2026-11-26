@@ -135,8 +135,8 @@ class NotificationAttributionTest {
 
         Assert.assertEquals(1, withKeys.size)
         Assert.assertEquals(1, withoutKeys.size)
-        Assert.assertTrue(withKeys.first().text.contains("db id n1"))
-        Assert.assertFalse(withoutKeys.first().text.contains("db id"))
+        Assert.assertTrue(withKeys.first().text.contains("DB ID n1"))
+        Assert.assertFalse(withoutKeys.first().text.contains("DB ID"))
     }
 
     @Test

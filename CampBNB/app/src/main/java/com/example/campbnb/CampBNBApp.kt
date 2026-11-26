@@ -212,7 +212,7 @@ fun CampBnbApp(
             campsiteControl = exploreCampsiteController,
 
             toastGenerator = toast,
-            cameraAllowed = deps.cameraAllowed
+            cameraRefused = deps.cameraRefused
         )
 
         // The campsite half: the owner's My Campsites links, campsite registration
@@ -445,7 +445,7 @@ fun CampBnbApp(
                     campsiteControl = exploreCampsiteController,
 
                     toastGenerator = toast,
-                    cameraAllowed = deps.cameraAllowed
+                    cameraRefused = deps.cameraRefused
                 )
 
                 // The owner's My Campsites tab: the tab's own screen names the
