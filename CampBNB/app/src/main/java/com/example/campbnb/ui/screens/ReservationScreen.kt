@@ -1,6 +1,7 @@
 
 package com.example.campbnb.ui.screens
 
+import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -28,6 +29,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -322,6 +324,7 @@ private fun ReservationCard(
     csvAllowed: Boolean = false,
     fileDownloadWriter: FileDownloadWriter = NoFileDownloadWriter(),
 ) {
+    val context = LocalContext.current
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(12.dp),
@@ -402,10 +405,19 @@ private fun ReservationCard(
                         .padding(vertical = 6.dp)
                         .testTag("reservation_csv")
                         .clickable {
+                            val fileName = reservationCsvFileName(reservation)
                             fileDownloadWriter.downloadFile(
-                                reservationCsvFileName(reservation),
+                                fileName,
                                 reservationCsvBytesOf(reservation, campsite)
-                            ) { _ -> }
+                            ) { result ->
+                                // Tell the user whether the file was saved and where.
+                                val message = if (result.isSuccess) {
+                                    "Saved $fileName to your Downloads folder"
+                                } else {
+                                    "Could not save the file"
+                                }
+                                Toast.makeText(context, message, Toast.LENGTH_LONG).show()
+                            }
                         },
                     shape = RoundedCornerShape(10.dp),
                     color = CampDarkGreen

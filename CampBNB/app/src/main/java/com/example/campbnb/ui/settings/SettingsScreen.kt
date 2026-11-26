@@ -1,52 +1,56 @@
 package com.example.campbnb.ui.settings
 
+import android.widget.Toast
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.runtime.*
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.example.campbnb.R
+import com.example.campbnb.data.AppSettingsService
+import com.example.campbnb.data.NoAppSettingsService
+import com.example.campbnb.data.NoNotificationPreferencesService
+import com.example.campbnb.data.NotificationPreferencesService
+import com.example.campbnb.models.ConfirmationDelivery
+import com.example.campbnb.models.confirmationDeliveryOf
 import com.example.campbnb.ui.components.GradientBarButton
 import com.example.campbnb.ui.components.UserRole
 import com.example.campbnb.ui.shared.AppDropDownMenu
-import com.example.campbnb.ui.shared.AppSwitchMenu
 import com.example.campbnb.ui.shared.BarWithBackChevronAndHeaderCentered
-import com.example.campbnb.ui.theme.DataColor
-import com.example.campbnb.ui.theme.DataColorImportant
 import com.example.campbnb.ui.theme.FieldGrey
 import com.example.campbnb.viewModels.AppView
-import com.example.campbnb.data.NoNotificationPreferencesService
-import com.example.campbnb.data.NotificationPreferencesService
-import com.example.campbnb.data.AppSettingsService
-import com.example.campbnb.data.NoAppSettingsService
-import com.example.campbnb.models.NotificationSettings
 import com.example.campbnb.viewModels.AppViewSettingController
 import com.example.campbnb.viewModels.EntrantSettingsController
 import com.example.campbnb.viewModels.OwnerSettingsController
 import com.example.campbnb.viewModels.SettingsDisplayController
-import com.example.campbnb.R
 
 /**
  * 25-11-26: Prompted Gemini 3.6 to add a scrollable popup to the app policy button
@@ -124,11 +128,24 @@ fun SettingsScreen(
     val currentView = viewSettings.viewSetting.collectAsStateWithLifecycle()
     var showPolicyDialog by remember { mutableStateOf(false) }
 
+    val context = LocalContext.current
+    // A pending dropdown choice means there are unsaved changes.
+    val pendingDelivery by entrantSettings.pendingDelivery.collectAsStateWithLifecycle()
+    val hasUnsavedChanges = pendingDelivery != null
+    var showDiscardDialog by remember { mutableStateOf(false) }
+
+    // Backing out with unsaved changes asks first; otherwise it just goes back.
+    val guardedBack: () -> Unit = {
+        if (hasUnsavedChanges) showDiscardDialog = true else back()
+    }
+    // The system back gesture gets the same guard as the on-screen chevron.
+    BackHandler(enabled = hasUnsavedChanges) { showDiscardDialog = true }
+
     Column(
         modifier = Modifier.padding(top = 32.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        BarWithBackChevronAndHeaderCentered(back, "Settings")
+        BarWithBackChevronAndHeaderCentered(guardedBack, "Settings")
         settingsGroupsFor(role, currentView.value).forEach { groupId ->
             SettingsDropdown(display, groupId) {
                 when (groupId) {
@@ -140,9 +157,7 @@ fun SettingsScreen(
                     )
                     SettingsGroupId.ADMIN_SETTINGS -> adminSettingsContent()
                     SettingsGroupId.ENTRANT_SETTINGS -> EntrantSettingsItems(
-                        settings = entrantSettings,
-                        notificationPreferences = notificationPreferences,
-                        userId = userIdForSettings
+                        settings = entrantSettings
                     )
                     SettingsGroupId.OWNER_SETTINGS -> OwnerSettingsItems(ownerSettings)
                 }
@@ -150,6 +165,26 @@ fun SettingsScreen(
         }
 
         Spacer(modifier = Modifier.height(16.dp))
+
+        // Update: always shown, disabled until a setting changes. Pressing it applies
+        // the change instantly and saves it in the background.
+        GradientBarButton(
+            text = "Update",
+            enabled = hasUnsavedChanges,
+            onClick = {
+                val toSave = entrantSettings.commitPending()
+                notificationPreferences.setNotificationSettings(userIdForSettings, toSave) { result ->
+                    if (result.isFailure) {
+                        Toast.makeText(context, "Could not save settings", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            },
+            modifier = Modifier
+                .testTag("settings_update")
+                .fillMaxWidth()
+                .padding(horizontal = 6.dp)
+        )
+        Spacer(modifier = Modifier.height(8.dp))
 
         // App Policy displays for all roles as I feel it's relevant for more than just entrant
         GradientBarButton(
@@ -188,6 +223,25 @@ fun SettingsScreen(
             )
         }
 
+        // Leaving with unsaved changes: Cancel stays here with the changes held,
+        // Discard drops them and goes back.
+        if (showDiscardDialog) {
+            AlertDialog(
+                onDismissRequest = { showDiscardDialog = false },
+                title = { Text("Discard changes?") },
+                text = { Text("You have unsaved settings. Continuing to navigate back will discard your changes.") },
+                confirmButton = {
+                    TextButton(onClick = {
+                        showDiscardDialog = false
+                        entrantSettings.discardPending()
+                        back()
+                    }) { Text("Discard") }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showDiscardDialog = false }) { Text("Cancel") }
+                }
+            )
+        }
     }
 }
 
@@ -271,49 +325,76 @@ private fun ViewSwitchMenu(
 
 /** The entrant settings group: the entrant's settings entries. */
 @Composable
-private fun EntrantSettingsItems(
-    settings: EntrantSettingsController,
-    notificationPreferences: NotificationPreferencesService,
-    userId: String,
-) {
+private fun EntrantSettingsItems(settings: EntrantSettingsController) {
     val bookingsOrder = settings.bookingSortSetting.collectAsStateWithLifecycle()
     val inboxAlerts = settings.inboxAlertsSetting.collectAsStateWithLifecycle()
     val messagesFilter = settings.messageFilterSetting.collectAsStateWithLifecycle()
-
-    // drop down systems for the notification settings:
-    val notificationSettings by settings.notificationSettings.collectAsStateWithLifecycle()
-    val options = listOf(NotificationSettings.PUSH, NotificationSettings.CSV)
-    val textRenderer: (NotificationSettings) -> String = { setting ->
-        when (setting) {
-            NotificationSettings.PUSH -> "Push"
-            NotificationSettings.CSV -> "CSV"
-        }
-    }
-
 
     Column {
         SettingsEntry("bookings order", bookingsOrder.value)
         SettingsEntry("inbox alerts", inboxAlerts.value)
         SettingsEntry("messages filter", messagesFilter.value)
-        Text(
-            "Notification Settings",
-            fontSize = 32.sp,
-            textAlign = TextAlign.Center,
-            modifier = Modifier.padding(12.dp)
-        )
-        AppSwitchMenu(
-            options,
-            notificationSettings,
-            { setting: NotificationSettings, enabled: Boolean ->
-                settings.toggleNotificationSetting(setting, enabled)
-                notificationPreferences.setNotificationSettings(
-                    userId,
-                    settings.notificationSettings.value
-                ) { _ -> }
-            },
-            textRenderer = textRenderer
-            )
+        ConfirmationSettingsTab(settings)
     }
+}
+
+/**
+ * The "Confirmation Settings" sub-tab: one dropdown choosing whether a reservation
+ * confirmation arrives as a notification (default) or an auto-downloaded CSV.
+ * Choosing only marks the change as pending; the Update button saves it.
+ */
+@Composable
+private fun ConfirmationSettingsTab(settings: EntrantSettingsController) {
+    var open by remember { mutableStateOf(false) }
+    var menuOpen by remember { mutableStateOf(false) }
+    val saved by settings.notificationSettings.collectAsStateWithLifecycle()
+    val pending by settings.pendingDelivery.collectAsStateWithLifecycle()
+    // What the dropdown shows: the unsaved choice if there is one, else the saved one.
+    val shown = pending ?: confirmationDeliveryOf(saved)
+
+    Column {
+        GradientBarButton(
+            "Confirmation Settings" + if (open) "" else " - tap to open",
+            onClick = { open = !open },
+            modifier = Modifier
+                .testTag("confirmation_settings_bar")
+                .fillMaxWidth()
+                .padding(6.dp)
+        )
+        if (open) {
+            Column(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Text("Receive reservation confirmations as", fontSize = 18.sp)
+                Box {
+                    Text(
+                        text = deliveryLabel(shown) + "  ▾",
+                        fontSize = 18.sp,
+                        modifier = Modifier
+                            .testTag("confirmation_delivery_dropdown")
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(FieldGrey)
+                            .clickable { menuOpen = true }
+                            .padding(horizontal = 16.dp, vertical = 12.dp)
+                    )
+                    AppDropDownMenu(
+                        entries = listOf(ConfirmationDelivery.NOTIFICATION, ConfirmationDelivery.CSV),
+                        onSelect = { settings.chooseDelivery(it) },
+                        onDismissed = { menuOpen = false },
+                        textRenderer = { Text(deliveryLabel(it) + if (it == shown) " ←" else "") },
+                        expanded = menuOpen
+                    )
+                }
+            }
+        }
+    }
+}
+
+/** The dropdown wording for each delivery choice. */
+private fun deliveryLabel(delivery: ConfirmationDelivery): String = when (delivery) {
+    ConfirmationDelivery.NOTIFICATION -> "Notification"
+    ConfirmationDelivery.CSV -> "CSV download"
 }
 
 /** The owner settings group: the owner's placeholder settings entries. */
