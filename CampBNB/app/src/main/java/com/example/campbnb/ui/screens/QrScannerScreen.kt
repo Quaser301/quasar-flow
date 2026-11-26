@@ -94,11 +94,24 @@ fun QrScannerScreen(
             cameraProvider.unbindAll()
             val preview = androidx.camera.core.Preview.Builder().build()
             preview.setSurfaceProvider(CameraSurfaceKeeper { surfaceRequest -> cameraSurface = surfaceRequest })
-            cameraProvider.bindToLifecycle(
-                lifecycleOwner,
-                androidx.camera.core.CameraSelector.DEFAULT_BACK_CAMERA,
-                preview
-            )
+            // The device's OWN camera, not a lens this app assumes: DEFAULT_BACK_CAMERA asks
+            // for a back-facing lens, and a device whose camera reports no lens facing at
+            // all (a chromebook's camera answers with no lens category) matches no lens
+            // filter, so the bind throws "No available camera can be found" while the
+            // device still has a camera. The first camera the device itself lists is the
+            // one that can be opened, and naming it by its own identifier asks for no
+            // lens at all.
+            val listedCameras = cameraProvider.availableCameraInfos
+            val deviceLens = listedCameras.firstOrNull()?.cameraIdentifier
+            if (deviceLens == null) {
+                notice = "This device lists no camera that can be opened. Type the code instead."
+            } else {
+                cameraProvider.bindToLifecycle(
+                    lifecycleOwner,
+                    androidx.camera.core.CameraSelector.of(deviceLens),
+                    preview
+                )
+            }
         } catch (failure: Exception) {
             // A camera that cannot be opened is LOUD rather than silent: the placeholder
             // alone tells the user nothing about why the preview never came, and the

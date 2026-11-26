@@ -162,7 +162,13 @@ is NOT the screen's: only the running activity can ask a device, so MainActivity
 app-level fact `Dependencies.cameraRefused` (default false). The screen opens its camera UNLESS
 it reads a refusal — a device that shows no dialog and never calls back is not a refusal, so its
 camera is opened and the camera's own failure is what the screen reports, LOUD, in its notice.
-A refusal leaves the placeholder and the typed path. The in-app image-file scan (the `image_path_field`
+A refusal leaves the placeholder and the typed path. The screen binds the FIRST camera the device
+itself lists (`cameraProvider.availableCameraInfos` → `CameraSelector.of(that camera's identifier)`),
+NOT `DEFAULT_BACK_CAMERA`: a lens-facing selector asks for a back-facing lens, and a device whose
+camera reports no lens category at all (a chromebook's does — its own error names
+`LensCategory:null` while naming `Cams:1`) matches no lens filter, so the bind throws
+"No available camera can be found" on a device that has a camera. A device that lists no camera
+names that in its notice instead. The in-app image-file scan (the `image_path_field`
 text field and its `image_scan` button) is GONE: the user called it bulky and the phone's own
 camera opens a code's link instead (the registered `campbnb` scheme, app.md); the screen keeps
 its live preview, the typed-code field, the frame-reading seam and the Open button. Screen-internal
