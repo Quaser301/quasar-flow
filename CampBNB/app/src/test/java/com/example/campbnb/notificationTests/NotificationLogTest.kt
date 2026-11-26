@@ -17,7 +17,7 @@ package com.example.campbnb.notificationTests
 // The fake keeps whatever was saved between cases, so every case that counts what a read
 // serves goes through openLog, which forgets the previous records first.
 
-import com.example.campbnb.controller.NotificationController
+import com.example.campbnb.data.NotificationCommand
 import com.example.campbnb.models.Notification
 import com.example.campbnb.models.NotificationType
 import com.example.campbnb.models.NotificationLogGroup
@@ -62,6 +62,10 @@ class NotificationLogTest {
         sentAt = if (seconds < 0) null else Timestamp(seconds, 0)
     ).also { it.id = id }
 
+    /** Keeps records through the store, the way the notification feature asks one. */
+    private fun store(records: List<Notification>) =
+        repository.run(NotificationCommand.Save(records = records, onDone = {}))
+
     /**
      * The log, opened fresh over records that are already saved: the fake forgets whatever an
      * earlier case left behind, saves these, and reads them as opening the screen does.
@@ -70,8 +74,8 @@ class NotificationLogTest {
         records: List<Notification>
     ): NotificationLogViewModel {
         repository.forgetSaved()
-        repository.saveAll(records) {}
-        return NotificationLogViewModel(NotificationController(repository)) { userId -> "profile $userId" }
+        store(records)
+        return NotificationLogViewModel(repository) { userId -> "profile $userId" }
     }
 
     /** The state of a log that has successfully read its entries. */
@@ -98,7 +102,7 @@ class NotificationLogTest {
         repository.forgetSaved()
         repository.failNextReadAll = true
 
-        val log = NotificationLogViewModel(NotificationController(repository)) { userId -> userId }
+        val log = NotificationLogViewModel(repository) { userId -> userId }
         val shown = log.state.value
 
         assertTrue(shown is LogViewState.Error)
@@ -124,9 +128,9 @@ class NotificationLogTest {
     fun openStateSurvivesAFailedReadAndAppliesOnTheNextOne() {
         val draw = record("w", "camper-1", NotificationType.WIN, "You won!", "Selected.", 100,
             lotteryId = "lot-l1")
-        repository.saveAll(listOf(draw)) {}
+        store(listOf(draw))
         repository.failNextReadAll = true
-        val log = NotificationLogViewModel(NotificationController(repository)) { userId -> userId }
+        val log = NotificationLogViewModel(repository) { userId -> userId }
         val name = notificationLogKeyOf(draw)
 
         log.toggleLog(name)
@@ -304,7 +308,7 @@ class NotificationLogTest {
             lotteryId = "lot-z")
 
         val log = openLog(listOf(first))
-        repository.saveAll(listOf(addedLater)) {}
+        store(listOf(addedLater))
         log.readLog()
         val shown = openedLog(log)
 
@@ -524,5 +528,131 @@ class NotificationLogTest {
     @Test
     fun emptyReferenceDrawsNoProfileNote() {
         assertEquals("(no profile)", profileLabelOf("", listOf(User(deviceId = "camper-8"))))
+    }
+
+    // The collapsed bar is stated word-for-word: an unnamed sender draws the system
+    // placeholder, an unstamped entry its no-timestamp wording, a record that copied no
+    // place keeps its plain route, the entry's raw db id comes through as the record's
+    // own key, and the closed form appends only the tap note.
+    @Test
+    fun closed_bar_carries_the_exact_stated_copy() {
+        val entry = record(
+            id = "b1",
+            receiver = "camper-1",
+            type = NotificationType.WIN,
+            title = "You won!",
+            message = "Selected.",
+            seconds = -1
+        )
+
+        val bars = linesOf(openLog(listOf(entry)), LogLineStyle.DROPDOWN)
+
+        assertEquals(1, bars.count())
+        assertEquals(
+            "sent by the system  -  1 recipient(s)  -  no saved timestamp  -  " +
+                    "opens notifications  -  db id b1 - tap to open",
+            bars[0].text
+        )
+        assertEquals(notificationLogKeyOf(entry), bars[0].logId)
+    }
+
+    // The bar NAMES its sender: a non-empty senderId is resolved through the caller's
+    // resolver exactly like every other profile reference (models.md stated copy).
+    @Test
+    fun named_sender_draws_its_resolved_label_in_the_bar() {
+        val entry = record(
+            id = "s9",
+            receiver = "camper-1",
+            type = NotificationType.LOSE,
+            title = "Not chosen.",
+            message = "Sorry.",
+            seconds = -1,
+            sender = "camper-9"
+        )
+
+        val bars = linesOf(openLog(listOf(entry)), LogLineStyle.DROPDOWN)
+
+        assertEquals(1, bars.count())
+        assertEquals(
+            "sent by profile camper-9  -  1 recipient(s)  -  no saved timestamp  -  " +
+                    "opens reservations  -  db id s9 - tap to open",
+            bars[0].text
+        )
+    }
+
+    // The place a notice opens is drawn from the record's OWN copied name when it has
+    // one — the route reference never leaks out in front of a named place.
+    @Test
+    fun copied_place_name_wins_over_the_route_reference_in_the_bar() {
+        val entry = record(
+            id = "b2",
+            receiver = "camper-1",
+            type = NotificationType.WIN,
+            title = "You won!",
+            message = "Selected.",
+            seconds = -1,
+            lotteryId = "lot-9",
+            campsite = "Sandy Shore"
+        )
+
+        val bars = linesOf(openLog(listOf(entry)), LogLineStyle.DROPDOWN)
+
+        assertEquals(
+            "sent by the system  -  1 recipient(s)  -  no saved timestamp  -  " +
+                    "opens Sandy Shore  -  db id b2 - tap to open",
+            bars[0].text
+        )
+    }
+
+    // A saved stamp labels its entry in the stated date shape; the exact moment is
+    // the device's, so only the shape of the label is asserted.
+    @Test
+    fun saved_stamp_is_labelled_in_the_stated_shape() {
+        val entry = record(
+            id = "s1",
+            receiver = "camper-1",
+            type = NotificationType.LOSE,
+            title = "Not chosen.",
+            message = "Sorry.",
+            seconds = 100L
+        )
+
+        val groups = openedLog(openLog(listOf(entry))).logs
+
+        assertEquals(1, groups.count())
+        assertTrue(
+            "the label is a date and a minute, whatever the device's moment was",
+            groups[0].sentAtLabel.matches(
+                    "\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}".toRegex())
+        )
+    }
+
+    // A name of only spaces is a valid dropdown key - only an empty one early-returns.
+    @Test
+    fun whitespace_dropdown_name_owns_a_key_of_its_own() {
+        val entry = record(
+            id = "w1",
+            receiver = "camper-1",
+            type = NotificationType.WIN,
+            title = "You won!",
+            message = "Selected.",
+            seconds = 100L,
+            lotteryId = "lot-l1"
+        )
+        val log = openLog(listOf(entry))
+
+        log.toggleLog("   ")
+        assertTrue(
+            "the spaces-only name joined the open set like any other key",
+            "   " in log.openLogs.value
+        )
+
+        log.readLog()
+        val shown = openedLog(log)
+        assertTrue(
+            "a key no entry carries changes no lines, so the bar stays closed",
+            shown.lines.count { it.style == LogLineStyle.DROPDOWN } == 1 &&
+                    shown.lines.count { it.style == LogLineStyle.RECIPIENT } == 0
+        )
     }
 }

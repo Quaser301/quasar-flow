@@ -92,4 +92,36 @@ class NotificationWatcherTest {
         watcher.stop()
         assertEquals(1, repository.stopCalls)
     }
+
+    @Test
+    fun startingAgainStopsThePreviousListenerBeforeOpeningTheNext() {
+        watcher.start("user-1")
+        watcher.start("user-2")
+        assertEquals(1, repository.stopCalls)
+
+        val fresh = notification("after-switch")
+        repository.emit(
+            NotificationUpdate(
+                all = emptyList(),
+                added = emptyList()
+            )
+        )
+        repository.emit(
+            NotificationUpdate(
+                all = listOf(fresh),
+                added = listOf(fresh)
+            )
+        )
+
+        verify(exactly = 1) { notifier.show(fresh) }
+
+        watcher.stop()
+        assertEquals(2, repository.stopCalls)
+    }
+
+    @Test
+    fun stoppingWithNothingActiveIsSafe() {
+        watcher.stop()
+        assertEquals(0, repository.stopCalls)
+    }
 }

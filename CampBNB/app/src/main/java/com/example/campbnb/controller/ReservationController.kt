@@ -3,6 +3,7 @@ package com.example.campbnb.controller
 import com.example.campbnb.data.ReservationRepository
 import com.example.campbnb.models.Availability
 import com.example.campbnb.models.ReservationModel
+import com.example.campbnb.models.NotificationIntent
 import com.example.campbnb.models.ReservationStatus
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -38,7 +39,8 @@ enum class ReservationFilter {
  *  - [confirmPolicies]: Records that the entrant accepted the rules and policies.
  *    A reservation cannot be created until this has happened.
  *  - [createReservation]: Re-checks the selected dates at booking time, then creates
- *    the [ReservationModel], saves it, marks the dates as booked, and notifies the owner.
+ *    the [ReservationModel], saves it, marks the dates as booked, and confirms the
+ *    reservation to both the owner and the entrant.
  *  - [cancelReservation]: Entrant action. Sets a reservation to cancelled, frees its dates,
  *    records the refund, and notifies the owner.
  *  - [rejectReservation]: Owner action. Sets a reservation to rejected, frees its dates,
@@ -46,8 +48,12 @@ enum class ReservationFilter {
  *  - [listReservations]: Returns an entrant's reservations, or an owner's reservations for
  *    one campsite filtered by [ReservationFilter].
  *  - [generateReceiptCsv]: Builds the CSV text for a confirmation or cancellation.
- *  - [sendNotification]: Asks [NotificationController] to notify the other party, including
- *    the campsite, start and end dates, and duration.
+ *
+ * What a reservation did is reported to [NotificationController] as a
+ * [NotificationIntent.ReservationConfirmed], [NotificationIntent.ReservationCancelled] or
+ * [NotificationIntent.ReservationRejected] at the moment it happens. Only the event is named
+ * here: who hears about it, and what the record says, belongs to that feature, so the two
+ * parties of a reservation can't be restated apart.
  *
  * @author Zino
  * @constructor Creates a controller wired to its collaborators.
@@ -55,7 +61,7 @@ enum class ReservationFilter {
  * and that its booking period is open.
  * @property availability Provides the dates a campsite is open for booking.
  * @property reservations Persists and queries reservations, and books or frees dates.
- * @property notifications Sends confirmation, cancellation and rejection messages.
+ * @property notifications Reports reservation events, so the parties concerned hear them.
  * @see LotteryController
  * @see Availability
  * @see ReservationRepository
@@ -138,39 +144,18 @@ class ReservationController(
     }
 
     /**
-     * Asks [NotificationController] to notify [recipientId] about a reservation event.
-     *
-     * Notification failures never fail the reservation itself.
-     *
-     * @param recipientId The ID of the user to notify.
-     * @param type What happened: `"CONFIRMATION"`, `"CANCELLATION"` or `"REJECTION"`.
-     * @param reservation The reservation the event is about. Its campsite, start and end
-     * dates, and number of dates are sent as the notification details.
-     */
-    fun sendNotification(recipientId: String, type: String, reservation: ReservationModel) {
-        notifications.send(
-            recipientId = recipientId,
-            type = type,
-            details = mapOf(
-                "campsiteId" to reservation.campsiteId,
-                "startDate" to reservation.startDate,
-                "endDate" to reservation.endDate,
-                "duration" to reservation.dates.size.toString()
-            )
-        )
-    }
-
-    /**
      * Re-checks the chosen dates, then creates and saves the reservation.
      *
      * The repository's database rules are the final guard against two entrants booking the
      * same date at once; the re-check here gives a cleaner error in the normal case. On
-     * success the owner is sent a confirmation.
+     * success the completed reservation is reported as an event, so both of its parties
+     * hear it, the entrant included (US 01.05.01).
      *
      * @param lotteryEntryId The lottery entry the reservation belongs to. Becomes the
      * reservation's ID, so an entry can only be reserved once.
-     * @param entrantId The entrant making the reservation.
-     * @param ownerId The owner of the campsite, who receives the confirmation.
+     * @param entrantId The entrant making the reservation, and the cause of its
+     * confirmation.
+     * @param ownerId The owner of the campsite, the other party of the reservation.
      * @param campsiteId The campsite being reserved.
      * @param dates The selected dates as ISO strings. Must not be empty.
      * @param onSuccess Receives the saved [ReservationModel].
@@ -226,11 +211,9 @@ class ReservationController(
             )
 
             reservations.save(reservation, onSuccess = {
-                sendNotification(
-                    recipientId = ownerId,
-                    type = "CONFIRMATION",
-                    reservation = reservation
-                )
+                // The completed reservation is reported as an event; both of its parties
+                // hear it, the entrant included (US 01.05.01).
+                notifications.notify(NotificationIntent.ReservationConfirmed(reservation))
                 onSuccess(reservation)
             }, onFailure = onFailure)
         }, onFailure = onFailure)
@@ -259,7 +242,7 @@ class ReservationController(
                     onFailure(SecurityException("Only the entrant can cancel this reservation"))
 
                 else -> reservations.markCancelled(reservationId, onSuccess = {
-                    sendNotification(reservation.ownerId, "CANCELLATION", reservation)
+                    notifications.notify(NotificationIntent.ReservationCancelled(reservation))
                     onSuccess()
                 }, onFailure = onFailure)
             }
@@ -289,7 +272,7 @@ class ReservationController(
                     onFailure(SecurityException("Only the campsite owner can reject this reservation"))
 
                 else -> reservations.markRejected(reservationId, onSuccess = {
-                    sendNotification(reservation.entrantId, "REJECTION", reservation)
+                    notifications.notify(NotificationIntent.ReservationRejected(reservation))
                     onSuccess()
                 }, onFailure = onFailure)
             }

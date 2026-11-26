@@ -10,6 +10,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -30,7 +31,8 @@ fun BookingsScreen(
     pendingBookings: List<BookingCardData>,
     selectedTab: BookingTab,
     onTabSelected: (BookingTab) -> Unit,
-    onBookingClick: (BookingCardData) -> Unit = {}
+    onBookingClick: (BookingCardData) -> Unit = {},
+    onMessageOwnerClick: (BookingCardData) -> Unit = {}
 ) {
     val displayedBookings = when (selectedTab) {
         BookingTab.CONFIRMED -> confirmedBookings
@@ -66,7 +68,7 @@ fun BookingsScreen(
                 BookingTabButton(
                     label = "Confirmed",
                     selected = selectedTab == BookingTab.CONFIRMED,
-                    modifier = Modifier.weight(1f)
+                    modifier = Modifier.testTag("booking_tab").weight(1f)
                 ) {
                     onTabSelected(BookingTab.CONFIRMED)
                 }
@@ -74,7 +76,7 @@ fun BookingsScreen(
                 BookingTabButton(
                     label = "Pending",
                     selected = selectedTab == BookingTab.PENDING,
-                    modifier = Modifier.weight(1f)
+                    modifier = Modifier.testTag("booking_tab").weight(1f)
                 ) {
                     onTabSelected(BookingTab.PENDING)
                 }
@@ -116,9 +118,11 @@ fun BookingsScreen(
                         displayedBookings,
                         key = { it.id }
                     ) { booking ->
-                        BookingCard(booking) {
-                            onBookingClick(booking)
-                        }
+                        BookingCard(
+                            booking = booking,
+                            onClick = { onBookingClick(booking) },
+                            onMessageOwnerClick = { onMessageOwnerClick(booking) }
+                        )
                     }
                 }
             }
@@ -156,10 +160,11 @@ private fun BookingTabButton(
 @Composable
 private fun BookingCard(
     booking: BookingCardData,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    onMessageOwnerClick: () -> Unit
 ) {
     Card(
-        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
+        modifier = Modifier.fillMaxWidth().testTag("booking_card").clickable(onClick = onClick),
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(
             containerColor = BookingGray
@@ -188,6 +193,17 @@ private fun BookingCard(
 
             if (booking.guests > 0) {
                 Text("Guests: ${booking.guests}")
+            }
+
+            // allows entrants to start a conversation with the campsite owner
+            Button(
+                onClick = onMessageOwnerClick,
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = BookingGreen
+                )
+            ) {
+                Text("Message Owner")
             }
         }
     }

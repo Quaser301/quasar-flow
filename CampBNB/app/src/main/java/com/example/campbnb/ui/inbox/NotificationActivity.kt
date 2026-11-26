@@ -27,20 +27,19 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.navigation.NavController
 import com.example.campbnb.models.Notification
 import com.example.campbnb.models.NotificationStatus
 import com.example.campbnb.notifications.NotificationPermissionCard
-import com.example.campbnb.notifications.NotificationRoutes
 
 @Composable
 fun NotificationInboxScreen(
     viewModel: NotificationViewModel,
-    navController: NavController
+    navToNotification: (Notification) -> Unit
 ) {
     val state by viewModel.state.collectAsState()
 
@@ -67,7 +66,7 @@ fun NotificationInboxScreen(
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Text(current.message)
-                    Button(onClick = viewModel::start) {
+                    Button(modifier = Modifier.testTag("try_again"), onClick = viewModel::start) {
                         Text("Try again")
                     }
                 }
@@ -84,7 +83,7 @@ fun NotificationInboxScreen(
                 } else {
                     TextButton(
                         onClick = viewModel::markAllRead,
-                        modifier = Modifier.padding(horizontal = 8.dp)
+                        modifier = Modifier.testTag("mark_all_read").padding(horizontal = 8.dp)
                     ) {
                         Text("Mark all as read")
                     }
@@ -98,9 +97,7 @@ fun NotificationInboxScreen(
                         ) { notification ->
                             NotificationRow(notification = notification) {
                                 viewModel.open(notification)
-                                navController.navigate(
-                                    NotificationRoutes.routeFor(notification)
-                                )
+                                navToNotification(notification)
                             }
                             HorizontalDivider()
                         }
@@ -121,6 +118,7 @@ private fun NotificationRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .testTag("notification_row")
             .clickable(onClick = onClick)
             .padding(horizontal = 16.dp, vertical = 14.dp),
         verticalAlignment = Alignment.Top

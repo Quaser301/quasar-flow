@@ -3,6 +3,7 @@ package com.example.campbnb
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import com.example.campbnb.controller.AdminController
 import com.example.campbnb.controller.MessageController
 import com.example.campbnb.controller.MessageNotificationAdapter
 import com.example.campbnb.controller.NotificationController
@@ -10,14 +11,25 @@ import com.example.campbnb.controller.UserController
 import com.example.campbnb.data.CampsiteRepository
 import com.example.campbnb.data.FirestoreMessageRepository
 import com.example.campbnb.data.FirestoreNotificationRepository
+import com.example.campbnb.data.LotteryRepository
 import com.example.campbnb.data.MessageRepository
 import com.example.campbnb.data.NotificationRepository
+import com.example.campbnb.data.NotificationPreferencesService
+import com.example.campbnb.data.AppSettingsService
+import com.example.campbnb.data.FirestoreAppSettingsService
+import com.example.campbnb.data.FileDownloadWriter
+import com.example.campbnb.data.PublicDownloadsFileDownloadWriter
+import com.example.campbnb.data.FirestoreNotificationPreferencesService
 import com.example.campbnb.data.ReservationRepository
 import com.example.campbnb.data.UserRepository
 import com.example.campbnb.database.Database
+import com.example.campbnb.models.Role
+import com.example.campbnb.Screen
 import com.example.campbnb.models.UserModel
 import com.example.campbnb.ui.shared.DeviceId
 import com.example.campbnb.viewModels.AppViewSettingController
+import com.example.campbnb.viewModels.EntrantSettingsController
+import com.example.campbnb.viewModels.OwnerSettingsController
 
 /**
  * Central place for creating and connecting app dependencies.
@@ -44,11 +56,12 @@ object AppContainer: Dependencies {
     override var currentUserId by mutableStateOf(DEMO_ENTRANT)
 
     /**
-     * Temporary owner-role check.
-     * Replace this with the real UserController role check.
+     * Whether the signed-in user holds the owner role, as recorded on their saved profile.
+     * This is what decides the owner's own sent notices view, so an owner reaches it
+     * however they signed in, not only as one of the demo users.
      */
     override val currentUserIsOwner: Boolean
-        get() = currentUserId == DEMO_OWNER
+        get() = userModel.currentUser?.roles?.contains(Role.OWNER) ?: false
 
     /**
      * Creates the notification repository once, when first needed.
@@ -96,6 +109,23 @@ object AppContainer: Dependencies {
     }
 
     /**
+     * Creates the admin controller once, when first needed.
+     * It carries both halves an admin needs: the deletions of profiles and campsites that
+     * break app policy, and the policy actions over someone else's listing (US 02.10.02).
+     * Both act through the shared user, campsite, lottery and notification services so the
+     * removed party is told what happened and why.
+     */
+    override val adminController: AdminController by lazy {
+        AdminController(
+            userController,
+            userRepository,
+            campsiteRepository,
+            LotteryRepository(),
+            notificationController
+        )
+    }
+
+    /**
      * Creates the message controller once, when first needed.
      * Every sent message notifies the recipient through the notification controller.
      */
@@ -128,12 +158,54 @@ object AppContainer: Dependencies {
 
     override val appViewSettings by mutableStateOf(AppViewSettingController())
 
-    override var pendingRoute: String? by mutableStateOf(null)
+    override val entrantSettings by lazy { EntrantSettingsController() }
 
-    override val onPendingRouteHandled: () -> Unit = { pendingRoute = null }
+    override val ownerSettings by lazy { OwnerSettingsController() }
+
+    override val notificationPreferencesService: NotificationPreferencesService by lazy {
+        FirestoreNotificationPreferencesService(
+            Database.NotificationPreferences.readEngine(),
+            Database.NotificationPreferences.writeEngine()
+        )
+    }
+
+    override val appSettingsService: AppSettingsService by lazy {
+        FirestoreAppSettingsService(
+            Database.AppSettings.readEngine(),
+            Database.AppSettings.writeEngine()
+        )
+    }
+
+    override val fileDownloadWriter: FileDownloadWriter by lazy {
+        PublicDownloadsFileDownloadWriter()
+    }
+
+    override var pendingScreen: Screen? by mutableStateOf(null)
+
+    override val onPendingRouteHandled: () -> Unit = { pendingScreen = null }
+
+    override var homeTab: Screen? by mutableStateOf(null)
 
     fun init(context: android.content.Context) {
         deviceID = DeviceId.get(context)
         currentUserId = deviceID
+        // Notification settings are seeded here so the entrant's saved toggles are
+        // alive before the Settings screen first reads them.
+        notificationPreferencesService.loadNotificationSettings(
+            deviceID,
+            { enabled -> entrantSettings.applyLoadedNotificationSettings(enabled) },
+            { _ -> }
+        )
+        // App settings are loaded here so a user's saved view and saved role settings
+        // are applied to their controllers before any screen reads them.
+        appSettingsService.loadAppSettings(
+            deviceID,
+            { record ->
+                appViewSettings.applyLoadedSettings(record)
+                entrantSettings.applyLoadedSettings(record)
+                ownerSettings.applyLoadedSettings(record)
+            },
+            { _ -> }
+        )
     }
 }

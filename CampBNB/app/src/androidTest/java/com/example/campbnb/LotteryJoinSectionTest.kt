@@ -7,7 +7,10 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.example.campbnb.controller.LotteryController
+import com.example.campbnb.controller.NotificationController
 import com.example.campbnb.data.LotteryRepository
+import com.example.campbnb.data.NotificationCommand
+import com.example.campbnb.data.NotificationRepository
 import com.example.campbnb.database.Database
 import com.example.campbnb.models.Lottery
 import com.example.campbnb.models.LotteryModel
@@ -44,6 +47,17 @@ class FakeLotteryForUi(private val lotteries: List<Lottery>) : LotteryRepository
     }
 }
 
+private class UiFakeNotificationRepository : NotificationRepository {
+    override fun run(command: NotificationCommand) {
+        when (command) {
+            is NotificationCommand.Save -> command.onDone(Result.success(Unit))
+            is NotificationCommand.Read -> command.onSuccess(emptyList())
+            is NotificationCommand.Watch -> command.onListening {}
+            is NotificationCommand.MarkRead -> command.onDone(Result.success(Unit))
+        }
+    }
+}
+
 @RunWith(AndroidJUnit4::class)
 class LotteryJoinSectionTest {
     @get:Rule
@@ -64,8 +78,13 @@ class LotteryJoinSectionTest {
     }
 
     private fun makeController(model: LotteryModel, lotteries: List<Lottery>): LotteryController {
-        // The engine is never used by join/leave; it only fills the constructor.
-        return LotteryController(model, FakeLotteryForUi(lotteries), Database.Lotteries.readEngine())
+        val notificationController = NotificationController(UiFakeNotificationRepository())
+        return LotteryController(
+            model,
+            FakeLotteryForUi(lotteries),
+            Database.Lotteries.readEngine(),
+            notificationController
+        )
     }
 
     @Test

@@ -11,6 +11,8 @@ import com.example.campbnb.models.User
 import com.example.campbnb.models.ReservationModel
 import com.example.campbnb.models.BookedDate
 import com.example.campbnb.models.WaitingListEntry
+import com.example.campbnb.models.NotificationPreferenceModel
+import com.example.campbnb.models.AppSettingsModel
 import com.google.firebase.firestore.FirebaseFirestore
 
 /**
@@ -122,6 +124,37 @@ object Database {
 
         fun writeEngine(): WriteEngine<ReservationModel> {
             return db.writeEngineFor<ReservationModel>(COLLECTION_NAME)
+        }
+    }
+
+    /**
+     * The user settings collection. Each user has one [NotificationPreferenceModel] record.
+     */
+    object NotificationPreferences {
+        const val COLLECTION_NAME = "notificationPreferences"
+
+        fun readEngine(): QueryEngine<NotificationPreferenceModel> {
+            return db.readEngineFor<NotificationPreferenceModel>(COLLECTION_NAME)
+        }
+
+        fun writeEngine(): WriteEngine<NotificationPreferenceModel> {
+            return db.writeEngineFor<NotificationPreferenceModel>(COLLECTION_NAME)
+        }
+    }
+
+    /**
+     * The app settings collection. Each user has one [AppSettingsModel] record holding
+     * the app view and the role settings they keep between app lifetimes.
+     */
+    object AppSettings {
+        const val COLLECTION_NAME = "appSettings"
+
+        fun readEngine(): QueryEngine<AppSettingsModel> {
+            return db.readEngineFor<AppSettingsModel>(COLLECTION_NAME)
+        }
+
+        fun writeEngine(): WriteEngine<AppSettingsModel> {
+            return db.writeEngineFor<AppSettingsModel>(COLLECTION_NAME)
         }
     }
 

@@ -3,10 +3,18 @@ package com.example.campbnb.controller
 import com.example.campbnb.data.LotteryRepository
 import com.example.campbnb.database.QueryEngine
 import com.example.campbnb.models.Campsite
+import com.example.campbnb.models.DateUtils
 import com.example.campbnb.models.Lottery
 import com.example.campbnb.models.LotteryModel
 import com.example.campbnb.models.LotteryStatus
+import com.example.campbnb.models.NotificationIntent
 import com.example.campbnb.models.WaitingListEntry
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+import java.util.TimeZone
+
+private val DAY_MILLIS = 24L * 60L * 60L * 1000L
 
 /**
  * Answers lottery questions for the rest of the app, reading data only through [QueryEngine].
@@ -14,12 +22,14 @@ import com.example.campbnb.models.WaitingListEntry
  * @property model The lottery state shown by the views.
  * @property repo The lottery repository.
  * @property lotteries Read access to lotteries, including their winners and booking windows.
+ * @property notifications Reports invitations to join a lottery, to whoever is concerned.
  * @property clock Source of the current time in epoch milliseconds.
  */
 class LotteryController(
     private val model: LotteryModel,
     private val repo: LotteryRepository,
     private val lotteries: QueryEngine<Lottery>,
+    private val notifications: NotificationController,
     private val clock: () -> Long = System::currentTimeMillis
 ) {
     // E, D, A, F
@@ -212,17 +222,232 @@ class LotteryController(
             onFailure = { onResult(emptyList()) }
         )
     }
-    fun saveLottery(lottery: Lottery, onSuccess: () -> Unit, onFailure: (Exception) -> Unit) {
-        repo.save(lottery, onSuccess, onFailure)
-    }
-
+    /**
+     * Puts the lotteries an owner may see into the model: the ones they created plus the
+     * ones they joined by accepting an invitation (US 02.04.08). The boundary reads every
+     * lottery and this filters by [Lottery.visibleTo], because Firestore cannot express
+     * "created by or joined by" in one query through [QueryEngine].
+     *
+     * @param ownerId The owner whose lotteries view is loaded.
+     */
     fun loadOwnerLotteries(ownerId: String) {
-        repo.getLotteriesForOwner(
-            ownerId,
-            onSuccess = { lotteries -> model.setLotteries(lotteries) },
+        repo.getAllLotteries(
+            onSuccess = { all -> model.setLotteries(all.filter { it.visibleTo(ownerId) }) },
             onFailure = { error -> model.setStatusMessage("Could not load lotteries: " + error.message) }
         )
     }
+
+    /**
+     * Saves a lottery the owner created or updated, and when it names owners to invite,
+     * reports one invitation event once the save succeeded (US 02.04.08): an invitation is
+     * only for a lottery that exists, so a failed save reports nothing. Updating a lottery
+     * reports its pending invitations again; the records carry ids naming the lottery and
+     * the invited owner, so re-reporting stores one record per invited owner rather than
+     * copies.
+     *
+     * @param lottery The lottery to save, with its invited owners listed.
+     * @param onSuccess Called once the lottery is stored.
+     * @param onFailure Receives the store's error.
+     */
+    fun saveLottery(lottery: Lottery, onSuccess: () -> Unit, onFailure: (Exception) -> Unit) {
+        repo.save(
+            lottery,
+            onSuccess = {
+                notifications.notify(NotificationIntent.LotteryInvited(lottery))
+                onSuccess()
+            },
+            onFailure = onFailure
+        )
+    }
+
+    /**
+     * An invited owner accepts and joins the lottery (US 02.04.08): they move from invited
+     * to joining, and the lottery's parameters are not touched, so dates, winner count, and
+     * waiting list capacity stay as the owner set them. The result is reported through the
+     * model's status message, as joining a waiting list is, and handed to the optional
+     * completion callbacks (US 02.04.08): exactly one of [onSuccess] and [onFailure] runs,
+     * including on the refusals below, so a caller's next step waits for the store and
+     * never races it.
+     *
+     * @param lottery The lottery the invitation belongs to.
+     * @param userId The invited owner accepting.
+     * @param onSuccess Called once the joined lottery is stored.
+     * @param onFailure Receives the store's error, or the reason for a refusal.
+     */
+    fun acceptInvitation(
+        lottery: Lottery,
+        userId: String,
+        onSuccess: () -> Unit = {},
+        onFailure: (Exception) -> Unit = {}
+    ) {
+        if (userId.isBlank()) {
+            val reason = "Please sign in before accepting an invitation"
+            model.setStatusMessage(reason)
+            onFailure(IllegalArgumentException(reason))
+            return
+        }
+        if (userId !in lottery.invitedOwnerIds) {
+            val reason = "This lottery does not invite you"
+            model.setStatusMessage(reason)
+            onFailure(IllegalArgumentException(reason))
+            return
+        }
+        repo.save(
+            lottery.withInvitationAcceptedBy(userId),
+            onSuccess = {
+                model.setStatusMessage("You joined this lottery")
+                onSuccess()
+            },
+            onFailure = { error ->
+                model.setStatusMessage("Could not join the lottery: " + error.message)
+                onFailure(error)
+            }
+        )
+    }
+
+    /**
+     * Saves the campsite list as a joining owner edited it (US 02.04.08): the campsites of
+     * other owners are kept, the campsites of [editorId] become exactly
+     * [selectedCampsiteIds], and everything else about the lottery, its dates, winner
+     * settings, invited and joining owners, is copied unchanged, which is what keeps a
+     * joining owner from changing the parameters. A campsite the editor does not own is
+     * refused, and so is an edit that would leave the lottery with no campsite.
+     *
+     * @param editorId The joining owner whose selection is saved.
+     * @param lottery The lottery as it is now.
+     * @param selectedCampsiteIds The editor's campsites the edited lottery will cover.
+     * @param onSuccess Called once the edited lottery is stored.
+     * @param onFailure Receives the store's error or a refusal.
+     */
+    fun saveCampsitesEditedBy(
+        editorId: String,
+        lottery: Lottery,
+        selectedCampsiteIds: List<String>,
+        onSuccess: () -> Unit,
+        onFailure: (Exception) -> Unit
+    ) {
+        repo.loadCampsitesByOwner(
+            ownerId = editorId,
+            onSuccess = { ownedCampsites ->
+                val ownedIds = ownedCampsites.map { it.id }.toSet()
+                if (!selectedCampsiteIds.all { it in ownedIds }) {
+                    onFailure(
+                        IllegalArgumentException("Only your own campsites can be added to a lottery")
+                    )
+                } else {
+                    val keptByOthers = lottery.campsiteIds.filterNot { it in ownedIds }
+                    val editedCampsiteIds = (keptByOthers + selectedCampsiteIds).distinct()
+                    if (editedCampsiteIds.isEmpty()) {
+                        onFailure(
+                            IllegalArgumentException("A lottery must cover at least one campsite")
+                        )
+                    } else {
+                        repo.save(
+                            lottery.withCampsiteIds(editedCampsiteIds),
+                            onSuccess = { onSuccess() },
+                            onFailure = onFailure
+                        )
+                    }
+                }
+            },
+            onFailure = onFailure
+        )
+    }
+
+    /**
+     * Force-closes and draws a lottery right now (feature 1: the admin of a lottery can
+     * force it to close so the whole lifecycle can be tested): the draw selects up to
+     * [numberOfWinners] of the current entrants in arbitrary order, and the booking
+     * window keeps the period the owner chose — only a window that has not opened yet
+     * is pulled to now, so [LotteryStatus.BOOKING] is what the SAME clock reading
+     * yields at the boundaries of models.md. A period that has already passed is held
+     * open for the rest of today, the shortest window a draw can still be booked in.
+     * The draw edits the lottery the caller named, id included, so force-closing never
+     * leaves a second copy of it on file. The entrants hear the result —
+     * winners and losers both, as one [NotificationIntent.LotteryDrawn] — only once the
+     * closed record is stored; [onDone] holds true only for a stored record, and a read
+     * or save failure reports false and draws nothing.
+     *
+     * @param lottery The lottery to force-close, as it is now.
+     * @param nameOfCampsite Resolves the campsite names the notices carry; the caller
+     *     knows the lotteried campsites.
+     * @param onDone Called with whether the closed lottery was stored.
+     */
+    fun forceCloseLottery(
+        lottery: Lottery,
+        nameOfCampsite: (String) -> String = { id -> id },
+        onDone: (Boolean) -> Unit = {}
+    ) {
+        repo.getEntries(
+            lotteryId = lottery.id,
+            onSuccess = { entries ->
+                val entrants = entries.map { entry -> entry.userId }.distinct()
+                val winners = entrants.shuffled().take(lottery.numberOfWinners)
+                val losers = entrants.filterNot { it in winners }
+                val now = clock()
+                val closed = lottery.copy(
+                    drawn = true,
+                    winnerIds = winners,
+                    // a window that has not started yet is pulled to now too, so the
+                    // force-closed lottery always reads BOOKING at its own clock
+                    registrationStart = if (lottery.registrationStart > now) now
+                        else lottery.registrationStart,
+                    registrationEnd = now,
+                    // the booking period the owner chose is kept; only a window that
+                    // has not opened yet is pulled to now, and a period that already
+                    // passed is held open for the rest of today
+                    bookingStart = if (lottery.bookingStart > now) now
+                        else lottery.bookingStart,
+                    bookingEnd = if (lottery.bookingEnd < now) startOfTodayUtc() + DAY_MILLIS - 1
+                        else lottery.bookingEnd
+                ).also {
+                    // the draw edits the SAME record: copy() does not carry the id
+                    // inherited from Identifiable, and a fresh id would save a second
+                    // copy of this lottery
+                    it.id = lottery.id
+                }
+                repo.save(
+                    closed,
+                    onSuccess = {
+                        notifications.notify(
+                            NotificationIntent.LotteryDrawn(
+                                lotteryId = closed.id,
+                                campsiteName =
+                                    closed.campsiteIds.map(nameOfCampsite).joinToString(", "),
+                                winnerIds = winners,
+                                loserIds = losers
+                            )
+                        )
+                        model.setStatusMessage("The lottery was closed and drawn")
+                        onDone(true)
+                    },
+                    onFailure = { error ->
+                        model.setStatusMessage("Could not force-close the lottery: " + error.message)
+                        onDone(false)
+                    }
+                )
+            },
+            onFailure = { error ->
+                model.setStatusMessage("Could not read the waiting list: " + error.message)
+                onDone(false)
+            }
+        )
+    }
+
+    /**
+     * The first millisecond of today on the UTC basis — the basis every lottery date the
+     * picker writes and the lottery views display are kept on, so a force-closed
+     * lottery's window names today in those views.
+     */
+    private fun startOfTodayUtc(): Long =
+        try {
+            val formatter = SimpleDateFormat("yyyy-MM-dd", Locale.US)
+            formatter.timeZone = TimeZone.getTimeZone("UTC")
+            val parsed = formatter.parse(DateUtils.today())
+            if (parsed != null) parsed.time else clock()
+        } catch (e: Exception) {
+            clock()
+        }
 
     /**
      * Joins the open lottery's waiting list, or leaves it if the user is already on it

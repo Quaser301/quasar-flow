@@ -23,6 +23,11 @@ import com.example.campbnb.controller.NotificationController
  * @property title The short title the notification carried.
  * @property message The message body, kept exactly as it was written.
  * @property routeText Where opening that notification goes, from [NotificationRoutes].
+ * @property campsiteName The campsite name the record copied at creation, empty when the
+ *     record named none. The bar names the place a notice opens by this copy — what the
+ *     record says, never a raw reference.
+ * @property notificationId The generated database key of the first-seen record of this
+ *     entry: the raw UUID an admin looks the entry up in the collection by.
  */
 data class NotificationLogGroup(
     val logId: String,
@@ -32,6 +37,8 @@ data class NotificationLogGroup(
     val title: String,
     val message: String,
     val routeText: String,
+    val campsiteName: String,
+    val notificationId: String,
 )
 
 /**
@@ -115,15 +122,35 @@ private fun describeSavedAt(sentAt: Timestamp?): String {
 
 /**
  * The collapsed line a log dropdown shows: who sent the notification, how many receivers
- * got it, when it was saved, and where opening it goes.
+ * got it, when it was saved, where opening it goes, and the database key an admin looks
+ * the entry up by.
+ *
+ * Built once per entry while the log is read, never while the screen draws.
+ *
+ * The bar resolves its sender like every other reference in the log: the listing names
+ * people, never the references it holds. A broadcast with no sender is the system's own.
+ * Where opening goes is named by the campsite copy the record carries — records that
+ * copied no name keep their plain section route, which carries no reference either.
+ * The entry's database key is written out raw on purpose: it is how an admin finds the
+ * record in the collection and reads its raw field values.
  *
  * @param group The log entry to describe.
+ * @param profileLabel How one profile reference is drawn.
  * @return The one-line summary the dropdown bar shows.
  */
-private fun summaryLineOf(group: NotificationLogGroup): String {
-    val sender = group.senderId.ifEmpty { "the system" }
+private fun summaryLineOf(
+    group: NotificationLogGroup,
+    profileLabel: (String) -> String,
+): String {
+    // The bar resolves its sender like every other reference in the log: the listing
+    // names people, never the references it holds. No sender means the system's own.
+    val sender = if (group.senderId.isEmpty()) "the system" else profileLabel(group.senderId)
+    // The place a notice opens is named by the record's own copy; only records that
+    // copied no name fall back to their route. The db key stays raw: it is the lookup
+    // handle an admin reads the record's raw values by.
+    val opens = group.campsiteName.ifBlank { group.routeText }
     return "sent by $sender  -  ${group.recipientIds.count()} recipient(s)  -  " +
-        "${group.sentAtLabel}  -  opens ${group.routeText}"
+        "${group.sentAtLabel}  -  opens $opens  -  db id ${group.notificationId}"
 }
 
 /**
@@ -148,7 +175,11 @@ fun notificationLogGroupsFor(notifications: List<Notification>): List<Notificati
                 describeSavedAt(sentAtOf(members)),
                 members.first().title,
                 members.first().message,
-                NotificationRoutes.routeFor(members.first())
+                NotificationRoutes.routeFor(members.first()),
+                members.first().campsiteName,
+                // The entry's database key: records of one broadcast differ only per
+                // receiver, so the first-seen key names a real document of this entry.
+                members.first().id
             )
         }
 
@@ -186,7 +217,7 @@ private fun logLinesOf(
     val bar = NotificationLogLine(
         group.logId,
         group.logId,
-        summaryLineOf(group) + if (expanded) " - open" else " - tap to open",
+        summaryLineOf(group, profileLabel) + if (expanded) " - open" else " - tap to open",
         LogLineStyle.DROPDOWN
     )
     if (!expanded) {

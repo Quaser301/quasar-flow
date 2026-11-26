@@ -1,10 +1,12 @@
 package com.example.campbnb.viewModels
 
 import androidx.lifecycle.ViewModel
+import com.example.campbnb.models.NotificationSettings
+import com.example.campbnb.models.AppSettingsModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-
+import kotlinx.coroutines.flow.update
 
 
 // Same shape as AppViewSettingController: a ViewModel keeps these values alive across
@@ -27,6 +29,8 @@ import kotlinx.coroutines.flow.asStateFlow
  * @property bookingSortSetting The current bookings ordering placeholder.
  * @property inboxAlertsSetting The current inbox alerting placeholder.
  * @property messageFilterSetting The current message-list filtering placeholder.
+ * @property notificationSettings The current notification settings for this user. Defaults to
+ * PUSH notifications. Multiple notification types are allowed (IE: PUSH and Download)
  */
 class EntrantSettingsController: ViewModel() {
     private val _bookingSortSetting = MutableStateFlow("Newest first")
@@ -37,6 +41,9 @@ class EntrantSettingsController: ViewModel() {
 
     private val _messageFilterSetting = MutableStateFlow("Unread first")
     val messageFilterSetting = _messageFilterSetting.asStateFlow()
+
+    private val _notificationSettings = MutableStateFlow(listOf(NotificationSettings.PUSH))
+    val notificationSettings = _notificationSettings.asStateFlow()
 
     /**
      * Switches the bookings ordering placeholder.
@@ -50,7 +57,7 @@ class EntrantSettingsController: ViewModel() {
     /**
      * Switches the inbox alerting placeholder.
      *
-     * @param newAlerts The alerting behaviour to switch to.
+     * @param newAlerts The alerting behavior to switch to.
      */
     fun changeInboxAlertsTo(newAlerts: String) {
         _inboxAlertsSetting.value = newAlerts
@@ -63,6 +70,49 @@ class EntrantSettingsController: ViewModel() {
      */
     fun changeMessageFilterTo(newFilter: String) {
         _messageFilterSetting.value = newFilter
+    }
+
+    fun toggleNotificationSetting(setting: NotificationSettings, enabled: Boolean) {
+        _notificationSettings.update { currentList ->
+            if (enabled) {
+                if (setting !in currentList) currentList + setting else currentList
+            } else {
+                currentList - setting
+            }
+        }
+    }
+
+    /**
+     * Adopts the notification settings loaded for this user, so the Settings screen
+     * shows the saved toggles instead of the default when it first reads them. The
+     * list is applied as it was loaded: an empty list is a real choice (all
+     * notifications off), not an absent record.
+     *
+     * @param enabled The settings loaded for this user, from [NotificationPreferencesService.loadNotificationSettings].
+     */
+    fun applyLoadedNotificationSettings(enabled: List<NotificationSettings>) {
+        _notificationSettings.value = enabled
+    }
+
+    /**
+     * Applies a loaded [AppSettingsModel]: every recorded entrant choice that is not
+     * empty replaces that placeholder's default, so a user's saved settings are alive
+     * before the first screen renders. Empty choices leave the defaults untouched.
+     * The notification settings themselves live in [NotificationPreferencesService]
+     * and are not part of this record's entrant group.
+     *
+     * @param record The loaded settings record, from [AppSettingsService.loadAppSettings].
+     */
+    fun applyLoadedSettings(record: AppSettingsModel) {
+        if (record.entrantBookingsOrder.isNotEmpty()) {
+            changeBookingSortTo(record.entrantBookingsOrder)
+        }
+        if (record.entrantInboxAlerts.isNotEmpty()) {
+            changeInboxAlertsTo(record.entrantInboxAlerts)
+        }
+        if (record.entrantMessagesFilter.isNotEmpty()) {
+            changeMessageFilterTo(record.entrantMessagesFilter)
+        }
     }
 }
 
@@ -113,6 +163,25 @@ class OwnerSettingsController: ViewModel() {
     fun changeAvailabilityNoticeTo(newNotice: String) {
         _availabilityNoticeSetting.value = newNotice
     }
+
+    /**
+     * Applies a loaded [AppSettingsModel]: every recorded owner choice that is not
+     * empty replaces that placeholder's default, so a user's saved settings are alive
+     * before the first screen renders. Empty choices leave the defaults untouched;
+     * the record's lottery boolean defaults to the same value as the controller's,
+     * so an absent choice changes nothing.
+     *
+     * @param record The loaded settings record, from [AppSettingsService.loadAppSettings].
+     */
+    fun applyLoadedSettings(record: AppSettingsModel) {
+        if (record.ownerListingVisibility.isNotEmpty()) {
+            changeListingVisibilityTo(record.ownerListingVisibility)
+        }
+        _lotteryOpenSetting.value = record.ownerLotteryAccepting
+        if (record.ownerAvailabilityNotice.isNotEmpty()) {
+            changeAvailabilityNoticeTo(record.ownerAvailabilityNotice)
+        }
+    }
 }
 
 /**
@@ -122,8 +191,6 @@ class OwnerSettingsController: ViewModel() {
  * Each dropdown group has its expansion kept as an immutable `StateFlow`, so the
  * screen re-renders just that group when a tap opens or closes it.
  *
- * @param onBack Called whenever [pressBack] runs: the Settings screen hands this its
- * own back lambda, so leaving Settings returns to the screen just on.
  * @see expandedStateOf The readonly `StateFlow` for a named dropdown group.
  */
 class SettingsDisplayController: ViewModel() {

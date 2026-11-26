@@ -54,7 +54,8 @@ enum class NotificationType {
     CANCELLATION,
     REJECTION,
     OWNER_NOTICE,
-    MESSAGE
+    MESSAGE,
+    INVITE
 }
 
 /**

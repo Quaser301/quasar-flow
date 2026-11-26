@@ -1,24 +1,31 @@
 package com.example.campbnb.controller
 
+// AI-assisted (night run, admin policy actions): written by Qwen 3.8 Flash Next Coder
+// IQ1_M.
+
 /*
  * AdminController.kt
  *
  * Role: controller for admin removals (US 03.02.01 so far; 03.07.01, 03.01.01, 03.03.01,
- * 03.09.01 and 03.10.01 are meant to be added here the same way).
- * Role checks are not repeated here: it asks UserController whether the caller is an admin.
+ * 03.09.01 and 03.10.01 are meant to be added here the same way) and for the policy
+ * actions over someone else's listing. Role checks are not repeated here for the
+ * deletions: it asks UserController whether the caller is an admin.
  */
 
+import com.example.campbnb.controller.NotificationController
 import com.example.campbnb.data.CampsiteRepository
+import com.example.campbnb.data.CampsiteRemovalRepository
 import com.example.campbnb.data.LotteryRepository
 import com.example.campbnb.data.UserRepository
-import com.example.campbnb.models.RemovalReason
-import com.example.campbnb.models.Rating
-import com.example.campbnb.models.WaitingListEntry
-import com.example.campbnb.models.Role
 import com.example.campbnb.models.Campsite
-import com.example.campbnb.data.CampsiteRemovalRepository
 import com.example.campbnb.models.Lottery
+import com.example.campbnb.models.NotificationIntent
+import com.example.campbnb.models.PolicyReason
+import com.example.campbnb.models.Rating
+import com.example.campbnb.models.RemovalReason
 import com.example.campbnb.models.ReservationModel
+import com.example.campbnb.models.Role
+import com.example.campbnb.models.WaitingListEntry
 
 
 /**
@@ -30,6 +37,12 @@ import com.example.campbnb.models.ReservationModel
  * @property lotteryRepo Finds and deletes the profile's waiting-list entries.
  * @property notifier Tells the removed user what happened.
  * @property removalRepo Cancels a campsite's reservations and deletes or updates its lotteries.
+ *
+ * A policy action over someone else's listing (removing the whole listing or one tag of
+ * it) always names an app-policy reason and always tells the listing's own creator what
+ * happened and why: the action is not the admin's judgement left to the creator to guess
+ * at. Only the storage half of such an action decides its own failure; a notice the
+ * creator chose to opt out of still counts as a done action.
  */
 class AdminController(
     private val userController: UserController,
@@ -39,6 +52,85 @@ class AdminController(
     private val notifier: NotificationController,
     private val removalRepo: CampsiteRemovalRepository = CampsiteRemovalRepository()
 ) {
+    /**
+     * Removes a whole listing: the record is deleted and the listing's creator is told the
+     * reason. [onDone] holds true once the record is gone; a store failure holds false
+     * and no notice is made for an action that did not happen.
+     */
+    fun removeCampsite(
+        campsite: Campsite,
+        reason: PolicyReason,
+        actorUserId: String,
+        onDone: (Boolean) -> Unit = {}
+    ) {
+        campsiteRepo.deleteCampsite(
+            campsiteId = campsite.id,
+            onComplete = { result ->
+                if (result.isFailure) {
+                    onDone(false)
+                } else {
+                    notifier.notify(
+                        NotificationIntent.CampsitePolicyRemoved(campsite, reason, actorUserId)
+                    )
+                    onDone(true)
+                }
+            }
+        )
+    }
+
+    /**
+     * Removes one tag from a listing and saves the rest of it unchanged: a tag the listing
+     * does not carry is refused with [onDone] false, and nothing is written for it. The
+     * saved listing keeps the record's id, so this edits the listing rather than creating
+     * a second one. A removed tag is told to the listing's creator with the reason, like
+     * the whole-listing action.
+     */
+    fun removeTag(
+        campsite: Campsite,
+        tag: String,
+        reason: PolicyReason,
+        actorUserId: String,
+        onDone: (Boolean) -> Unit = {}
+    ) {
+        if (tag !in campsite.tags) {
+            onDone(false)
+            return
+        }
+
+        val kept = Campsite(
+            ownerId = campsite.ownerId,
+            campName = campsite.campName,
+            campLoc = campsite.campLoc,
+            campDesc = campsite.campDesc,
+            campAmenities = campsite.campAmenities,
+            geoLocation = campsite.geoLocation,
+            campImg = campsite.campImg,
+            maxOccupancy = campsite.maxOccupancy,
+            tags = campsite.tags.filter { it != tag },
+            cancelPolicy = campsite.cancelPolicy,
+            campPrice = campsite.campPrice,
+            availableStartDate = campsite.availableStartDate,
+            availableEndDate = campsite.availableEndDate,
+            blockedDates = campsite.blockedDates
+        )
+        // Same record, one tag fewer: the id is carried over because an edit must not
+        // open a second listing under a new one.
+        kept.id = campsite.id
+
+        campsiteRepo.SaveCampsite(
+            campsite = kept,
+            onComplete = { result ->
+                if (result.isFailure) {
+                    onDone(false)
+                } else {
+                    notifier.notify(
+                        NotificationIntent.CampsiteTagRemoved(campsite, tag, reason, actorUserId)
+                    )
+                    onDone(true)
+                }
+            }
+        )
+    }
 
     /**
      * Deletes the profile with [userId] and the data that belongs to it (US 03.02.01), then

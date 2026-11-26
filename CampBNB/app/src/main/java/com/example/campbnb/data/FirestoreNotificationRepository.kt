@@ -12,7 +12,33 @@ class FirestoreNotificationRepository (
 ): NotificationRepository {
     private val collection = db.collection(Database.Notifications.COLLECTION_NAME)
 
-    override fun saveAll(notifications: List<Notification>, onDone: (Result<Unit>) -> Unit) {
+    /**
+     * Carries out whichever request the notification feature asked for.
+     *
+     * The request names its own continuations, so nothing is returned here: each branch
+     * hands its answer back through the request.
+     */
+    override fun run(command: NotificationCommand) {
+        when (command) {
+            is NotificationCommand.Save -> storeAll(command.records, command.onDone)
+
+            is NotificationCommand.Read -> readLog(command.onSuccess, command.onFailure)
+
+            is NotificationCommand.Watch -> followUser(
+                command.userId,
+                command.onUpdate,
+                command.onError,
+                command.onListening
+            )
+
+            is NotificationCommand.MarkRead -> markOpened(command.notificationId, command.onDone)
+        }
+    }
+
+    private fun storeAll(
+        notifications: List<Notification>,
+        onDone: (Result<Unit>) -> Unit
+    ) {
         if (notifications.isEmpty()) {
             onDone(Result.success(Unit))
             return
@@ -44,18 +70,22 @@ class FirestoreNotificationRepository (
      * the other repositories use rather than subscribed to: nothing is left open here that a
      * later write could re-deliver.
      */
-    override fun readAll(
+    private fun readLog(
         onSuccess: (List<Notification>) -> Unit,
         onFailure: (Exception) -> Unit
-    ) {
-        Database.Notifications.readEngine().query().execute(onSuccess, onFailure)
-    }
+    ) = Database.Notifications.readEngine().query().execute(onSuccess, onFailure)
 
-    override fun listenForUser(
+    /**
+     * Follows one user's notifications live, and hands the caller the way to stop.
+     *
+     * @param onListening given the function that drops the snapshot listener
+     */
+    private fun followUser(
         userId: String,
         onUpdate: (NotificationUpdate) -> Unit,
-        onError: (Exception) -> Unit
-    ): () -> Unit {
+        onError: (Exception) -> Unit,
+        onListening: (stop: () -> Unit) -> Unit
+    ) {
         val registration = collection
             .whereEqualTo("recipientId", userId)
             .addSnapshotListener { snapshot, error ->
@@ -67,13 +97,13 @@ class FirestoreNotificationRepository (
                 val all = snapshot.toObjects(Notification::class.java)
                 val added = snapshot.documentChanges
                     .filter { it.type == DocumentChange.Type.ADDED }
-                    .map{ it.document.toObject(Notification::class.java)}
+                    .map { it.document.toObject(Notification::class.java) }
                 onUpdate(NotificationUpdate(all, added))
             }
-        return { registration.remove() }
+        onListening.invoke { registration.remove() }
     }
 
-    override fun markRead(notificationId: String, onDone: (Result<Unit>) -> Unit) {
+    private fun markOpened(notificationId: String, onDone: (Result<Unit>) -> Unit) {
         collection.document(notificationId)
             .update(
                 mapOf(
