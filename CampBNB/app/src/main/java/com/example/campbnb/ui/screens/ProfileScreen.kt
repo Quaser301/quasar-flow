@@ -53,11 +53,11 @@ private val DeleteRed = Color(0xFFA32D2D)
 private const val DELETE_PHRASE = "DELETE"
 
 /**
- * Profile tab for campers (entrants) and owners. Lets the user edit their name, email and
- * phone number (US 01.05.02) and, for campers, delete their profile (US 01.07.03).
+ * Profile tab for campers (entrants), owners and admins. Lets the user edit their name, email
+ * and phone number (US 01.05.02) and delete their profile (US 01.07.03).
  * The screen only validates and reports; saving and deleting are done by the caller.
  *
- * @param role Decides the role chip, the owner row, and whether the delete button is shown.
+ * @param role Decides the role chip and whether the owner row is shown.
  * @param initialName Current name stored for the user.
  * @param initialEmail Current email stored for the user.
  * @param initialPhone Current phone number stored for the user.
@@ -169,7 +169,13 @@ fun ProfileScreen(
         )
         OutlinedTextField(
             value = phone,
-            onValueChange = { phone = it; phoneError = null },
+            onValueChange = { input ->
+                // Only digits and + - ( ) . space can be typed; capped at 20 characters
+                if (input.length <= 20 && input.all { it.isDigit() || it in "+-(). " }) {
+                    phone = input
+                    phoneError = null
+                }
+            },
             label = { Text("Phone number") },
             isError = phoneError != null,
             supportingText = { phoneError?.let { Text(it) } },
@@ -186,8 +192,7 @@ fun ProfileScreen(
                 nameError = if (name.isBlank()) "Enter your name" else null
                 emailError =
                     if (!Patterns.EMAIL_ADDRESS.matcher(email.trim()).matches()) "Enter a valid email" else null
-                phoneError =
-                    if (phone.count { it.isDigit() } < 10) "Enter a valid phone number" else null
+                phoneError = validatePhone(phone)
 
                 if (nameError == null && emailError == null && phoneError == null) {
                     onSave(name.trim(), email.trim(), phone.trim())
@@ -228,14 +233,12 @@ fun ProfileScreen(
         }
         ProfileRow("Settings and app policy", onOpenSettings)
 
-        if (role == UserRole.CAMPER || role == UserRole.OWNER || role == UserRole.ADMIN) {
-            Spacer(Modifier.height(24.dp))
-            TextButton(
-                onClick = { showDeleteDialog = true },
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text("Delete my profile", color = DeleteRed)
-            }
+        Spacer(Modifier.height(24.dp))
+        TextButton(
+            onClick = { showDeleteDialog = true },
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text("Delete my profile", color = DeleteRed)
         }
     }
 
@@ -300,4 +303,27 @@ private fun DeleteProfileDialog(
             TextButton(onClick = onDismiss) { Text("Cancel") }
         }
     )
+}
+
+private val PHONE_ALLOWED = Regex("""^\+?[0-9 ()\-.]+$""")
+
+/**
+ * Checks a phone number typed by the user.
+ *
+ * Allows an optional leading +, digits, spaces, dashes, dots and parentheses,
+ * and requires between 10 and 15 digits (15 is the international maximum).
+ *
+ * @return An error message to show under the field, or null if the number is valid.
+ */
+internal fun validatePhone(phone: String): String? {
+    val trimmed = phone.trim()
+    if (trimmed.isEmpty()) return "Enter your phone number"
+    if (!PHONE_ALLOWED.matches(trimmed)) return "Use only digits, spaces, dashes, and parentheses"
+
+    val digits = trimmed.count { it.isDigit() }
+    return when {
+        digits < 10 -> "Phone number is too short"
+        digits > 15 -> "Phone number is too long"
+        else -> null
+    }
 }
