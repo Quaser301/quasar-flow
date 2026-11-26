@@ -2,8 +2,10 @@ package com.example.campbnb.ui.screens
 
 import androidx.annotation.DrawableRes
 import androidx.compose.foundation.layout.*
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -11,11 +13,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.campbnb.controller.UserController
-import com.example.campbnb.ui.components.GradientButton
-import com.example.campbnb.viewModels.DeviceSignInController
 import com.example.campbnb.ui.components.AuthScaffold
+import com.example.campbnb.ui.components.GradientButton
 import com.example.campbnb.ui.theme.ErrorRed
-
+import com.example.campbnb.viewModels.DeviceSignInController
 
 /**
  * The device sign-on body (US 01.09.01): a Sign on header, and one Continue
@@ -36,6 +37,9 @@ import com.example.campbnb.ui.theme.ErrorRed
  * just after signing on.
  * @param onNotFound Runs if the provided Device ID does not exist in the Firestore Database.
  * @param headerImage An image to act as the backdrop. See [AuthScaffold].
+ *
+ * 25-11-26: Used Gemini 3.6 to make minor UI changes mostly spacing, font changes and
+ * shifting exisitng ui components (CampyMascot).
  */
 @Composable
 fun DeviceSignInScreen(
@@ -58,24 +62,62 @@ fun DeviceSignInScreen(
     }
 
     AuthScaffold(headerImage) {
-        Text("Sign on", fontSize = 24.sp, textAlign = TextAlign.Center, fontWeight = FontWeight.Bold)
-        Spacer(modifier = Modifier.height(4.dp))
-        if (notice.value.isNotBlank()) {
-            Text(notice.value, fontSize = 14.sp, color = ErrorRed, textAlign = TextAlign.Center)
-        }
-        Spacer(modifier = Modifier.height(8.dp))
-        GradientButton(
-            "Continue",
-            enabled = currentId.value.isNotBlank(),
-            onClick = {
-                userController.identify(
-                    deviceId = currentId.value,
-                    onFound = { _ -> onEntered() },
-                    onNotFound = { onNotFound() },
-                    onError = { message -> display.noticeFrom(message) }
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 12.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                text = "Welcome Back",
+                style = MaterialTheme.typography.headlineMedium,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onBackground
+            )
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            Text(
+                text = "Sign on securely using your device identity.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.padding(horizontal = 12.dp)
+            )
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            if (notice.value.isNotBlank()) {
+                Text(
+                    text = notice.value,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = ErrorRed,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.padding(bottom = 12.dp)
                 )
             }
-        )
-        Spacer(modifier = Modifier.height(8.dp))
+
+            GradientButton(
+                text = "Continue",
+                enabled = currentId.value.isNotBlank(),
+                onClick = {
+                    userController.identify(
+                        deviceId = currentId.value,
+                        onFound = { _ -> onEntered() },
+                        onNotFound = { onNotFound() },
+                        onError = { message -> display.noticeFrom(message) }
+                    )
+                }
+            )
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            Text(
+                text = "Fast, passwordless sign in linked to this device",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.outline,
+                textAlign = TextAlign.Center
+            )
+        }
     }
 }
