@@ -175,7 +175,7 @@ are final product vocabulary.
   sets `notificationSettings` to the loaded list AS LOADED — an empty list is a real
   choice (all notifications off), not an absent record; `AppContainer.init` (`app.md`)
   feeds it from `NotificationPreferencesService.loadNotificationSettings` so the
-  Settings screen shows a user's saved toggles on next launch.
+  Profile view shows a user's saved toggles on next launch.
 - `OwnerSettingsController : ViewModel()` — `listingVisibilitySetting` (String, default
   `"Visible to entrants"`), `lotteryOpenSetting` (Boolean, default TRUE — whether the
   owner's lotteries accept new entrants; note this is view-local UI state, distinct from

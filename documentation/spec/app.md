@@ -67,8 +67,8 @@ file's ctor exactly — these calls are the authoritative seam record):
 - `messageNotificationAdapter = MessageNotificationAdapter(notificationController)`.
 - `appViewSettings` is ONE `AppViewSettingController()` (viewModels.md) for the whole
   app; `entrantSettings` one `EntrantSettingsController()`; `ownerSettings` one
-  `OwnerSettingsController()` (the Settings screen gets the SHARED owner instance now,
-  not a per-visit default);
+  `OwnerSettingsController()` (the Profile view gets the SHARED owner instance now,
+  not a per-visit default — there is no Settings screen to hand one to);
   `notificationPreferencesService = FirestoreNotificationPreferencesService(read, write engines)`;
   `appSettingsService = FirestoreAppSettingsService(read, write engines)` (data.md);
   `fileDownloadWriter = PublicDownloadsFileDownloadWriter()` (data.md).
@@ -85,7 +85,7 @@ then `loadNotificationSettings(deviceID, { enabled -> entrantSettings.applyLoade
 entrantSettings.applyLoadedSettings(record); ownerSettings.applyLoadedSettings(record) },
 no-op failure)`: NEITHER load is warm-up any more — the loaded prefs SEEDED into the
 entrant controller (the entrant's saved notification toggles are therefore alive when
-the Settings screen first reads them), and the loaded record is SEEDED into
+the Profile view first reads them), and the loaded record is SEEDED into
 the three settings controllers before any screen reads them (viewModels.md owns what each
 `applyLoadedSettings` does; a record with nothing stored answers defaults and changes
 nothing). Neither load is fatal (both error callbacks are no-ops): a test of `init` may
@@ -127,17 +127,37 @@ the text names a known screen (unknown text queues nothing): the graph below nav
 that typed screen and calls `onPendingRouteHandled`. So: tap → (mark read) + (queue
 screen) → graph opens the screen.
 `handleQrLinkIntent(intent)` (US 01.05.02 — the phone's own camera opened a code's link):
-null → return; missing `models.qrPayloadExtraKey` extra → return (nothing the camera opened);
-resolve `models.qrScreenOfLinkPayload(payload)` at the opened moment — it resolves THROUGH
-the tested text decision `models.qrRouteOfLinkPayload` (models.md owns THAT) and decodes the
-answer into a typed screen: a live code names `Screen.QrLinkRoute(campsiteId)`, a dead/expired
-one `Screen.OldQRCode`, a payload that is not a code names nothing — and ONLY a non-null
+null → return; the text is the `models.qrPayloadExtraKey` extra when a launcher set it, and
+otherwise the OPENED URI ITSELF (`intent.data`) — the manifest registers the code's own scheme,
+so a camera app opens a code's text as a link and hands this app the URI, not a private extra;
+nothing at all → return. The text is read back into code text by `models.codeTextOfOpenedLink`
+first (models.md owns THAT: text that is already code text answers as itself, a URI whose scheme
+is this app's name answers as that scheme's prefix plus the path it names — a URI's scheme
+carries no case of its own, so the prefix is this app's, not the arrived spelling; text naming
+no link of this app names no code and queues nothing). That code text then resolves
+`models.qrScreenOfLinkPayload` at the opened moment — it resolves THROUGH the tested text
+decision `models.qrRouteOfLinkPayload` (models.md owns THAT) and decodes the answer into a
+typed screen: a live code names `Screen.QrLinkRoute(campsiteId)`, a dead/expired one
+`Screen.OldQRCode`, a payload that is not a code names nothing — and ONLY a non-null
 screen is set on `pendingScreen` (a link that resolves nothing never overwrites an already-queued
 notification screen). Sign-in (item 3 above) ran before any
 render, so an opened link's user data populates when the graph opens.
 `onDestroy`: `watcher.stop()` before `super.onDestroy()`.
 `watcher` is the lazy `NotificationWatcher(AppContainer.notificationController,
 SystemNotifier(applicationContext))`.
+
+## App manifest (`app/src/main/AndroidManifest.xml`)
+
+The manifest is the app's own file, not a generated default: it names the permission asks
+(`POST_NOTIFICATIONS`, `CAMERA`, `WRITE_EXTERNAL_STORAGE` up to API 28 with raw external
+access above it) and the ONE `MainActivity` activity. That activity carries the launcher
+`intent-filter` AND the code-link filters: a `VIEW`/`DEFAULT`/`BROWSABLE` filter for
+`<data android:scheme="campbnb"/>` and the same filter for the upper-case spelling. A code's
+text IS a URI in this app's own scheme — the scheme is the code's prefix, the path is the rest
+of the text — so registering it is what lets the phone's own camera open a code's link at all.
+Both spellings are registered because a launcher is free to normalise a scheme's case either way
+and `models.codeTextOfOpenedLink` reads the text case-free, so the match must not depend on
+which way a given launcher chose.
 
 ## Screen (`@Serializable sealed interface Screen`) — the navigation vocabulary
 
@@ -147,7 +167,7 @@ window still referring to it — that is what keeps `navigate()` calls safe). Me
 exact: `Home(role: UserRole)`, `CampsiteRegistration`,
 `EditCampsite(campsiteId: String)`, `LotteryEdit`, `LotteryMonitor`,
 `LotteryDetails`, `LotteryWaitlist`, `Start`, `Login`, `SignUp`,
-`Role`, `Settings(role: UserRole)`, `Search(role, query: String = "", openFilter: Boolean = false,
+`Role`, `Search(role, query: String = "", openFilter: Boolean = false,
 openHistory: Boolean = false)`,
 `QrScanner(role: UserRole)`, `Reservations`, `CampsiteDetail(role, campsiteId)` (declared;
 the graph below opens `CampsiteDetailsScreen` instead — see graph section),
@@ -197,8 +217,9 @@ the call site at compile time. `GraphUtils.kt` holds the sealed `@Serializable
 NavGraphNodes`: `ExploreGraph`/`CampsiteGraph`/`LotteryGraph`/`CorrespondenceGraph`/
 `ReservationGraph`/`DebugGraph` each wrap their nodes in
 `navigation<NavGraphNodes.X>(startDestination = …)`; `startupGraph` wraps its own in
-`navigation<StartupGraph>` — `StartupGraph` is a file-local `@Serializable object` in
-`StartupGraph.kt`, NOT a `NavGraphNodes` member (graphs.md names every node route and
+`navigation<StartupGraph>` — `StartupGraph` is a top-level `@Serializable object` in
+`StartupGraph.kt`, NOT a `NavGraphNodes` member (it is package-visible only so the app root
+can name it in `goHomeAfterSignIn`'s pop — app.md; graphs.md names every node route and
 start destination); `MiscGraph` alone registers bare top-level composables and declares
 no node route at all.
 
@@ -231,15 +252,19 @@ line each; `nav` is the app controller, `homeNav` the nested one, all calls as s
   else `ENTRANT`; `deps.appViewSettings.applyViewDefaultIfNoneChosen(viewFor(role))` (the
   role-derived view is only a DEFAULT: a user who saved or switched a view keeps it across
   lifetimes — see viewModels.md's gate; the sign-in default clobbering a saved choice was
-  the reported failure of the admin's settings view) then navigate
-  `Home(toUserRole(role))` `popUpTo(Start) inclusive` — the start/login frames are cleared.
+  the reported failure of the admin's settings view) then `nav.goHomeAfterSignIn(toUserRole(role))`
+  — Home opens with the SIGN-IN GRAPH NODE popped off the stack inclusive, which is what clears
+  the start/login frames (popping to `Screen.Start` would not: a pop whose target is absent
+  leaves the stack untouched, and the node frame sits BELOW the Start frame, so a back gesture
+  from Home would re-enter the node and show Start again).
   **onNotFound** → `Screen.SignUp`.
 - SignUp: builds `User(deviceId = deps.deviceID, name, email, phone, roles = listOf(Role.ADMIN))`
   via `Database.Users.writeEngine().save` (flagged in-source: sign-up currently grants
   ADMIN; TODO marker) then navigates `Screen.Role`.
 - Role: `RoleSelectScreen(onRoleSelected)` maps `UserRole→AppView` INLINE (ADMIN→AdminView,
   OWNER→OwnerView, CAMPER→EntrantView — same as ui.md's `toAppView`), sets the view,
-  navigates `Home(role)` popping up to Start inclusive.
+  navigates `Home(role)` through `goHomeAfterSignIn`, popping the sign-in node inclusive (same
+  eviction as above).
 - Home (`Screen.Home(role)`): `entry.toRoute<Screen.Home>()` for the role; then
   `HomeScreen(role = role, appViewSettings = deps.appViewSettings.toAppViewSetting(),
   initialTab = deps.homeTab, homeNavController = homeNav)` with `homeNav =
@@ -283,14 +308,13 @@ line each; `nav` is the app controller, `homeNav` the nested one, all calls as s
     the graph's `toastGenerator`), the empty/loading semantics of the screen are ui.md's,
     and the node's callbacks ARE the graph's parameters, so they navigate on the APP graph
     in either mount:
-    settings→`Settings(role)` PLAIN `nav.navigate` — NO popUpTo, NO launchSingleTop: this
-    tab's content only ever shows while Home is the live app-level frame, so a bare push
-    leaves Home mounted under Settings, and Settings' `navigateUp` back pops Settings and
-    re-exposes the SAME live Home (Explore still selected, cards intact). The earlier typed
-    `popUpTo<Screen.Home> { inclusive = false }` could never match a live Home frame — Home
-    is a parameterized route and a typed pop matches a class as a pattern no live instance
-    equals — so it popped the WHOLE stack, leaving Settings the sole entry: back went to the
-    start and the back gesture closed the app (reported regression 7).
+    NO settings entry at all: the Explore tab's Settings button and its `onSettingsClick`
+    were removed once the whole settings surface moved onto the Profile view, so `navToSettings`
+    is no longer a parameter of `exploreGraph` or of `MiscGraph` and no navigation names
+    `Screen.Settings` — that member is gone from the sealed `Screen` set and the node is gone
+    from `MiscGraph` (the owner asked for the screen to be removed once every setting was read
+    from the Profile view). The earlier reasoning about a bare push leaving Home mounted under
+    Settings no longer applies because nothing pushes Settings.
     campsite click→`CampsiteDetailsScreen(role, id)` PLAIN `nav.navigate`, same reasoning
     (that recurring back bug was reported again for this entry); search→`Search(role, text)`,
     filter→`Search(role, "", true)`, history→`Search(role, "", false, true)` (the Explore
@@ -329,17 +353,15 @@ line each; `nav` is the app controller, `homeNav` the nested one, all calls as s
     Explore stays under every other tab — the same net effect as the old
     `goBack = nav.goHome(role)`). The view's grouping rules are the graph's, below.
   - PROFILE/REPORTS/FLAGGED→`MiscGraph`'s nodes; PROFILE is `ProfileScreen`, which now
-    carries the whole settings surface (see the Profile node below). Its `Settings` node is
-    same-mounted but is no tab — nothing reaches it any more: the Explore settings button and
-    the Profile's "Settings and app policy" row were both removed once every setting was read
-    from the Profile view, so the node stays registered (the owner has not asked to delete it)
-    but is currently unreachable. Whether it is dropped or given an entry is the owner's call.
-    The `role` a `Settings` frame carries is the role the signed-in profile holds
-    (`deps.userModel.currentUser`'s roles, ADMIN > OWNER > ENTRANT — the same pick the sign-in makes),
-    while its view comes from the shared `AppViewSettingController`. The two are different
-    things and a settings surface needs both: a view-derived role would hide the app-view
-    switch, which is what locked an admin out of their admin abilities for good after they
-    switched views and closed the app.
+    carries the whole settings surface (see the Profile node below). There is NO Settings
+    node: the member and the mount were removed once every setting was read from the Profile
+    view, so `MiscGraph` registers bare `Profile`, `Reports`, `Flagged`, `QrLinkRoute` and
+    `OldQRCode` only. The `role` the Profile shows is the role the signed-in profile holds
+    (`deps.userModel.currentUser`'s roles, ADMIN > OWNER > ENTRANT — the same pick the sign-in
+    makes), while its view comes from the shared `AppViewSettingController`. The two are
+    different things and the settings surface the Profile draws needs both: a view-derived role
+    would hide the app-view switch, which is what locked an admin out of their admin abilities
+    for good after they switched views and closed the app.
   - ADMIN_PROFILE_VIEW→`DebugGraph`'s start node: `loadAllUsers()` then
     `AdminProfilesScreen(onNavBack, userModel)`; ADMIN_NOTIFICATION_VIEW→
     `NotificationLogScreen(title = "Notification Debugging", notificationSource =
@@ -449,12 +471,10 @@ line each; `nav` is the app controller, `homeNav` the nested one, all calls as s
   re-runs the matching read; Toasts `"Could not load your reservations: …"` / `"Could not load campsites: …"` /
   `"Could not load reservations: …"`. Hands `ReservationScreen(... csvPreferences = notificationPreferencesService,
   currentUserId = currentUserID, fileDownloadWriter …)` (CSV download ↔ controller.md's `generateReceiptCsv`).
-- The `Settings` node (`MiscGraph`): `SettingsScreen(back = onNavBack, role = route.role,
-  viewSettings = appViewSettings, appSettings = deps.appSettingsService,
-  userIdForSettings = deps.currentUserId)` — the app root's parameters; at the app mount
-  `onNavBack = nav.navigateUp()`. That back pairs with the Explore settings button's PLAIN
-  push above: nothing was pushed any more (see the unreachable-node note above), so the pairing
-  is kept only in case the node is given an entry again.
+- NO `Settings` node: the member, the mount and the `SettingsScreen` composable were all
+  removed once every setting was readable from the Profile view below (the owner asked for the
+  screen to be removed). `MiscGraph` therefore takes the settings controllers for the
+  `Profile` mount alone, and nothing in the app names `Screen.Settings` any more.
 - The `Profile` node (`MiscGraph`, bare): `ProfileScreen(role, initialName/initialEmail/initialPhone
   from `userModel.currentUser`, onSave writes ONLY those three fields through
   `Database.Users.writeEngine().update`, onDeleteProfile deletes the profile and calls
@@ -466,8 +486,8 @@ line each; `nav` is the app controller, `homeNav` the nested one, all calls as s
   itself, with `viewSettings = appViewSettings` and `appSettings = deps.appSettingsService`),
   and the `App Policy` bar every role gets, opening the shared `AppPolicyDialog`. An admin
   holds no settings of their own, so where their own-settings section would sit is the switch.
-  The settings controllers are handed to this mount rather than to the Settings screen, which
-  is why the app root builds them here.
+  The settings controllers are handed to this mount and to nothing else — there is no
+  settings screen of their own any more — which is why the app root builds them here.
 - `fun NavController.goHome(role, tab = null)` — a LOCAL extension of the app's `nav`, inside
   `CampBnbApp`, because it needs `deps`: it writes `deps.homeTab = tab` and THEN navigates
   `Home(role)` with `popUpTo<Screen.Home> { inclusive = true }; launchSingleTop = true`. The
@@ -479,6 +499,15 @@ line each; `nav` is the app controller, `homeNav` the nested one, all calls as s
   node owning the NAMED tab (`HomeScreen.initialTab`, a Screen): callers that name a tab
   (CampsiteMonitor's back, the details-page picker) land the bar there; naming none opens the
   first tab.
+- `fun NavController.goHomeAfterSignIn(role)` — the SIBLING local extension, used ONLY by
+  `startupGraph`'s `navToHomePage`: it writes `deps.homeTab = null` and navigates `Home(role)`
+  with `popUpTo<StartupGraph> { inclusive = true }; launchSingleTop = true`. Popping to the
+  sign-in NODE is the eviction the back gesture needs (see the sign-in bullets above): the node
+  is the only frame ever sitting below the first Home while sign-in runs, and it is absent from
+  the stack at every other time Home opens, so this pop answers as nothing at all for ordinary
+  tab navigation — which is why `goHome` keeps its own `popUpTo<Screen.Home>` and the two stay
+  separate. Naming the node needs `com.example.campbnb.graphs.StartupGraph` imported at the app
+  root; the node is package-visible, it is only NOT a `NavGraphNodes` member.
 
 **Pending-SCREEN bridge (typed)** — there are NO string route nodes left in the graph: the
 app's routing vocabulary is the sealed `Screen` set alone. Route TEXTS exist at one crossing

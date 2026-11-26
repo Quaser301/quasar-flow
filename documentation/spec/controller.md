@@ -315,6 +315,17 @@ class LotteryController(private val model: LotteryModel, private val repo: Lotte
   — the model shows the live count.
 - `loadOwnerLotteries(ownerId)`: every lottery filtered by `Lottery.visibleTo(ownerId)` into
   the model (created BY or joined BY — the boundary filters, since one query cannot say it).
+- `deleteLottery(lottery, onDone: (Boolean) -> Unit = {})` (US 02.04.08): an owner's lotteries
+  view otherwise keeps collecting lotteries whose booking window has already passed, and such a
+  lottery can no longer be joined, edited or drawn, so it is only clutter. NOT CLOSED at
+  `clock()` → status message `This lottery is not finished yet` + `onDone(false)` and NOTHING is
+  asked of the records (an open lottery still holds its entrants' places, and one whose booking
+  window is still ahead still has reservations to make — deleting either would silently drop work
+  the user is doing). CLOSED → `LotteryRepository.deleteLottery(lottery.id)`; on success the
+  lottery is taken out of the model's list as well as out of the records — which is what answers
+  the card the owner pressed on with the card simply gone, the only visible feedback (no lottery
+  screen renders a status message) — and `onDone(true)`; on failure the status message is
+  `Could not delete the lottery: <msg>` and the list is untouched.
 - `saveLottery(lottery, onSuccess: (), onFailure)`: save; ONLY on success report
   `NotificationIntent.LotteryInvited(lottery)` then `onSuccess()` — a failed save reports
   nothing. Re-saving an updated lottery re-reports invitations; the records' deterministic

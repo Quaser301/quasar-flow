@@ -64,6 +64,7 @@ open fun getAllLotteries(onSuccess: (List<Lottery>) -> Unit, onFailure: (Excepti
 open fun getEntries(lotteryId: String, onSuccess: (List<WaitingListEntry>) -> Unit, onFailure: (Exception) -> Unit)
 open fun addEntry(entry: WaitingListEntry, onComplete: (Result<Exception?>) -> Unit)
 open fun removeEntry(lotteryId: String, userId: String, onComplete: (Result<Exception?>) -> Unit)
+open fun deleteLottery(lotteryId: String, onComplete: (Result<Exception?>) -> Unit)
 ```
 
 Contracts:
@@ -75,6 +76,9 @@ Contracts:
 - `removeEntry` deletes the entry whose id is `WaitingListEntry.makeId(lotteryId, userId)`
   (see `models.md` for the id format) — removing an entrant never deletes another user's
   entry.
+- `deleteLottery` deletes the ONE lottery record whose id is `lotteryId` (the records'
+  deterministic ids, `database.md`) — it never touches that lottery's waiting-list entries,
+  which stay addressable by their own ids. controller.md owns when a lottery may be deleted.
 
 ## MessageRepository.kt — the conversation seam (interface)
 

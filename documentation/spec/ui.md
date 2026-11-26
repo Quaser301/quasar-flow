@@ -27,7 +27,7 @@ through the public entry point, never the helper itself.
 enum class UserRole(val label: String) { CAMPER("Camper"), OWNER("Owner"), ADMIN("Admin") }
 ```
 Enhanced enum with a `label` property (`"Camper"`/`"Owner"`/`"Admin"` are the label values).
-The UI-role type used by HomeScreen/SettingsScreen/`Screen.Home` payloads. Components.kt
+The UI-role type used by HomeScreen/ProfileScreen/`Screen.Home` payloads. Components.kt
 also holds the shared widgets (`GradientButton`, `BackArrow`, `TextField`…, drawing only).
 
 `ui.components/RoleMapping.kt` — receiver-style maps, TOTAL, pure:
@@ -193,26 +193,30 @@ ADMIN while viewing OwnerView → `[APP_VIEW_SWITCH, ADMIN_SETTINGS, OWNER_SETTI
 ADMIN while viewing EntrantView → `[APP_VIEW_SWITCH, ADMIN_SETTINGS, ENTRANT_SETTINGS]`
 (the role's own settings mount BELOW admin settings while the admin views as that role);
 OWNER → `[OWNER_SETTINGS]`; CAMPER → `[ENTRANT_SETTINGS]`.
-`SettingsScreen(back, role, viewSettings: AppViewSettingController, appSettings: AppSettingsService = NoAppSettingsService(), userIdForSettings: String = "")`
-mounts the app view switch ONLY — a person's own settings are read from their Profile view
-(app.md), and an admin's are the switch itself, so this screen keeps nothing a viewer would
-have to go fetch elsewhere. Expansion state lives in a `remember`ed
-`SettingsDisplayController` (viewModels.md). The app-view switch group's dropdown renders
-its items as centered rows — the shared `AppDropDownMenu` with `centered = true` (feature 3). Its doc warns: controllers should be kept by
-the CALLER (defaults are standalone-use only) — app.md shows the shared instances. The
-app view switch group's selection does TWO things per chosen view: `viewSettings.changeViewTo(view)`
-AND `appSettings.setAppViewChoice(userIdForSettings, view)` (data.md owns the record and
-its merge rules: saving one group never erases the others; `applyLoadedSettings` is the
-restart half, app.md's `init` runs it).
+There is NO `SettingsScreen` composable any more: the owner asked for the Settings screen
+to be removed once every setting was readable from the Profile view, so `Screen.Settings`
+is gone from the sealed set, `MiscGraph` no registers no Settings node, and the Profile
+view mounts the pieces below directly. The file keeps its name and its PUBLIC vocabulary
+(`SettingsGroupId`, `groupLabel`, `settingsGroupsFor`, `SettingsDisplayController`'s
+contract) because that ordering model is what the settings a role's menu names are still
+specified by — the Profile view draws the groups it names, in that order. Expansion state
+lives in a `remember`ed `SettingsDisplayController` (viewModels.md) held by whoever mounts
+the surface. The app-view switch group's dropdown renders its items as centered rows — the
+shared `AppDropDownMenu` with `centered = true` (feature 3). Its doc warns: controllers
+should be kept by the CALLER (defaults are standalone-use only) — app.md shows the shared
+instances. The app view switch group's selection does TWO things per chosen view:
+`viewSettings.changeViewTo(view)` AND `appSettings.setAppViewChoice(userIdForSettings, view)`
+(data.md owns the record and its merge rules: saving one group never erases the others;
+`applyLoadedSettings` is the restart half, app.md's `init` runs it).
 
-The pieces this screen is built from are PUBLIC so the Profile view mounts the same ones
-rather than a second copy that could disagree: `SettingsDropdown(display, groupId, content)`
-(the labelled bar + menu), `ViewSwitchMenu(display, viewSettings, appSettings, userId)` (the
-three-view menu), and `AppPolicyDialog(onDismiss)` (the policy pop-up: titled `App Policy`,
-body `stringResource(R.string.app_policy)` from `res/values/strings.xml`, closed by OK or by
+The pieces the Profile view is built from are PUBLIC so it mounts these rather than a second
+copy that could disagree: `SettingsDropdown(display, groupId, content)` (the labelled bar +
+menu), `ViewSwitchMenu(display, viewSettings, appSettings, userId)` (the three-view menu),
+and `AppPolicyDialog(onDismiss)` (the policy pop-up: titled `App Policy`, body
+`stringResource(R.string.app_policy)` from `res/values/strings.xml`, closed by OK or by
 dismissing, doing nothing else). The `App Policy` bar is offered to EVERY role (it is not a
-`SettingsGroupId` — it is not role-gated) and both this screen and the Profile view open the
-same `AppPolicyDialog`.
+`SettingsGroupId` — it is not role-gated) and the Profile view opens the same
+`AppPolicyDialog`.
 
 ### ui.inbox — correspondence tabs + the live inbox ViewModel
 
@@ -378,7 +382,13 @@ six rows visible at 56.dp each (sheet height = `rowHeight × visibleRows`, and t
 multiplication is only ever Dp × Int), rows full-width at one row height with a checkbox
 that mirrors the selection set, scrolling via `verticalScroll(rememberScrollState())` —
 following the app's own `LotteryWaitlistActivity` idiom. An `ExposedDropdownMenu` before
-this hid every invitee past the visible items (reported regression 10).
+this hid every invitee past the visible items (reported regression 10). The monitor's card
+for a lottery offers Details ALWAYS and a `lottery_delete_closed` "Delete" control ONLY while
+`Lottery.statusAt(now)` is `CLOSED` — its booking window has passed, so the lottery can no
+longer be joined, edited or drawn and is only clutter in this list; the control calls
+controller.md's `deleteLottery` and the card answers by going away (the controller takes the
+lottery out of the model's list as well as out of the records). No other card state gets the
+control, and no lottery screen renders a status message.
 
 ### ui.notification — the log screen
 

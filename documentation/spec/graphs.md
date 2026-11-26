@@ -55,13 +55,13 @@ calls it to pick its nested start.
 
 | File | Entry (`NavGraphBuilder.X(…)`) | Node route | `startDestination` | Registers (`composable<Screen.…>`) |
 |---|---|---|---|---|
-| `StartupGraph.kt` | `startupGraph` (lower-case) | `StartupGraph` — a file-local `@Serializable object StartupGraph`, NOT a `NavGraphNodes` member | `Screen.Start` | `Start`, `Login`, `SignUp`, `Role` |
+| `StartupGraph.kt` | `startupGraph` (lower-case) | `StartupGraph` — a top-level `@Serializable object StartupGraph`, NOT a `NavGraphNodes` member | `Screen.Start` | `Start`, `Login`, `SignUp`, `Role` |
 | `ExploreGraph.kt` | `exploreGraph` (lower-case) | `NavGraphNodes.ExploreGraph` | `Screen.Explore` | `Explore`, `Search`, `QrScanner` |
 | `CampsiteGraph.kt` | `campsiteGraph` (lower-case) | `NavGraphNodes.CampsiteGraph` | `Screen.MyCampsites` | `MyCampsites`, `CampsiteRegistration`, `EditCampsite`, `CampsiteDetailsScreen`, `CampsiteMonitor` |
 | `LotteryGraph.kt` | `LotteryGraph` (capital) | `NavGraphNodes.LotteryGraph` | `Screen.LotteryMonitor` | `LotteryMonitor`, `LotteryEdit`, `LotteryDetails`, `LotteryWaitlist` |
 | `NotificationGraph.kt` | `CorrespondenceGraph` (capital) | `NavGraphNodes.CorrespondenceGraph` | `Screen.Notifications` | `Notifications`, `Bookings`, `Messages`, `Inbox`, `NotifReservations`, `BookingEntry`, `ChatReservationEntry` |
 | `ReservationGraph.kt` | `ReservationGraph` (capital) | `NavGraphNodes.ReservationGraph` | `Screen.Reservations` | `Reservations` |
-| `MiscGraph.kt` | `MiscGraph` (capital) | NONE — no `navigation<…>` wrapper | n/a | bare `Settings`, `Profile`, `Reports`, `Flagged`, `QrLinkRoute`, `OldQRCode` at the mount site |
+| `MiscGraph.kt` | `MiscGraph` (capital) | NONE — no `navigation<…>` wrapper | n/a | bare `Profile`, `Reports`, `Flagged`, `QrLinkRoute`, `OldQRCode` at the mount site |
 | `DebuggingGraph.kt` | `DebugGraph` (capital) | `NavGraphNodes.DebugGraph` | `Screen.AdminProfileView` | `AdminProfileView`, `AdminNotificationView` |
 
 Name traps (file name ≠ member name, in two files):
@@ -69,8 +69,9 @@ Name traps (file name ≠ member name, in two files):
 - `NotificationGraph.kt` defines `CorrespondenceGraph` — there is no graph member named
   `NotificationGraph` (the `notifications` PACKAGE of `notifications.md` is unrelated).
 - `DebuggingGraph.kt` defines `DebugGraph` — there is no member named `DebuggingGraph`.
-- `StartupGraph.kt`'s node route is the file-local `object StartupGraph`; the
-  `NavGraphNodes` interface has no `StartupGraph` member.
+- `StartupGraph.kt`'s node route is the top-level `object StartupGraph`; the
+  `NavGraphNodes` interface has no `StartupGraph` member. It is package-visible only because
+  the app root names it in `goHomeAfterSignIn`'s pop (app.md); it is still not a member.
 - `MiscGraph.kt` declares no node route at all — the graph has no wrapper node; its
   screens register bare at every mount.
 

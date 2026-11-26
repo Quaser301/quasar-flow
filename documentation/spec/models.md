@@ -263,15 +263,32 @@ fun qrCodeOfScannedText(payload: String): QRCode?
   property of the decoded code, not a decode failure).
 
 ```kotlin
+fun codeTextOfOpenedLink(openedText: String): String?
+```
+- The text a device hands over when it OPENS a code's link, read back into code text. A
+  code's text IS a URI in this app's own scheme — the scheme is the code's prefix, the path is
+  the rest of the text — which is why `app/src/main/AndroidManifest.xml` registers that scheme
+  (app.md owns the registration) and why a launcher may hand over the opened URI rather than a
+  private extra. Rules: text that is already code text answers as ITSELF (a launcher that hands
+  over the bare text); otherwise the text up to the first ":" must be this app's prefix
+  case-INSENSITIVELY — a URI's scheme carries no case of its own, so the arrived spelling is
+  never what decides — and the answer is this app's own prefix plus whatever the URI named
+  after the scheme. Anything else (a foreign scheme, a scheme with nothing after it, a bare
+  scheme with no path) → `null`, which queues nothing.
+
+```kotlin
 val qrPayloadExtraKey = "campbnb.qrPayload"   // Intent extra MainActivity reads for opened links
 val qrLinkRoute = "qr-link"                   // graph route prefix a live code's link opens under
 val qrOldCodeRoute = "qr-link-old"            // dead-code notice route (ONE segment: can never collide with the two-segment link)
 fun qrRouteOfLinkPayload(payload: String, atMillis: Long = System.currentTimeMillis()): String?
 ```
 - The link story (US 01.05.02): the phone's own camera hands the app the opened code's TEXT
-  through `qrPayloadExtraKey`, exactly as a notification tap hands over `EXTRA_ROUTE`;
-  MainActivity resolves the typed twin `qrScreenOfLinkPayload` below and queues its screen
-  on `pendingScreen` (app.md); the TEXT decision is what tests pin. `qrRouteOfLinkPayload`
+  through `qrPayloadExtraKey`, exactly as a notification tap hands over `EXTRA_ROUTE` — or, now
+  that the manifest registers the code's own scheme, the OPENED URI itself, which
+  `codeTextOfOpenedLink` above turns back into code text before it reaches this decision
+  (app.md owns which of the two a device chose); MainActivity resolves the typed twin
+  `qrScreenOfLinkPayload` below and queues its screen on `pendingScreen`; the TEXT decision is
+  what tests pin. `qrRouteOfLinkPayload`
   rules: text that is not code text → `null` (nothing is queued, the app just opens); a DEAD
   code — its stop already past, OR no expiry at all (the reserved 0 means old, not never-working)
   → `qrOldCodeRoute`; a code that still works → `"$qrLinkRoute/$campsiteId"` (the same campsite
