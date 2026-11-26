@@ -404,10 +404,12 @@ line each; `nav` is the app controller, `homeNav` the nested one, all calls as s
   than silently changed: the live `onDeleteSite` calls `adminController.deleteCampsite(campsiteId, reason)`
   — the whole-record deletion that cascades through `CampsiteRemovalRepository` (controller.md
   documents BOTH `removeCampsite` as the policy action and `deleteCampsite` as the whole-record
-  deletion; only the second is wired here). The tag picker lists the tags THIS page shows, which
-  fold the listing's own tags and its amenities together, while `removeTag` takes one out of
-  `campsite.tags` only — so picking an amenity answers the failure toast. Whether the two
-  vocabularies are meant to be one is the owner's call. The action area is one hamburger per role (feature 2):
+  deletion; only the second is wired here). The tag picker no longer guesses from the drawn
+  list: the graph passes `removableTags = policyCampsite?.tags ?: emptyList()` (the SAVED
+  record's own tags — what `removeTag` edits), and the screen's Remove Tag menu offers
+  exactly those, so an amenity the page shows beside them can no longer be picked and
+  answer the failure toast (the page's display fold stays; the menu and the removal now
+  agree). The action area is one hamburger per role (feature 2):
   the CAMPER's whole "Lottery" action Column exists ONLY while the campsite has a lottery
   active for the signed-in camper — the graph passes `lotteryButtonEnabled =
   detailsLotteryModel.entrantLottery != null` and the ui half gates the ENTIRE Column on it,
@@ -455,7 +457,13 @@ line each; `nav` is the app controller, `homeNav` the nested one, all calls as s
   campsite.id)`/`goToEditCampsite` = `onOpenCampsiteEdit(campsite.id)`/`fileDownloadWriter =
   deps.fileDownloadWriter` (file-download wiring, item 8 — without it the screen offers no
   download at all)/`appViewSettings`/`deviceID`, all now the graph's parameters; renders via
-  `activity.CampsiteMonitor(model, controller)` over the node's OWN fresh pair.
+  `activity.CampsiteMonitor(model, controller)` over the node's OWN fresh pair. Its
+  `campsite_code_download` button writes `qrImageFileBytes(QRCode(campsiteId = campsite.id))`
+  under `code.fileName()` through `fileDownloadWriter`; on success the screen stays silent
+  AND raises a real device notification (`notifySavedCode`, a private helper in the file:
+  androidx `NotificationManagerCompat`/`NotificationCompat` on `NotificationChannels.GENERAL`,
+  guarded by `NotificationPermission.isGranted(LocalContext.current)`, no content intent —
+  the saved file is the record, the notice only says it is there).
 - `Screen.Reservations` (`ReservationGraph` start; entered by a notice through its bridge,
   by the My Campsites tab's link, and by the camper's tab) hosts the `ReservationsPanel`
   (panels/) DIRECTLY: `ReservationsPanel(userId = deps.deviceID, campsiteRepo, reservationRepo,
@@ -529,16 +537,22 @@ a local first; when non-null it runs `nav.navigate(pending)` on the APP graph th
   below), `Messages` opens `CorrespondenceDestination(MESSAGES_TAB)`.
 - `Screen.NotifReservations` (`CorrespondenceGraph`; a tapped record whose `screenFor`
   resolves to it — LOSE, OWNER_NOTICE, CONFIRMATION, CANCELLATION, REJECTION): invisible
-  typed frame; its `LaunchedEffect` runs the graph's `onNavBack()` — the bridge POPS ITS
-  OWN FRAME before any push: a frame left on the stack — even this invisible typed one —
-  would otherwise keep the invisible frame under the reservations screen, and the first
-  back press would land on it instead of the view the notice was tapped from; naming the
-  live Home frame with a typed `popUpTo<Screen.Home> { inclusive = false }` could never
-  work (Home is a parameterized route; the pop matched nothing, emptied the whole stack and
-  left the reservations view as the only entry — the reservations half of reported
-  regression 7). The self-pop keeps the old white-screen fix (no invisible frame stays
-  under the view), so the first back press goes to whatever the notification was tapped
-  from, under Home — then the graph's `navToReservations()` = PLAIN `nav.navigate(Screen.Reservations)`
+  typed frame; its `LaunchedEffect` runs the graph's `popNoticeFrame()` — the bridge POPS
+  ITS OWN FRAME before any push, and the pop is asked of the SAME navigation the pending
+  frame was pushed onto (`navToNotif`'s), NOT of `onNavBack`: under the home bar the back
+  CONTROLS move on the bar's own graph while the bridge's frame sits on the app's, and
+  popping on the bar's graph left the typed frame on the app's stack between Home and the
+  reservations view — the reported back-button extra press. `popNoticeFrame` defaults to
+  `onNavBack` (the standalone mount's `onNavBack` already IS the app nav); the Home mount
+  passes `{ nav.navigateUp() }` while its `onNavBack` stays `homeNav.navigateUp()`. A
+  frame left on the stack — even this invisible typed one — would otherwise keep it under
+  the reservations screen, and the first back press would land on it instead of the view
+  the notice was tapped from; naming the live Home frame with a typed `popUpTo` could
+  never work (Home is a parameterized route; the pop matched nothing, emptied the whole
+  stack and left the reservations view as the only entry — the reservations half of
+  reported regression 7). The self-pop keeps the old white-screen fix (no invisible frame
+  stays under the view), so the first back press goes to whatever the notification was
+  tapped from, under Home — then the graph's `navToReservations()` = PLAIN `nav.navigate(Screen.Reservations)`
   (the `ReservationGraph` start), no popUpTo at all, `launchSingleTop` still unused.
 - `Screen.BookingEntry(lotteryID)` (`CorrespondenceGraph`; taps from WIN and INVITE records
   that name a lottery id — `screenFor` names it): `InvitationDestination` (destinations/,

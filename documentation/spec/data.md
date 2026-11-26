@@ -343,8 +343,13 @@ Providers:
   The write is only allowed because the manifest carries the grant: `WRITE_EXTERNAL_STORAGE`
   capped at `maxSdkVersion="28"` (legacy targets) and `android:requestRawExternalStorageAccess="true"`
   on the `android:application` element — an element form AAPT rejects; the attribute form is the
-  world's vocabulary. The capped grant is never given on modern targets, so raw access is what
-  makes the shared Downloads path writable there.
+  world's vocabulary. The capped grant is never given on modern targets, and raw access is a
+  26–28 feature, so on API 29+ the shared path REFUSES the write (the media-library grant
+  would cover it, but this platform carries no media-library classes to name it). The provider
+  then falls back to the application's own directory inside the SAME public tree —
+  `<external storage root>/Android/data/com.example.campbnb`, created with `java.io.File.mkdirs()`
+  — which needs no grant and still shows in the user's file manager; only a second refusal
+  answers `Result.failure`.
 
 ## NotificationPreferencesService.kt — per-user notification settings
 

@@ -516,6 +516,12 @@ fun CampBnbApp(
                     onNavBack = {
                         homeNav.navigateUp()
                     },
+                    // The notice bridges run on the app's navigation, so their pop does too:
+                    // the pending frame a tap pushes sits on the app's stack even though the
+                    // bar's back controls move on homeNav.
+                    popNoticeFrame = {
+                        nav.navigateUp()
+                    },
                     navToNotif = { screen ->
                         nav.navigate(screen)
                     },

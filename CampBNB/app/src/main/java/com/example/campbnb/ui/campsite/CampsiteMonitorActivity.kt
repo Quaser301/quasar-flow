@@ -41,6 +41,12 @@ import com.example.campbnb.data.NoFileDownloadWriter
 import com.example.campbnb.data.FileDownloadWriter
 import com.example.campbnb.models.QRCode
 import com.example.campbnb.models.qrImageFileBytes
+import androidx.compose.ui.platform.LocalContext
+import androidx.core.app.NotificationCompat
+import androidx.core.app.NotificationManagerCompat
+import com.example.campbnb.R
+import com.example.campbnb.notifications.NotificationChannels
+import com.example.campbnb.notifications.NotificationPermission
 // Prompted Claude Sonnet 5.5 to build this screen the same way as LotteryMonitorActivity,
 // but listing the owner's campsites (US 02.03.01).
 
@@ -86,6 +92,8 @@ class CampsiteMonitorActivity(
         ownerId: String = ""
     ) {
         observeModel(model)
+        // The device context, so a saved file can raise a real notification.
+        val deviceContext = LocalContext.current
         var campsiteToDelete by remember {
             mutableStateOf<Campsite?>(null)
         }
@@ -242,6 +250,10 @@ class CampsiteMonitorActivity(
                                     ) { result ->
                                         if (result.isSuccess) {
                                             qrDownloadError = ""
+                                            // The saved file is announced on the device
+                                            // itself, so the owner hears about it without
+                                            // watching the screen.
+                                            notifySavedCode(deviceContext, code.fileName())
                                         } else {
                                             qrDownloadError = "Could not save ${campsite.campName}'s QR code file"
                                         }
@@ -313,4 +325,20 @@ class CampsiteMonitorActivity(
             )
         }
     }
+}
+/**
+ * Raises a real device notification for a saved QR code file, on the app's general
+ * channel. The file itself is the record; this only tells the owner it is there,
+ * so the notice carries no route back into the app.
+ */
+private fun notifySavedCode(context: android.content.Context, fileName: String) {
+    if (!NotificationPermission.isGranted(context)) return
+
+    val banner = NotificationCompat.Builder(context, NotificationChannels.GENERAL)
+        .setSmallIcon(R.drawable.ic_stat_campsite)
+        .setContentTitle("QR code saved")
+        .setContentText("Saved $fileName to your Downloads folder")
+        .setAutoCancel(true)
+        .build()
+    NotificationManagerCompat.from(context).notify(fileName.hashCode(), banner)
 }

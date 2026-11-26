@@ -126,7 +126,12 @@ fun CampsiteDetailsScreen(
     onRemoveTag: (String, PolicyReason) -> Unit = { _, _ -> },
     onSeeReviews: () -> Unit = {},
     reviewsContent: @Composable (onClose: () -> Unit) -> Unit = {},
-    entrantContent: @Composable () -> Unit = {}
+    entrantContent: @Composable () -> Unit = {},
+    // The tags an admin may actually remove: the page shows a listing's advertised tags
+    // together with its amenities, but only the listing's own tags can be taken out of
+    // it, so the app names the removable ones rather than the menu guessing from the
+    // drawn list.
+    removableTags: List<String> = campsite.tags
 ) {
     val tabs = remember(role) { tabsFor(role) }
     var showAllTags by remember { mutableStateOf(false) }
@@ -245,9 +250,10 @@ fun CampsiteDetailsScreen(
                                         height = 52.dp,
                                         modifier = Modifier.testTag("delete_site")
                                     )
-                                    // The tags an admin may remove are the ones this page
-                                    // already shows, so the menu is built from the same list
-                                    // rather than a second copy the page could disagree with.
+                                    // The menu offers only the tags the removal can actually
+                                    // take out of the listing — the listing's own tags, named
+                                    // by the app — not the amenities the page shows beside
+                                    // them, which belong to a different part of the record.
                                     GradientBarButton(
                                         text = "Remove Tag",
                                         modifier = Modifier.fillMaxWidth().testTag("remove_tag_menu_bar"),
@@ -257,7 +263,7 @@ fun CampsiteDetailsScreen(
                                         expanded = removeTagMenuOpen,
                                         onDismissRequest = { removeTagMenuOpen = false }
                                     ) {
-                                        campsite.tags.forEach { tag ->
+                                        removableTags.forEach { tag ->
                                             DropdownMenuItem(
                                                 text = { Text(tag) },
                                                 modifier = Modifier.testTag("remove_tag_choice"),

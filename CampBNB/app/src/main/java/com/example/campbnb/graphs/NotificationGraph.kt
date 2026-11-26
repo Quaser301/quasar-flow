@@ -49,6 +49,11 @@ fun NavGraphBuilder.CorrespondenceGraph(
     userModel: UserModel,
 
     onNavBack: () -> Unit,
+    // The notice bridges run on the same navigation that [navToNotif] and [navToReservations]
+    // use, so the pop that clears a bridge's own frame must be asked of that same navigation —
+    // under the home bar the back CONTROLS move on the bar's graph while the bridge's frame
+    // sits on the app's, and one callback cannot serve both.
+    popNoticeFrame: () -> Unit = onNavBack,
     navToNotif: (screen: Screen) -> Unit,
     navToReservations: () -> Unit,
     navToLotteryMon: () -> Unit,
@@ -237,13 +242,16 @@ fun NavGraphBuilder.CorrespondenceGraph(
         // bridge pops its own frame before the push: a frame left on the stack — even
         // this invisible typed one — would otherwise keep it under the reservations
         // screen, and the first back press would land on it instead of the view the
-        // notification was tapped from. Naming the live Home frame with a typed popUpTo
-        // could not work (Home is a parameterized route; the pop matched nothing,
-        // emptied the stack and left the reservations view as the only entry — reported
-        // regression 7's reservations half).
+        // notification was tapped from. The pop is asked of the SAME navigation the
+        // pending frame was pushed onto ([navToNotif]'s), not of [onNavBack]: under
+        // the home bar the back controls move on the bar's own graph, and popping
+        // there left the typed frame on the app's stack between Home and the
+        // reservations view — the reported back-button extra press. Naming the live
+        // Home frame with a typed popUpTo could not work either (Home is a
+        // parameterized route; the pop matched nothing and emptied the stack).
         composable<Screen.NotifReservations> {
             LaunchedEffect(Unit) {
-                onNavBack()
+                popNoticeFrame()
                 navToReservations()
             }
         }

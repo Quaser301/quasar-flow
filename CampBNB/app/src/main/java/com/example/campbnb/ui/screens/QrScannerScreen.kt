@@ -34,7 +34,6 @@ import com.example.campbnb.controller.CampsiteController
 import com.example.campbnb.models.Campsite
 import com.example.campbnb.models.QRCode
 import com.example.campbnb.models.qrTextOfImageBytes
-import com.example.campbnb.models.qrTextOfImageFile
 import com.example.campbnb.ui.shared.CameraFrameSource
 import com.example.campbnb.ui.shared.NoCameraFrame
 import com.example.campbnb.ui.theme.FieldGrey
@@ -61,7 +60,7 @@ import com.example.campbnb.ui.theme.FieldGrey
  *   screen on typed text when this device gives no frames.
  * @param cameraAllowed Whether this device has let the app use its camera. Only the
  *   app can ask the device, so the answer arrives here as a fact: false keeps the
- *   frame area on its placeholder and the screen on the typed and file paths.
+ *   frame area on its placeholder and the screen on its typed path.
  */
 @Composable
 fun QrScannerScreen(
@@ -71,7 +70,6 @@ fun QrScannerScreen(
     cameraAllowed: Boolean = false
 ) {
     var typedCode by remember { mutableStateOf("") }
-    var typedImagePath by remember { mutableStateOf("") }
     var scannedText by remember { mutableStateOf("") }
     var notice by remember { mutableStateOf("") }
     var cameraSurface by remember { mutableStateOf<androidx.camera.core.SurfaceRequest?>(null) }
@@ -83,8 +81,7 @@ fun QrScannerScreen(
     // here as [cameraAllowed]. The camera opens when that answer says yes, and the
     // effect re-runs when the answer arrives, so the preview starts as soon as the
     // user has allowed it. This device's camera path hands no byte frames, so the
-    // frame-reading flow below is untouched and still reads typed text or picture
-    // files.
+    // frame-reading flow below is untouched and still reads typed text.
     val context = LocalContext.current
     val lifecycleOwner = rememberLifecycleOwner()
 
@@ -100,8 +97,11 @@ fun QrScannerScreen(
                 preview
             )
         } catch (failure: Exception) {
-            // A camera that cannot be opened leaves the frame area on its placeholder;
-            // the typed and file paths keep the scanner working.
+            // A camera that cannot be opened is LOUD rather than silent: the placeholder
+            // alone tells the user nothing about why the preview never came, and the
+            // device's own reason is the next thing they can act on. The typed path
+            // keeps the scanner working.
+            notice = "The camera could not open: ${failure.message}"
         }
     }
 
@@ -169,31 +169,6 @@ fun QrScannerScreen(
             }
         ) {
             Text("Scan With Camera")
-        }
-
-        // A picture on this device can be scanned straight from its file.
-        TextField(
-            value = typedImagePath,
-            onValueChange = { typedImagePath = it },
-            label = { Text("Image file to scan") },
-            modifier = Modifier.testTag("image_path_field").fillMaxWidth()
-        )
-
-        Button(
-            enabled = typedImagePath.isNotBlank(),
-            modifier = Modifier.testTag("image_scan"),
-            onClick = {
-                val scanned = qrTextOfImageFile(typedImagePath)
-                if (scanned == null) {
-                    notice = "That image file holds no readable CampBNB code."
-                } else {
-                    // The text read out of the picture enters the same flow as typed text.
-                    notice = ""
-                    scannedText = scanned
-                }
-            }
-        ) {
-            Text("Scan Image File")
         }
 
         Button(

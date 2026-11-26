@@ -348,6 +348,10 @@ fun NavGraphBuilder.campsiteGraph(
                         // One tag out of the SAVED record, not out of the drawn view: the
                         // view folds tags and amenities into one list and carries no fields
                         // to write back (controller.md owns the record-building rules).
+                        // The tags the admin's Remove Tag menu may offer: the saved record's
+                        // own tags, which is what the removal edits (the drawn view folds
+                        // amenities into its display and carries no fields to write back).
+                        removableTags = policyCampsite?.tags ?: emptyList(),
                         onRemoveTag = { tag, reason ->
                             val listing = policyCampsite
                             if (listing == null) {

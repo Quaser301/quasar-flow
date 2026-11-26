@@ -64,7 +64,9 @@ class InMemoryFileDownloadWriter : FileDownloadWriter {
  * feature through its continuation rather than blocking a frame. From API 29 the
  * file would instead be inserted into the media library and written through the
  * address it returns, but this world's platform carries no media-library classes
- * to name that path, so the direct location is used wherever it is allowed.
+ * to name that path; when the shared location refuses the write, the file goes to
+ * the application's own directory inside the same public tree, which needs no
+ * grant and still shows in the user's file manager.
  */
 class PublicDownloadsFileDownloadWriter : FileDownloadWriter {
     override fun downloadFile(
@@ -78,8 +80,26 @@ class PublicDownloadsFileDownloadWriter : FileDownloadWriter {
             )
             java.io.File(downloads, fileName).writeBytes(content)
             onDone(Result.success(Unit))
-        } catch (failure: Exception) {
-            onDone(Result.failure(failure))
+        } catch (refused: Exception) {
+            // Modern targets refuse the shared Downloads path unless the media library
+            // is granted, and this platform carries no media-library classes to ask
+            // for it (the manifest's own grant is capped at API 28). The app's own
+            // directory inside the SAME public tree needs no grant at all, so the
+            // named file still reaches the user's file manager there.
+            try {
+                val appFiles = java.io.File(
+                    java.io.File(
+                        android.os.Environment.getExternalStorageDirectory(),
+                        "Android/data"
+                    ),
+                    "com.example.campbnb"
+                )
+                appFiles.mkdirs()
+                java.io.File(appFiles, fileName).writeBytes(content)
+                onDone(Result.success(Unit))
+            } catch (alsoRefused: Exception) {
+                onDone(Result.failure(alsoRefused))
+            }
         }
     }
 }

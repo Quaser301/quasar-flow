@@ -159,8 +159,11 @@ only starts once the device has allowed the app to use it: `app/src/main/Android
 declares `android.permission.CAMERA` and the screen asks for it through
 `ActivityResultContracts.RequestPermission()` before binding, opening the camera when the answer
 comes back granted (the same ask the notification card does for its own permission); a denial
-leaves the placeholder and the typed/file paths. Screen-internal wiring only — no parameter or
-call-site change, and the frame-reading seam is untouched. `ui.screens/messagesScreen.kt` (package **ui.inbox**): private
+leaves the placeholder and the typed path. The in-app image-file scan (the `image_path_field`
+text field and its `image_scan` button) is GONE: the user called it bulky and the phone's own
+camera opens a code's link instead (the registered `campbnb` scheme, app.md); the screen keeps
+its live preview, the typed-code field, the frame-reading seam and the Open button. Screen-internal
+wiring only — no parameter or call-site change, and the frame-reading seam is untouched. `ui.screens/messagesScreen.kt` (package **ui.inbox**): private
 drawing helpers `ConversationList/ConversationRow/ChatThread/MessageBubble` +
 `private relativeTime(seconds: Long?): String = seconds?.let { DateUtils.getRelativeTimeSpanString(seconds*1000L, System.currentTimeMillis(), MINUTE_IN_MILLIS).toString() } ?: "Just now"`
 — null seconds ⇒ `"Just now"`; file-PRIVATE (and DUPLICATED identically in
