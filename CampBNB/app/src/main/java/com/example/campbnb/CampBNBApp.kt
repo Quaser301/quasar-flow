@@ -163,9 +163,6 @@ fun CampBnbApp(
         // graph below (further down); this hosts it for the app, for entries that
         // do not come through the bottom bar.
         exploreGraph(
-            navToSettings = {
-                nav.navigate(Screen.Settings(signedInRole()))
-            },
             navToCampsite = { card ->
                 nav.navigate(
                     Screen.CampsiteDetailsScreen(currentRole(), card.id)
@@ -342,9 +339,6 @@ fun CampBnbApp(
             navToCampsiteDetails = { role, id ->
                 nav.navigate(Screen.CampsiteDetailsScreen(role, id))
             },
-            navToSettings = { role ->
-                nav.navigate(Screen.Settings(role))
-            },
             navToMyCampsites = {
                 nav.navigate(Screen.MyCampsites)
             },
@@ -402,9 +396,6 @@ fun CampBnbApp(
                 // search, the notice bridges — still use the app's nav, which
                 // keeps this live Home frame mounted underneath them.
                 exploreGraph(
-                    navToSettings = {
-                        nav.navigate(Screen.Settings(signedInRole()))
-                    },
                     navToCampsite = { card ->
                         nav.navigate(
                             Screen.CampsiteDetailsScreen(currentRole(), card.id)
@@ -545,9 +536,6 @@ fun CampBnbApp(
                     },
                     navToCampsiteDetails = { role, id ->
                         nav.navigate(Screen.CampsiteDetailsScreen(role, id))
-                    },
-                    navToSettings = { role ->
-                        nav.navigate(Screen.Settings(role))
                     },
                     navToMyCampsites = {
                         nav.navigate(Screen.MyCampsites)

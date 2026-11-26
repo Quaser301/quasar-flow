@@ -86,15 +86,14 @@ private val StarEmpty = Color(0xFFD9D9D9)
 
 /**
  * The Explore page, which is also the home page. It is identical for campers, owners and
- * admins: a search bar and Settings button, a map, and one horizontally scrolling grid of
- * campsite cards (two cards tall) that holds the recommended and the new campsites together.
+ * admins: a search bar, a map, and one horizontally scrolling grid of campsite cards (two
+ * cards tall) that holds the recommended and the new campsites together.
  *
  * Only the bottom bar around it depends on the user's role (see [HomeScreen]).
  *
  * @param recommended Cards for the recommended campsites.
  * @param newSites Cards for the new campsites. A campsite that is in both lists shows once.
  * @param onCampsiteClick Called when a campsite card is tapped.
- * @param onSettingsClick Called when the Settings circle is tapped.
  * @param onMenuClick Called when the hamburger icon is tapped.
  * @param onFilterClick Called when "Filter" is chosen from the hamburger menu. Opens the
  * Search page with its filter panel showing (US 01.01.02).
@@ -111,7 +110,6 @@ fun ExploreScreen(
     recommended: List<CampsiteCardData> = placeholderCards,
     newSites: List<CampsiteCardData> = placeholderCards,
     onCampsiteClick: (CampsiteCardData) -> Unit = {},
-    onSettingsClick: () -> Unit = {},
     onMenuClick: () -> Unit = {},
     onFilterClick: () -> Unit = {},
     onOpenHistory: () -> Unit = {},
@@ -171,8 +169,6 @@ fun ExploreScreen(
                         )
                     }
                 )
-
-                SettingsButton(onSettingsClick)
             }
         }
         item { MapPlaceholder() }
@@ -262,25 +258,6 @@ fun CampSearchBar(
     )
 }
 
-@Composable
-private fun SettingsButton(onClick: () -> Unit) {
-    Box(
-        Modifier
-            .size(48.dp)
-            .clip(CircleShape)
-            .background(SoftGreen)
-            .testTag("settings_open")
-            .clickable(onClick = onClick),
-        contentAlignment = Alignment.Center
-    ) {
-        Text("Settings", fontSize = 10.sp, fontWeight = FontWeight.Medium, color = ButtonEnd)
-    }
-}
-
-/**
- * Stand-in for the map: a soft green panel with faint grid lines and a pin.
- * Swap for Google Maps Compose when you're ready.
- */
 @Composable
 private fun MapPlaceholder() {
     Box(

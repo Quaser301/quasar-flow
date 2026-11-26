@@ -32,7 +32,6 @@ import com.example.campbnb.viewModels.OwnerSettingsController
 fun NavGraphBuilder.MiscGraph(
     onNavBack: () -> Unit,
     navToCampsiteDetails: (role:UserRole, id: String) -> Unit,
-    navToSettings: (role: UserRole) -> Unit,
     navToMyCampsites: () -> Unit,
     navToStart: () -> Unit,
 
@@ -145,7 +144,8 @@ fun NavGraphBuilder.MiscGraph(
                     }
                 }
             },
-            onOpenSettings = { navToSettings(toUserRole(role)) },
+            viewSettings = appViewSettings,
+            appSettings = appSettings,
             onManageCampsites = { navToMyCampsites() }
         )
     }

@@ -100,6 +100,45 @@ fun settingsGroupsFor(role: UserRole, currentView: AppView): List<SettingsGroupI
 }
 
 /**
+ * The app policy, as the pop-up every viewer of the settings reads. The Settings screen
+ * and the Profile view both open this one, so the policy words live in a single place
+ * rather than being written twice where the settings are drawn.
+ *
+ * @param onDismiss Runs when the reader closes the pop-up, by dismissing it or by the
+ *     confirm button.
+ */
+@Composable
+fun AppPolicyDialog(onDismiss: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(
+                text = "App Policy",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold
+            )
+        },
+        text = {
+            Box(
+                modifier = Modifier
+                    .heightIn(max = 400.dp) // Constrains popup height
+                    .verticalScroll(rememberScrollState()) // Makes text scrollable
+            ) {
+                Text(
+                    text = stringResource(id = R.string.app_policy),
+                    style = MaterialTheme.typography.bodyMedium
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Close")
+            }
+        }
+    )
+}
+
+/**
  * The Settings screen body: a back button in the top left, a Settings header in the
  * top center, and the dropdown menu of settings groups across the rest of the page.
  *
@@ -151,33 +190,7 @@ fun SettingsScreen(
         )
 
         if (showPolicyDialog) {
-            AlertDialog(
-                onDismissRequest = { showPolicyDialog = false },
-                title = {
-                    Text(
-                        text = "App Policy",
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold
-                    )
-                },
-                text = {
-                    Box(
-                        modifier = Modifier
-                            .heightIn(max = 400.dp) // Constrains popup height
-                            .verticalScroll(rememberScrollState()) // Makes text scrollable
-                    ) {
-                        Text(
-                            text = stringResource(id = R.string.app_policy),
-                            style = MaterialTheme.typography.bodyMedium
-                        )
-                    }
-                },
-                confirmButton = {
-                    TextButton(onClick = { showPolicyDialog = false }) {
-                        Text("Close")
-                    }
-                }
-            )
+            AppPolicyDialog(onDismiss = { showPolicyDialog = false })
         }
     }
 }
@@ -191,7 +204,7 @@ fun SettingsScreen(
  * @param content The group's settings, rendered only while the dropdown is open.
  */
 @Composable
-private fun SettingsDropdown(
+fun SettingsDropdown(
     display: SettingsDisplayController,
     groupId: SettingsGroupId,
     content: @Composable () -> Unit,
@@ -223,13 +236,16 @@ private fun SettingsDropdown(
  * expansion is still the display controller's state, and a dismissal through the
  * menu's own closing runs the same controller toggle so the two never disagree.
  *
+ * The Settings screen and the Profile view both mount this one, so the switch exists
+ * in exactly one place.
+ *
  * @param display The holder of the dropdown expansion state.
  * @param viewSettings The app view setting controller to move.
  * @param appSettings The storage that keeps the chosen view between app lifetimes.
  * @param userId The user whose record the chosen view is saved under.
  */
 @Composable
-private fun ViewSwitchMenu(
+fun ViewSwitchMenu(
     display: SettingsDisplayController,
     viewSettings: AppViewSettingController,
     appSettings: AppSettingsService,

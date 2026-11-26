@@ -30,7 +30,6 @@ import com.example.campbnb.models.Campsite
 /**
  * The explore screen and the related search screen.
  *
- * @param navToSettings Opens the settings screen from Explore.
  * @param navToCampsite Opens one campsite's details page from an explore card.
  * @param navToSearch Opens the search screen for a typed query.
  * @param navToCampDetails Opens one campsite's details page from a search result.
@@ -47,7 +46,6 @@ import com.example.campbnb.models.Campsite
  */
 fun NavGraphBuilder.exploreGraph(
 
-    navToSettings: () -> Unit,
     navToCampsite: (data: CampsiteCardData) -> Unit,
     navToSearch: (String) -> Unit,
     navToCampDetails: (role: UserRole, campsiteId: String) -> Unit,
@@ -95,7 +93,6 @@ fun NavGraphBuilder.exploreGraph(
             ExploreScreen(
                 recommended = cards,
                 newSites = cards,
-                onSettingsClick = navToSettings,
                 onCampsiteClick = navToCampsite,
                 onSearch = navToSearch,
                 onFilterClick = onSearchFilterClicked,

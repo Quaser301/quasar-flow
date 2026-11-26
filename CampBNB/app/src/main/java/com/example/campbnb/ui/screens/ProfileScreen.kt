@@ -39,10 +39,19 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.campbnb.data.NoNotificationPreferencesService
 import com.example.campbnb.data.NotificationPreferencesService
+import com.example.campbnb.data.AppSettingsService
+import com.example.campbnb.data.NoAppSettingsService
+import com.example.campbnb.ui.settings.AppPolicyDialog
 import com.example.campbnb.ui.settings.EntrantSettingsItems
 import com.example.campbnb.ui.settings.OwnerSettingsItems
+import com.example.campbnb.ui.settings.SettingsDropdown
+import com.example.campbnb.ui.settings.SettingsGroupId
+import com.example.campbnb.ui.settings.ViewSwitchMenu
+import com.example.campbnb.viewModels.AppViewSettingController
 import com.example.campbnb.viewModels.EntrantSettingsController
 import com.example.campbnb.viewModels.OwnerSettingsController
+import com.example.campbnb.viewModels.SettingsDisplayController
+import com.example.campbnb.ui.components.GradientBarButton
 import com.example.campbnb.ui.components.UserRole
 
 private val CampGreen = Color(0xFF3B6D11)
@@ -62,7 +71,6 @@ private const val DELETE_PHRASE = "DELETE"
  * @param initialEmail Current email stored for the user.
  * @param initialPhone Current phone number stored for the user.
  * @param onSave Called with the validated name, email and phone when "Save changes" is tapped.
- * @param onOpenSettings Opens Settings (where the app policy lives).
  * @param onManageCampsites Owner only: opens the owner's campsite list.
  * @param onDeleteProfile Called once the user has typed the confirmation phrase and confirmed.
  * @param isSaving True while a save is in flight; taps are ignored and the button shows "Saving…".
@@ -71,6 +79,9 @@ private const val DELETE_PHRASE = "DELETE"
  * @param ownerSettings The signed-in owner's own setting values (owner only).
  * @param notificationPreferences The storage that keeps the chosen notification settings.
  * @param userIdForSettings The user the chosen settings are saved under.
+ * @param viewSettings The app view switch, drawn here for an admin: the settings are all
+ *     read from one place, so the switch is not left behind on a second screen.
+ * @param appSettings The storage that keeps the chosen view between app lifetimes.
  *
  * @author Zino
  */
@@ -81,7 +92,6 @@ fun ProfileScreen(
     initialEmail: String,
     initialPhone: String,
     onSave: (name: String, email: String, phone: String) -> Unit,
-    onOpenSettings: () -> Unit,
     onManageCampsites: () -> Unit,
     onDeleteProfile: () -> Unit,
     isSaving: Boolean = false,
@@ -90,7 +100,13 @@ fun ProfileScreen(
     ownerSettings: OwnerSettingsController = OwnerSettingsController(),
     notificationPreferences: NotificationPreferencesService = NoNotificationPreferencesService(),
     userIdForSettings: String = "",
+    viewSettings: AppViewSettingController,
+    appSettings: AppSettingsService = NoAppSettingsService(),
 ) {
+    // The app view switch keeps its own expansion state, so the Profile view holds a
+    // display controller of its own rather than sharing the Settings screen's.
+    val settingsDisplay = remember { SettingsDisplayController() }
+    var showPolicyDialog by remember { mutableStateOf(false) }
     var name by remember(initialName) { mutableStateOf(initialName) }
     var email by remember(initialEmail) { mutableStateOf(initialEmail) }
     var phone by remember(initialPhone) { mutableStateOf(initialPhone) }
@@ -205,8 +221,10 @@ fun ProfileScreen(
             Text(if (isSaving) "Saving…" else "Save changes")
         }
 
-        // The user's own settings live on their profile: the Settings screen keeps only
-        // the app view switch and the app policy. An admin holds no settings of their own.
+        // Everything the settings hold is read from this one view: the signed-in user's
+        // own settings, the app view switch (only an admin may switch), and the app policy
+        // every role reads. An admin holds no settings of their own, so what their own
+        // settings section would hold is the switch instead.
         if (role != UserRole.ADMIN) {
             Spacer(Modifier.height(16.dp))
             Text(
@@ -221,13 +239,27 @@ fun ProfileScreen(
             } else {
                 OwnerSettingsItems(ownerSettings)
             }
+        } else {
+            Spacer(Modifier.height(16.dp))
+            SettingsDropdown(settingsDisplay, SettingsGroupId.APP_VIEW_SWITCH) {
+                ViewSwitchMenu(settingsDisplay, viewSettings, appSettings, userIdForSettings)
+            }
         }
 
         Spacer(Modifier.height(16.dp))
         if (role == UserRole.OWNER) {
             ProfileRow("Manage my campsites", onManageCampsites)
         }
-        ProfileRow("Settings and app policy", onOpenSettings)
+
+        Spacer(Modifier.height(16.dp))
+        GradientBarButton(
+            text = "App Policy",
+            onClick = { showPolicyDialog = true },
+            modifier = Modifier.fillMaxWidth()
+        )
+        if (showPolicyDialog) {
+            AppPolicyDialog(onDismiss = { showPolicyDialog = false })
+        }
 
         Spacer(Modifier.height(24.dp))
         TextButton(
