@@ -2,6 +2,7 @@ package com.example.campbnb
 
 import android.content.Intent
 import android.os.Bundle
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -14,12 +15,30 @@ import com.example.campbnb.notifications.NotificationWatcher
 import com.example.campbnb.notifications.SystemNotifier
 import com.example.campbnb.models.qrPayloadExtraKey
 import com.example.campbnb.models.qrScreenOfLinkPayload
+import com.example.campbnb.notifications.ConfirmationCsvDelivery
 
 class MainActivity : ComponentActivity() {
     private val watcher by lazy {
         NotificationWatcher(
             AppContainer.notificationController,
-            SystemNotifier(applicationContext)
+            SystemNotifier(applicationContext),
+            // Confirmation auto-download for entrants who chose CSV.
+            ConfirmationCsvDelivery(
+                AppContainer.notificationPreferencesService,
+                AppContainer.reservationRepository,
+                AppContainer.campsiteRepository,
+                AppContainer.fileDownloadWriter,
+                onSaved = { fileName ->
+                    // The listener may call back off the main thread, so hop to it.
+                    runOnUiThread {
+                        Toast.makeText(
+                            applicationContext,
+                            "Reservation confirmed. Saved $fileName to your Downloads folder",
+                            Toast.LENGTH_LONG
+                        ).show()
+                    }
+                }
+            )
         )
     }
 

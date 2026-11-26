@@ -50,7 +50,14 @@ class MessageController(
                 val recipientId = when (senderId) {
                     reservation.ownerId -> reservation.entrantId
                     reservation.entrantId -> reservation.ownerId
-                    else -> ""
+                    else -> {
+                        onDone(
+                            Result.failure(
+                                Exception("You are not part of this reservation")
+                            )
+                        )
+                        return@getByLotteryEntry
+                    }
                 }
                 if (recipientId.isBlank()) {
                     onDone(
@@ -76,6 +83,7 @@ class MessageController(
                     onDone
                 )
             },
+            // construct and save the Message using the reservation details
             onFailure = { error -> onDone(Result.failure(error)) }
         )
     }

@@ -1,52 +1,54 @@
 package com.example.campbnb.ui.settings
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.runtime.*
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.example.campbnb.R
+import com.example.campbnb.data.AppSettingsService
+import com.example.campbnb.data.NoAppSettingsService
+import com.example.campbnb.data.NoNotificationPreferencesService
+import com.example.campbnb.data.NotificationPreferencesService
+import com.example.campbnb.models.ConfirmationDelivery
+import com.example.campbnb.models.confirmationDeliveryOf
 import com.example.campbnb.ui.components.GradientBarButton
 import com.example.campbnb.ui.components.UserRole
 import com.example.campbnb.ui.shared.AppDropDownMenu
-import com.example.campbnb.ui.shared.AppSwitchMenu
 import com.example.campbnb.ui.shared.BarWithBackChevronAndHeaderCentered
-import com.example.campbnb.ui.theme.DataColor
-import com.example.campbnb.ui.theme.DataColorImportant
 import com.example.campbnb.ui.theme.FieldGrey
 import com.example.campbnb.viewModels.AppView
-import com.example.campbnb.data.NoNotificationPreferencesService
-import com.example.campbnb.data.NotificationPreferencesService
-import com.example.campbnb.data.AppSettingsService
-import com.example.campbnb.data.NoAppSettingsService
-import com.example.campbnb.models.NotificationSettings
 import com.example.campbnb.viewModels.AppViewSettingController
 import com.example.campbnb.viewModels.EntrantSettingsController
 import com.example.campbnb.viewModels.OwnerSettingsController
 import com.example.campbnb.viewModels.SettingsDisplayController
-import com.example.campbnb.R
 
 /**
  * 25-11-26: Prompted Gemini 3.6 to add a scrollable popup to the app policy button
@@ -120,14 +122,17 @@ fun SettingsScreen(
     val currentView = viewSettings.viewSetting.collectAsStateWithLifecycle()
     var showPolicyDialog by remember { mutableStateOf(false) }
 
+    val context = LocalContext.current
+
     Column(
         modifier = Modifier.padding(top = 32.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         BarWithBackChevronAndHeaderCentered(back, "Settings")
-        // Only the app view switch is mounted here any more: the settings groups a
-        // role's menu names are drawn on that user's Profile view instead, and an
-        // admin holds no settings of their own.
+        // Only the app view switch is mounted here any more: the settings a role's
+        // menu names are drawn on that user's Profile view instead, and an admin
+        // holds no settings of their own. The Update and discard affordances moved
+        // with the settings they apply to, onto that same view.
         settingsGroupsFor(role, currentView.value)
             .filter { it == SettingsGroupId.APP_VIEW_SWITCH }
             .forEach { groupId ->
@@ -174,7 +179,6 @@ fun SettingsScreen(
                 }
             )
         }
-
     }
 }
 
@@ -260,53 +264,78 @@ private fun ViewSwitchMenu(
  * The entrant settings entries, drawn by the signed-in user's Profile view.
  *
  * @param settings The holder of the entrant's own setting values.
- * @param notificationPreferences The storage that keeps the chosen notification settings.
- * @param userId The user whose record the chosen settings are saved under.
  */
 @Composable
-fun EntrantSettingsItems(
-    settings: EntrantSettingsController,
-    notificationPreferences: NotificationPreferencesService,
-    userId: String,
-) {
+fun EntrantSettingsItems(settings: EntrantSettingsController) {
     val bookingsOrder = settings.bookingSortSetting.collectAsStateWithLifecycle()
     val inboxAlerts = settings.inboxAlertsSetting.collectAsStateWithLifecycle()
     val messagesFilter = settings.messageFilterSetting.collectAsStateWithLifecycle()
-
-    // drop down systems for the notification settings:
-    val notificationSettings by settings.notificationSettings.collectAsStateWithLifecycle()
-    val options = listOf(NotificationSettings.PUSH, NotificationSettings.CSV)
-    val textRenderer: (NotificationSettings) -> String = { setting ->
-        when (setting) {
-            NotificationSettings.PUSH -> "Push"
-            NotificationSettings.CSV -> "CSV"
-        }
-    }
-
 
     Column {
         SettingsEntry("bookings order", bookingsOrder.value)
         SettingsEntry("inbox alerts", inboxAlerts.value)
         SettingsEntry("messages filter", messagesFilter.value)
-        Text(
-            "Notification Settings",
-            fontSize = 32.sp,
-            textAlign = TextAlign.Center,
-            modifier = Modifier.padding(12.dp)
-        )
-        AppSwitchMenu(
-            options,
-            notificationSettings,
-            { setting: NotificationSettings, enabled: Boolean ->
-                settings.toggleNotificationSetting(setting, enabled)
-                notificationPreferences.setNotificationSettings(
-                    userId,
-                    settings.notificationSettings.value
-                ) { _ -> }
-            },
-            textRenderer = textRenderer
-            )
+        ConfirmationSettingsTab(settings)
     }
+}
+
+/**
+ * The "Confirmation Settings" sub-tab: one dropdown choosing whether a reservation
+ * confirmation arrives as a notification (default) or an auto-downloaded CSV.
+ * Choosing only marks the change as pending; the Update button saves it.
+ */
+@Composable
+private fun ConfirmationSettingsTab(settings: EntrantSettingsController) {
+    var open by remember { mutableStateOf(false) }
+    var menuOpen by remember { mutableStateOf(false) }
+    val saved by settings.notificationSettings.collectAsStateWithLifecycle()
+    val pending by settings.pendingDelivery.collectAsStateWithLifecycle()
+    // What the dropdown shows: the unsaved choice if there is one, else the saved one.
+    val shown = pending ?: confirmationDeliveryOf(saved)
+
+    Column {
+        GradientBarButton(
+            "Confirmation Settings" + if (open) "" else " - tap to open",
+            onClick = { open = !open },
+            modifier = Modifier
+                .testTag("confirmation_settings_bar")
+                .fillMaxWidth()
+                .padding(6.dp)
+        )
+        if (open) {
+            Column(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Text("Receive reservation confirmations as", fontSize = 18.sp)
+                Box {
+                    Text(
+                        text = deliveryLabel(shown) + "  ▾",
+                        fontSize = 18.sp,
+                        modifier = Modifier
+                            .testTag("confirmation_delivery_dropdown")
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(FieldGrey)
+                            .clickable { menuOpen = true }
+                            .padding(horizontal = 16.dp, vertical = 12.dp)
+                    )
+                    AppDropDownMenu(
+                        entries = listOf(ConfirmationDelivery.NOTIFICATION, ConfirmationDelivery.CSV),
+                        onSelect = { settings.chooseDelivery(it) },
+                        onDismissed = { menuOpen = false },
+                        textRenderer = { Text(deliveryLabel(it) + if (it == shown) " ←" else "") },
+                        expanded = menuOpen
+                    )
+                }
+            }
+        }
+    }
+}
+
+/** The dropdown wording for each delivery choice. */
+private fun deliveryLabel(delivery: ConfirmationDelivery): String = when (delivery) {
+    ConfirmationDelivery.NOTIFICATION -> "Notification"
+    ConfirmationDelivery.CSV -> "CSV download"
 }
 
 /**

@@ -217,11 +217,7 @@ fun ProfileScreen(
             )
             Spacer(Modifier.height(8.dp))
             if (role == UserRole.CAMPER) {
-                EntrantSettingsItems(
-                    settings = entrantSettings,
-                    notificationPreferences = notificationPreferences,
-                    userId = userIdForSettings
-                )
+                EntrantSettingsItems(settings = entrantSettings)
             } else {
                 OwnerSettingsItems(ownerSettings)
             }

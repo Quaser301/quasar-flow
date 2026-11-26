@@ -3,6 +3,7 @@ package com.example.campbnb.notifications
 import android.util.Log
 import com.example.campbnb.controller.NotificationController
 import com.example.campbnb.models.NotificationStatus
+import com.example.campbnb.models.NotificationType
 
 
 /**
@@ -16,7 +17,9 @@ import com.example.campbnb.models.NotificationStatus
  */
 class NotificationWatcher(
     private val controller: NotificationController,
-    private val notifier: SystemNotifier
+    private val notifier: SystemNotifier,
+    // Optional so existing callers and tests keep working without CSV delivery.
+    private val csvDelivery: ConfirmationCsvDelivery? = null
 ) {
 
     // Stops the currently active listener.
@@ -49,11 +52,24 @@ class NotificationWatcher(
                     // where the user has allowed push notifications.
                     update.added
                         .filter {
-                            it.status == NotificationStatus.UNREAD &&
-                                    it.pushAllowed
+                            it.status == NotificationStatus.UNREAD
                         }
                         .forEach { notification ->
-                            notifier.show(notification)
+                            val wantsCsv = csvDelivery != null &&
+                                    notification.type == NotificationType.CONFIRMATION &&
+                                    csvDelivery.wantsCsv(userId)
+
+                            if (wantsCsv) {
+                                // CSV chosen: the file replaces the banner. If it cannot be
+                                // written, fall back to the banner so the entrant is still told.
+                                csvDelivery.deliver(notification, userId) { delivered ->
+                                    if (!delivered && notification.pushAllowed) {
+                                        notifier.show(notification)
+                                    }
+                                }
+                            } else if (notification.pushAllowed) {
+                                notifier.show(notification)
+                            }
                         }
                 }
             },

@@ -163,6 +163,22 @@ fun NavGraphBuilder.CorrespondenceGraph(
                 onTabSelected = { selectedBookingTab = it },
                 onBookingClick = { _ ->
                     // Booking details navigation can be added here later.
+                },
+
+                // opens the conversation associated with the selected booking
+                onMessageOwnerClick = { booking ->
+                    if (booking.id.isNotBlank()) {
+                        navToNotif(
+                            Screen.ChatReservationEntry(
+                                reservationID = booking.id
+                            )
+                        )
+                    } else {
+                        toastGen(
+                            "Unable to open chat: booking ID is missing.",
+                            Toast.LENGTH_SHORT
+                        )
+                    }
                 }
             )
         }

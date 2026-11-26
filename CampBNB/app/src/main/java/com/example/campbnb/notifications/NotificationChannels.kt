@@ -29,7 +29,8 @@ object NotificationChannels {
         NotificationType.REJECTION -> RESERVATIONS
 
         NotificationType.MESSAGE -> MESSAGES
-        NotificationType.OWNER_NOTICE -> GENERAL
+        NotificationType.OWNER_NOTICE,
+        NotificationType.INVITE -> GENERAL
     }
 
     /**
