@@ -35,6 +35,29 @@
 
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+            <!-- A CampBNB code's text is a URI in this app's own scheme: the text
+                names CampBNB, the campsite the code opens and the moment it stops
+                working, so the scheme IS the code's prefix. Registering it is what
+                lets the phone's own camera open a code's link and hand this app the
+                text back. Both spellings are registered because a launcher is free to
+                normalise a scheme's case either way, and MainActivity reads the code
+                text case-free, so the match must not depend on which way it chose. -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+
+                <data android:scheme="campbnb" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+
+                <data android:scheme="CAMPBNB" />
+            </intent-filter>
         </activity>
     </application>
 

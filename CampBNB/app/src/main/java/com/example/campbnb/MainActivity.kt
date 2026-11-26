@@ -13,6 +13,7 @@ import com.example.campbnb.notifications.NotificationChannels
 import com.example.campbnb.notifications.NotificationRoutes
 import com.example.campbnb.notifications.NotificationWatcher
 import com.example.campbnb.notifications.SystemNotifier
+import com.example.campbnb.models.codeTextOfOpenedLink
 import com.example.campbnb.models.qrPayloadExtraKey
 import com.example.campbnb.models.qrScreenOfLinkPayload
 import com.example.campbnb.notifications.ConfirmationCsvDelivery
@@ -132,16 +133,18 @@ class MainActivity : ComponentActivity() {
     }
 
     /** A CampBNB code opened by the device's own camera arrives with the code's text in
-     * the [qrPayloadExtraKey] extra: resolve it into the route to open (the campsite the
-     * code names while it still works, the old-code notice when it is dead). The sign-in
-     * above has already run, so the user's data populates before the first screen
-     * renders (US 01.05.02). */
+     * the [qrPayloadExtraKey] extra, or — now that the manifest registers the code's
+     * own scheme — as the opened URI itself, which is read back into code text first:
+     * resolve it into the route to open (the campsite the code names while it still
+     * works, the old-code notice when it is dead). The sign-in above has already run,
+     * so the user's data populates before the first screen renders (US 01.05.02). */
     private fun handleQrLinkIntent(intent: Intent?) {
         if (intent == null) return
 
-        val payload = intent.getStringExtra(qrPayloadExtraKey) ?: return
+        val opened = intent.getStringExtra(qrPayloadExtraKey) ?: intent.data?.toString() ?: return
 
-        val screen = qrScreenOfLinkPayload(payload)
+        val codeText = codeTextOfOpenedLink(opened) ?: return
+        val screen = qrScreenOfLinkPayload(codeText)
         if (screen != null) {
             AppContainer.pendingScreen = screen
         }

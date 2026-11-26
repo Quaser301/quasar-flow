@@ -114,6 +114,25 @@ fun CampBnbApp(
         }
     }
 
+    /**
+     * Opens Home at the end of sign-in, evicting the sign-in screens from the back
+     * stack: the back gesture (the side scroll on the phone) must not walk a signed-in
+     * user back through the role picker, the sign-up form and the login screen.
+     *
+     * Popping to the sign-in graph node is the eviction because that node is the only
+     * entry ever sitting below the first Home, and it is absent from the stack at every
+     * other time Home opens — so this pop answers as nothing at all for ordinary tab
+     * navigation. Popping to Home would not help here: a pop whose target is not on the
+     * stack leaves the stack untouched, and Home is not on it while sign-in runs.
+     */
+    fun NavController.goHomeAfterSignIn(role: UserRole) {
+        deps.homeTab = null
+        navigate(Screen.Home(role = role)) {
+            popUpTo<StartupGraph> { inclusive = true }
+            launchSingleTop = true
+        }
+    }
+
     // The explore graph owns its own campsite model and controller: the search
     // screen draws what its controller loads, and the shared storage boundary
     // behind them is the app's.
@@ -143,7 +162,7 @@ fun CampBnbApp(
                 nav.navigate(Screen.SignUp)
             },
             navToHomePage = { role ->
-                nav.goHome(role)
+                nav.goHomeAfterSignIn(role)
             },
             navToRoleSelector = {
                 nav.navigate(Screen.Role)

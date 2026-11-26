@@ -30,6 +30,7 @@ import com.example.campbnb.controller.LotteryController
 import com.example.campbnb.models.Campsite
 import com.example.campbnb.models.Lottery
 import com.example.campbnb.models.LotteryModel
+import com.example.campbnb.models.LotteryStatus
 import com.example.campbnb.models.ViewObserver
 import com.example.campbnb.ui.shared.AppViewModificationIsValidForCurrentWindowChecker
 import com.example.campbnb.ui.shared.observeModel
@@ -181,6 +182,19 @@ class LotteryMonitorActivity(
                                 modifier = Modifier.testTag("lottery_details_open").padding(start = 8.dp)
                             ) {
                                 Text("Details")
+                            }
+
+                            // A lottery whose booking window has already passed can no
+                            // longer be joined, edited or drawn, so it is only clutter
+                            // in this list: deleting it is the one thing an owner may
+                            // do with it, and the card answers by simply going away.
+                            if (lottery.statusAt(System.currentTimeMillis()) == LotteryStatus.CLOSED) {
+                                Button(
+                                    onClick = { controller.deleteLottery(lottery) },
+                                    modifier = Modifier.testTag("lottery_delete_closed").padding(start = 8.dp)
+                                ) {
+                                    Text("Delete")
+                                }
                             }
                         }
                     }

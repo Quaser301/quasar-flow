@@ -63,9 +63,6 @@ sealed interface Screen {
     data object Role: Screen
 
     @Serializable
-    data class Settings(val role: UserRole): Screen
-
-    @Serializable
     data class Search(
         val role: UserRole,
         val query: String = "",

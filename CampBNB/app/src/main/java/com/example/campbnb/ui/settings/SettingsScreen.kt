@@ -139,63 +139,6 @@ fun AppPolicyDialog(onDismiss: () -> Unit) {
 }
 
 /**
- * The Settings screen body: a back button in the top left, a Settings header in the
- * top center, and the dropdown menu of settings groups across the rest of the page.
- *
- * The screen takes the entire page as a navigation screen, but its registration is
- * done separately: this composable is only the body. Pressing back calls the passed-in
- * lambda, so the user goes back to the screen they were just on.
- *
- * A user's own settings are no longer shown here: they live on the Profile view. This
- * screen keeps the app view switch (only an admin may switch) and the app policy.
- */
-@Composable
-fun SettingsScreen(
-    back: () -> Unit,
-    role: UserRole,
-    viewSettings: AppViewSettingController,
-    appSettings: AppSettingsService = NoAppSettingsService(),
-    userIdForSettings: String = "",
-) {
-    val display = remember { SettingsDisplayController() }
-    val currentView = viewSettings.viewSetting.collectAsStateWithLifecycle()
-    var showPolicyDialog by remember { mutableStateOf(false) }
-
-    val context = LocalContext.current
-
-    Column(
-        modifier = Modifier.padding(top = 32.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        BarWithBackChevronAndHeaderCentered(back, "Settings")
-        // Only the app view switch is mounted here any more: the settings a role's
-        // menu names are drawn on that user's Profile view instead, and an admin
-        // holds no settings of their own. The Update and discard affordances moved
-        // with the settings they apply to, onto that same view.
-        settingsGroupsFor(role, currentView.value)
-            .filter { it == SettingsGroupId.APP_VIEW_SWITCH }
-            .forEach { groupId ->
-                SettingsDropdown(display, groupId) {
-                    ViewSwitchMenu(display, viewSettings, appSettings, userIdForSettings)
-                }
-            }
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        // App Policy displays for all roles as I feel it's relevant for more than just entrant
-        GradientBarButton(
-            text = "App Policy",
-            onClick = { showPolicyDialog = true },
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 6.dp)
-        )
-
-        if (showPolicyDialog) {
-            AppPolicyDialog(onDismiss = { showPolicyDialog = false })
-        }
-    }
-}
-
-/**
  * One dropdown of the menu: a labeled bar that opens or closes its group of
  * settings on a tap, showing that group's content while it is open.
  *

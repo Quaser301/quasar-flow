@@ -21,7 +21,6 @@ import com.example.campbnb.ui.components.UserRole
 import com.example.campbnb.ui.profile.ProfileScreen
 import com.example.campbnb.ui.screens.PlaceholderTab
 import com.example.campbnb.ui.screens.QrOldCodeNoticeScreen
-import com.example.campbnb.ui.settings.SettingsScreen
 import com.example.campbnb.ui.shared.toUserRole
 import com.example.campbnb.viewModels.AppViewSetting
 import com.example.campbnb.viewModels.AppViewSettingController
@@ -44,19 +43,10 @@ fun NavGraphBuilder.MiscGraph(
     appSettings: AppSettingsService,
     userIdForSettings: String,
 ) {
-    composable<Screen.Settings> { entry ->
-        // need to know our role so we can show
-        // the relevant settings
-        val role = entry.toRoute<Screen.Settings>().role
-        SettingsScreen(
-            back = onNavBack,
-            role = role,
-            viewSettings = appViewSettings,
-            appSettings = appSettings,
-            userIdForSettings = userIdForSettings
-        )
-    }
-
+    // The Settings screen is no longer a screen of its own: the whole settings
+    // surface — a role's own settings, the app view switch and the app policy —
+    // is drawn on the Profile view below, which is why the settings controllers
+    // are handed to that mount.
     // The signed-in user's own profile (US 03.09.01, US 03.10.01): the three shown
     // fields are written through the database and the delete drops the profile and
     // returns to the start. The role the profile shows is the signed-in user's own

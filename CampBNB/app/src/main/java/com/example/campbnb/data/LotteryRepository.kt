@@ -53,6 +53,14 @@ open class LotteryRepository {
             .execute(onSuccess, onFailure)
     }
 
+    /** Removes one lottery record, so an owner can drop a lottery that is finished. */
+    open fun deleteLottery(
+        lotteryId: String,
+        onComplete: (Result<Exception?>) -> Unit
+    ) {
+        Database.Lotteries.writeEngine().delete(lotteryId, onComplete)
+    }
+
     /** Reads every waiting-list entry one user has (used when an admin deletes that user's profile). */
     open fun getEntriesByUser(
         userId: String,

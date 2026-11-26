@@ -58,6 +58,32 @@ fun qrCodeOfScannedText(payload: String): QRCode? {
     return QRCode(campsiteId = campsiteId, stopsAtMillis = stopsAtMillis)
 }
 
+/**
+ * The code text an opened CampBNB link carries (US 01.05.02): a launcher hands over
+ * the URI it opened, and a code's text already IS a URI in this app's own scheme —
+ * the scheme is the code's prefix. A URI's scheme carries no case of its own (a
+ * launcher normalises it either way), so the text is rebuilt from this app's own
+ * prefix rather than from the spelling that arrived. Text that is already code text
+ * answers as itself, which is what a launcher that hands over the bare text does.
+ *
+ * @param openedText The text the device handed over with the opened link.
+ * @return The code text the link carries, or null when the text names no link of this app.
+ */
+fun codeTextOfOpenedLink(openedText: String): String? {
+    if (qrCodeOfScannedText(openedText) != null) {
+        return openedText
+    }
+    val scheme = openedText.substringBefore(":")
+    if (scheme.isEmpty() || scheme.lowercase() != qrCodePrefix.lowercase()) {
+        return null
+    }
+    val rest = openedText.substringAfter(":")
+    if (rest.isEmpty() || rest == openedText) {
+        return null
+    }
+    return "$qrCodePrefix:$rest"
+}
+
 // The link story of a code (US 01.05.02): the phone's own camera hands the app the
 // code's text through an Intent extra, exactly as a notification tap hands over a
 // route; the route resolved from the text opens like any other pending route. The

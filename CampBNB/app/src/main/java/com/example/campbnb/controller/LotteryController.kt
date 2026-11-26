@@ -239,6 +239,43 @@ class LotteryController(
     }
 
     /**
+     * Deletes a lottery that has finished (US 02.04.08): an owner's lotteries view
+     * otherwise keeps collecting lotteries whose booking window has already passed, and
+     * such a lottery can no longer be joined, edited or drawn, so it is only clutter.
+     * Only a CLOSED lottery may be deleted — an open one still holds its entrants'
+     * places, and one whose booking window is still ahead still has reservations to
+     * make, so deleting either would silently drop work the user is doing. The deleted
+     * lottery is taken out of the model's list as well as out of the records, which is
+     * what answers the card the owner pressed on with the card simply gone.
+     *
+     * @param lottery The lottery the owner asked to delete.
+     * @param onDone Called with whether the lottery was deleted.
+     */
+    fun deleteLottery(
+        lottery: Lottery,
+        onDone: (Boolean) -> Unit = {}
+    ) {
+        if (lottery.statusAt(clock()) != LotteryStatus.CLOSED) {
+            model.setStatusMessage("This lottery is not finished yet")
+            onDone(false)
+            return
+        }
+        repo.deleteLottery(lottery.id) { result ->
+            if (result.isSuccess) {
+                model.setLotteries(
+                    model.lotteryList.filterNot { it.id == lottery.id }
+                )
+                onDone(true)
+            } else {
+                model.setStatusMessage(
+                    "Could not delete the lottery: " + result.exceptionOrNull()?.message
+                )
+                onDone(false)
+            }
+        }
+    }
+
+    /**
      * Saves a lottery the owner created or updated, and when it names owners to invite,
      * reports one invitation event once the save succeeded (US 02.04.08): an invitation is
      * only for a lottery that exists, so a failed save reports nothing. Updating a lottery
