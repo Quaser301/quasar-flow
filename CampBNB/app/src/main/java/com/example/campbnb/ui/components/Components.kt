@@ -5,10 +5,12 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -38,11 +40,16 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
@@ -53,6 +60,7 @@ import com.example.campbnb.ui.theme.ButtonGradient
 import com.example.campbnb.ui.theme.FieldGrey
 import com.example.campbnb.ui.theme.LinkBlue
 import com.example.campbnb.ui.theme.ScreenGradient
+import com.example.campsite.ui.components.CampyMascot
 import kotlinx.serialization.Serializable
 
 /** The role a user signs in or registers as. */
@@ -248,9 +256,9 @@ fun CircleLabelButton(label: String, onClick: () -> Unit, modifier: Modifier = M
 
 /**
  * Shared layout for Start, Login and Sign Up: gradient background, campsite picture area
- * at the top, and a white card with large rounded top corners at the bottom.
+ * or Campy mascot title screen at the top, and a white card with large rounded top corners at the bottom.
  *
- * @param headerImage Drawable for the campsite picture. Shows a placeholder when null.
+ * @param headerImage Drawable for the campsite picture. Shows Campy mascot and cursive title screen when null.
  * @param cardContent Content placed inside the white card.
  */
 @Composable
@@ -270,17 +278,37 @@ fun AuthScaffold(
                 contentScale = ContentScale.Crop,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .fillMaxHeight(0.6f)
+                    .fillMaxHeight(0.5f)
                     .align(Alignment.TopCenter)
             )
         } else {
-            Text(
-                "(Campsite pic)",
-                color = Color.White,
+            Column(
                 modifier = Modifier
+                    .fillMaxWidth()
+                    .fillMaxHeight(0.52f)
                     .align(Alignment.TopCenter)
-                    .padding(top = 160.dp)
-            )
+                    .padding(top = 20.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
+            ) {
+                CampyMascot(size = 190.dp)
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(
+                    text = "CampBNB",
+                    style = TextStyle(
+                        fontFamily = FontFamily.Cursive,
+                        fontSize = 58.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White,
+                        letterSpacing = 1.sp,
+                        shadow = Shadow(
+                            color = Color(0x77000000), // Rich dark drop shadow shading
+                            offset = Offset(5f, 7f),
+                            blurRadius = 12f
+                        )
+                    )
+                )
+            }
         }
 
         Surface(
