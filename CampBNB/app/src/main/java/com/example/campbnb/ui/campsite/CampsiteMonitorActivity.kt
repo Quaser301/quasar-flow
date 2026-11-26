@@ -19,6 +19,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.campbnb.controller.CampsiteController
@@ -36,6 +37,10 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import com.example.campbnb.data.CampsiteRepository
+import com.example.campbnb.data.NoFileDownloadWriter
+import com.example.campbnb.data.FileDownloadWriter
+import com.example.campbnb.models.QRCode
+import com.example.campbnb.models.qrImageFileBytes
 // Prompted Claude Sonnet 5.5 to build this screen the same way as LotteryMonitorActivity,
 // but listing the owner's campsites (US 02.03.01).
 
@@ -53,7 +58,10 @@ import com.example.campbnb.data.CampsiteRepository
  * @property goToRegisterCampsite Called when the Register Campsite button is tapped.
  * @property goToCampsiteDetails Called with the campsite when its Details button is tapped.
  * @property goToEditCampsite Called with the campsite when its Edit button is tapped.
+ * @property fileDownloadWriter The shared download-system provider that writes a campsite's
+ *   QR code file; a screen without one keeps the button inert-safe through the default.
  * @property appViewSettings The live app view setting.
+ * @property deviceID The device id, used as the owner id when none is given.
  */
 class CampsiteMonitorActivity(
     val goHome: () -> Unit,
@@ -61,6 +69,7 @@ class CampsiteMonitorActivity(
     val goToRegisterCampsite: () -> Unit,
     val goToCampsiteDetails: (Campsite) -> Unit,
     val goToEditCampsite: (Campsite) -> Unit,
+    val fileDownloadWriter: FileDownloadWriter = NoFileDownloadWriter(),
     val appViewSettings: AppViewSetting,
     val deviceID: String
 ) : ViewObserver<CampsiteModel> {
@@ -82,6 +91,10 @@ class CampsiteMonitorActivity(
         }
 
         var deleteError by remember {
+            mutableStateOf("")
+        }
+
+        var qrDownloadError by remember {
             mutableStateOf("")
         }
 
@@ -118,7 +131,7 @@ class CampsiteMonitorActivity(
             ) {
                 Button(
                     onClick = { goBack() },
-                    modifier = Modifier.padding(8.dp)
+                    modifier = Modifier.testTag("campsites_back").padding(8.dp)
                 ) {
                     Text(
                         text = "Back",
@@ -138,6 +151,11 @@ class CampsiteMonitorActivity(
             if (deleteError.isNotEmpty()) {
                 Text(
                 text = deleteError,
+                color = MaterialTheme.colorScheme.error)
+            }
+            if (qrDownloadError.isNotEmpty()) {
+                Text(
+                text = qrDownloadError,
                 color = MaterialTheme.colorScheme.error)
             }
 
@@ -193,16 +211,43 @@ class CampsiteMonitorActivity(
                                 horizontalAlignment = Alignment.End,
                                 verticalArrangement = Arrangement.spacedBy(4.dp)
                             ) {
-                                Button(onClick = { goToCampsiteDetails(campsite) }) {
+                                Button(
+                                    modifier = Modifier.testTag("campsite_details_open"),
+                                    onClick = { goToCampsiteDetails(campsite) }
+                                ) {
                                     Text("Details")
                                 }
-                                Button(onClick = { goToEditCampsite(campsite) }) {
+                                Button(
+                                    modifier = Modifier.testTag("campsite_edit_open"),
+                                    onClick = { goToEditCampsite(campsite) }
+                                ) {
                                     Text("Edit")
                                 }
-                                Button(onClick = {
+                                Button(
+                                    modifier = Modifier.testTag("campsite_delete_mark"),
+                                    onClick = {
                                     campsiteToDelete = campsite
                                 }) {
                                     Text("Delete")
+                                }
+                                // A code for this campsite, keeping working forever (the
+                                // reserved default), written through the download system.
+                                Button(
+                                    modifier = Modifier.testTag("campsite_code_download"),
+                                    onClick = {
+                                    val code = QRCode(campsiteId = campsite.id)
+                                    fileDownloadWriter.downloadFile(
+                                        code.fileName(),
+                                        qrImageFileBytes(code)
+                                    ) { result ->
+                                        if (result.isSuccess) {
+                                            qrDownloadError = ""
+                                        } else {
+                                            qrDownloadError = "Could not save ${campsite.campName}'s QR code file"
+                                        }
+                                    }
+                                }) {
+                                    Text("Download QR Code File")
                                 }
                             }
                         }
@@ -216,6 +261,7 @@ class CampsiteMonitorActivity(
             Button(
                 onClick = { goToRegisterCampsite() },
                 modifier = Modifier
+                    .testTag("register_campsite")
                     .fillMaxWidth()
                     .height(48.dp),
                 shape = RoundedCornerShape(8.dp)
@@ -239,6 +285,7 @@ class CampsiteMonitorActivity(
                 text = { Text("Are you sure you want to delete ${site.campName}?") },
                 confirmButton = {
                     TextButton(
+                        modifier = Modifier.testTag("campsite_delete_confirm"),
                         onClick = {
                             repository.deleteCampsite(site.id) { result ->
                                 if (result.isSuccess) {
@@ -255,6 +302,7 @@ class CampsiteMonitorActivity(
                 },
                 dismissButton = {
                     TextButton(
+                        modifier = Modifier.testTag("campsite_delete_cancel"),
                         onClick = {
                             campsiteToDelete = null
                         }

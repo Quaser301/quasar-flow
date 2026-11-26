@@ -104,6 +104,27 @@ class WriteViewTest {
     }
 
 
+    @Test
+    fun test_ResetReturnsToIdleDirectlyFromAFault() {
+        val exception = Exception("write refused")
+        val item = TestUser("Tester", 18, false)
+
+        val callbackSlot = slot<(Result<Exception?>) -> Unit>()
+        every { mockEngine.save(eq(item), capture(callbackSlot)) } returns Unit
+
+        view.create(item)
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        callbackSlot.captured.invoke(Result.failure(exception))
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertTrue("the fault stands after a refused write", view.writeState.value is WriteState.Fault)
+
+        view.resetWriteState()
+        testStateIsX(WriteState.Idle)
+    }
+
+
     fun testStateIsX(state: WriteState) {
         assertEquals(state, view.writeState.value)
     }

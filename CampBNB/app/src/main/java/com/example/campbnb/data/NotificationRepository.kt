@@ -1,12 +1,12 @@
 package com.example.campbnb.data
 
+import com.example.campbnb.models.Notification
+
 /**
  * Contract between notification logic and wherever notifications are stored
  *
- * Unit tests use a fake and real app uses FirestoreNotificationRepository
+ * Unit tests use a fake and the real app uses FirestoreNotificationRepository
  */
-
-import com.example.campbnb.models.Notification
 
 /**
  * one live update form notification listener
@@ -17,42 +17,79 @@ data class NotificationUpdate(
     val all: List<Notification>,
     val added: List<Notification>
 )
-/** storage operations notification feature needs */
-interface NotificationRepository {
+
+/**
+ * one request against a notification store, as data rather than as a method call
+ *
+ * A request names what to ask of the store and what to do with the answer, which is what
+ * lets a store be asked through one entry point: the store decides how to carry out the
+ * request, and a view over another store decides per request what to change about it. A
+ * store answers asynchronously, so every answer a request can give is part of the request
+ * itself and nothing comes back up the call stack.
+ *
+ * @memberproperty Save Store these records.
+ * @memberproperty Read Ask for every saved notification, whichever user receives them.
+ * @memberproperty Watch Follow one user's notifications live.
+ * @memberproperty MarkRead Record that one notification has been opened.
+ */
+sealed interface NotificationCommand {
     /**
-     * saves all notifications at once
+     * store these records, all of them in one request
      * @param onDone called exactly once, with success or with the failure
      */
-    fun saveAll( notifications: List<Notification>, onDone: (Result<Unit>) -> Unit)
+    data class Save(
+        val records: List<Notification>,
+        val onDone: (Result<Unit>) -> Unit
+    ) : NotificationCommand
 
     /**
-     * reads every saved notification, in one read, whichever user receives them
+     * ask for every saved notification, in one read, whichever user receives them
      *
-     * Only the notification debug screen uses this: the per-user listener below cannot
-     * answer "what has the app sent overall". It is read once and re-read on an explicit
-     * tap rather than listened to, because a listener over the whole collection re-delivers
+     * Only the notification debug screen asks this: the per user listener below cannot
+     * answer "what has the app sent overall". It is asked once and re-asked on an explicit
+     * tap rather than followed, because a listener over the whole collection re-delivers
      * every saved record on every write anywhere.
      *
      * @param onSuccess called once with every saved notification
      * @param onFailure called once when the read fails
      */
-    fun readAll(
-        onSuccess: (List<Notification>) -> Unit,
-        onFailure: (Exception) -> Unit
-    )
+    data class Read(
+        val onSuccess: (List<Notification>) -> Unit,
+        val onFailure: (Exception) -> Unit
+    ) : NotificationCommand
 
     /**
-     * starts live listener for one user's notification
+     * follow one user's notifications live
      *
-     * @return a function that stops the listener. Called when screen goes away, otherwise listener keeps running
+     * @param onUpdate called on every update of that user's notifications
+     * @param onError called when following fails
+     * @param onListening called once with a function that stops following. The caller keeps
+     * it and calls it when its screen goes away, otherwise the listener keeps running
      */
-    fun listenForUser(
-        userId: String,
-        onUpdate: (NotificationUpdate) -> Unit,
-        onError: (Exception) -> Unit
-    ): () -> Unit
+    data class Watch(
+        val userId: String,
+        val onUpdate: (NotificationUpdate) -> Unit,
+        val onError: (Exception) -> Unit,
+        val onListening: (stop: () -> Unit) -> Unit
+    ) : NotificationCommand
 
+    /** marks one notification as READ and records when */
+    data class MarkRead(
+        val notificationId: String,
+        val onDone: (Result<Unit>) -> Unit
+    ) : NotificationCommand
+}
+
+/** what a notification store is asked to do */
+interface NotificationRepository {
     /**
-     * Marks one notification as READ and records when */
-    fun markRead(notificationId: String, onDone: (Result<Unit>) -> Unit)
+     * runs one request against this store
+     *
+     * The request names its own continuations, so nothing is returned: results reach the
+     * caller through the request's continuations, as everywhere else in an asynchronous
+     * store.
+     *
+     * @param command the request to run
+     */
+    fun run(command: NotificationCommand)
 }

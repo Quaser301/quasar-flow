@@ -80,7 +80,7 @@ fun MessagesScreen(
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Text(current.message)
-                Button(onClick = viewModel::start) {
+                Button(modifier = Modifier.testTag("try_again"), onClick = viewModel::start) {
                     Text("Try again")
                 }
             }

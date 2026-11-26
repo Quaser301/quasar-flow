@@ -9,61 +9,58 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.navigation.NavDestination
+import androidx.navigation.NavDestination.Companion.hierarchy
+import androidx.navigation.NavGraph.Companion.findStartDestination
+import androidx.navigation.NavGraphBuilder
+import androidx.navigation.compose.NavHost
+import androidx.navigation.NavHostController
+import androidx.navigation.compose.currentBackStackEntryAsState
+import androidx.navigation.compose.rememberNavController
+import com.example.campbnb.Screen
+import com.example.campbnb.graphs.graphNodeFor
 import com.example.campbnb.ui.components.UserRole
 import com.example.campbnb.ui.theme.ButtonGradient
 import com.example.campbnb.ui.theme.FieldGrey
 import com.example.campbnb.viewModels.AppView
 import com.example.campbnb.viewModels.AppViewSetting
 
-/** Every screen reachable from a bottom bar. */
-enum class HomeDestination {
-    EXPLORE,
-    MESSAGES,
-    BOOKINGS,
-    INBOX,
-    PROFILE,
-    MY_CAMPSITES,
-    REPORTS,
-    FLAGGED,
-    ADMIN_PROFILE_VIEW,
-    ADMIN_NOTIFICATION_VIEW
-}
-
 /** One circle in the bottom bar. */
-data class HomeTab(val label: String, val destination: HomeDestination)
+data class HomeTab(val label: String, val destination: Screen)
 
 /** The bottom bar tabs for each role, in display order. Explore is always first. */
 fun tabsFor(role: UserRole): List<HomeTab> = when (role) {
     UserRole.CAMPER -> listOf(
-        HomeTab("Explore", HomeDestination.EXPLORE),
-        HomeTab("Messages", HomeDestination.MESSAGES),
-        HomeTab("Bookings", HomeDestination.BOOKINGS),
-        HomeTab("Inbox", HomeDestination.INBOX),
-        HomeTab("Profile", HomeDestination.PROFILE)
+        HomeTab("Explore", Screen.Explore),
+        HomeTab("Messages", Screen.Messages),
+        HomeTab("Bookings", Screen.Bookings),
+        HomeTab("Reservations", Screen.Reservations),
+        HomeTab("Inbox", Screen.Inbox),
+        HomeTab("Profile", Screen.Profile)
     )
     UserRole.OWNER -> listOf(
-        HomeTab("Explore", HomeDestination.EXPLORE),
-        HomeTab("Messages", HomeDestination.MESSAGES),
-        HomeTab("My Campsites", HomeDestination.MY_CAMPSITES),
-        HomeTab("Inbox", HomeDestination.INBOX),
-        HomeTab("Profile", HomeDestination.PROFILE)
+        HomeTab("Explore", Screen.Explore),
+        HomeTab("Messages", Screen.Messages),
+        HomeTab("My Campsites", Screen.MyCampsites),
+        HomeTab("Inbox", Screen.Inbox),
+        HomeTab("Profile", Screen.Profile)
     )
     UserRole.ADMIN -> listOf(
-        HomeTab("Explore", HomeDestination.EXPLORE),
-        HomeTab("Messages", HomeDestination.MESSAGES),
-        HomeTab("Reports", HomeDestination.REPORTS),
-        HomeTab("Flagged", HomeDestination.FLAGGED),
-        HomeTab("Profiles", HomeDestination.ADMIN_PROFILE_VIEW),
-        HomeTab("Notifications", HomeDestination.ADMIN_NOTIFICATION_VIEW)
+        HomeTab("Explore", Screen.Explore),
+        HomeTab("Messages", Screen.Messages),
+        HomeTab("Reports", Screen.Reports),
+        HomeTab("Flagged", Screen.Flagged),
+        HomeTab("Profiles", Screen.AdminProfileView),
+        HomeTab("Notifications", Screen.AdminNotificationView)
     )
 }
 
@@ -71,53 +68,126 @@ fun tabsFor(role: UserRole): List<HomeTab> = when (role) {
  * The app's home: the shared Explore page with the signed-in role's bottom bar.
  *
  * The role only decides which tabs appear. Explore is the first tab and looks the same for
- * every role. Pressing Back on any other tab returns to Explore.
+ * every role; the live view setting decides the tabs too, so switching views while signed
+ * in moves the bar without re-asking for a role.
+ *
+ * The bar moves between tabs on its own graph rather than through the app's navigation:
+ * Explore stays under every other tab, and the graph's saved state returns to it.
  *
  * @param role Decides which tabs appear in the bottom bar.
- * @param initialTab Index of the tab to open first. Clamped to the role's tabs.
- * @param exploreContent The Explore page. Pass your own to supply real campsite data.
- * @param destinationContent Screen to show for every tab except Explore.
- * @param appViewSettings The app's view setting. Not used for choosing tabs yet.
+ * @param appViewSettings The app's view setting: the live view decides the tabs.
+ * @param initialTab Which tab the nested graph opens on, named by the Screen its
+ *     content shows. A caller that sends the app back into Home names the tab to land
+ *     on (the my-campsites back affordances and the details-page picker name it); null
+ *     opens the first tab, and a screen the live bar does not show opens the first tab
+ *     too.
+ * @param homeNavController The controller for the tab graph below Home. The caller
+ *     supplies one so its tab content can hand back controls that move on this graph.
+ * @param builder Registers the content of the tabs: the caller owns one node per tab
+ *     its bottom bar can name.
  */
 @Composable
 fun HomeScreen(
     role: UserRole,
-    initialTab: Int = 0,
-    exploreContent: @Composable () -> Unit = { ExploreScreen() },
-    destinationContent: @Composable (HomeDestination) -> Unit = { PlaceholderTab(it) },
-    appViewSettings: AppViewSetting
+    appViewSettings: AppViewSetting,
+    initialTab: Screen? = null,
+    homeNavController: NavHostController = rememberNavController(),
+    builder: NavGraphBuilder.() -> Unit
 ) {
-    val viewState = appViewSettings.setting.collectAsStateWithLifecycle()
-    var tabs by remember() { mutableStateOf(tabsFor(role)) }
+    val viewState by appViewSettings.setting.collectAsStateWithLifecycle()
 
-    // note: NOT booting back to the home screen since we ARE the home screen.
-    LaunchedEffect(viewState) {
-        tabs = when (viewState.value) {
+    val tabs = remember(viewState, role) {
+        when (viewState) {
             AppView.AdminView -> tabsFor(UserRole.ADMIN)
             AppView.OwnerView -> tabsFor(UserRole.OWNER)
             AppView.EntrantView -> tabsFor(UserRole.CAMPER)
         }
     }
 
-    var selected by rememberSaveable { mutableIntStateOf(0) }
+    // The tab the nested graph opens on: the named screen's tab when the live bar
+    // shows it, otherwise the first tab.
+    val openingTab = tabs.firstOrNull { it.destination == initialTab } ?: tabs.first()
 
-    BackHandler(enabled = selected != 0) { selected = 0 }
+    val navBackStackEntry by homeNavController.currentBackStackEntryAsState()
+    val currentDestination = navBackStackEntry?.destination
 
     Scaffold(
         containerColor = Color.White,
-        bottomBar = { RoleBottomBar(tabs, selected, onSelect = { selected = it }) }
+        bottomBar = {
+            RoleBottomBar(
+                tabs = tabs,
+                currentDestination = currentDestination,
+                onSelect = { tab ->
+                    homeNavController.navigate(tab.destination) {
+                        popUpTo(homeNavController.graph.findStartDestination().id) {
+                            saveState = true
+                        }
+                        launchSingleTop = true
+                        restoreState = true
+                    }
+                }
+            )
+        }
     ) { padding ->
-        Box(Modifier.padding(padding).fillMaxSize()) {
-            val destination = tabs[selected].destination
-            if (destination == HomeDestination.EXPLORE) exploreContent()
-            else destinationContent(destination)
+        NavHost(
+            navController = homeNavController,
+            startDestination = graphNodeFor(openingTab.destination),
+            modifier = Modifier
+                .padding(padding)
+                .fillMaxSize(),
+            builder = builder // Zero screen composables referenced inside HomeScreen
+        )
+    }
+}
+
+
+/** Green gradient bar with rounded top corners and one circle per tab. */
+@Composable
+fun RoleBottomBar(
+    tabs: List<HomeTab>,
+    currentDestination: NavDestination?,
+    onSelect: (HomeTab) -> Unit
+) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .background(ButtonGradient, RoundedCornerShape(topStart = 32.dp, topEnd = 32.dp))
+            .navigationBarsPadding()
+            .padding(horizontal = 12.dp, vertical = 14.dp),
+        horizontalArrangement = Arrangement.SpaceEvenly,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        tabs.forEach { tab ->
+            // Which tab is lit is read from the live nav position itself: nav-compose
+            // names a screen with its class name plus a slash-separated tail, and
+            // routePrefixOf below derives that name from the tab's own screen object,
+            // so nothing about a screen is spelled out here.
+            val routePrefix = routePrefixOf(tab.destination)
+            val isSelected = currentDestination?.hierarchy?.any { dest ->
+                dest.route == routePrefix || dest.route?.startsWith("$routePrefix/") == true
+            } == true
+
+            NavCircle(tab.label, selected = isSelected) { onSelect(tab) }
         }
     }
 }
 
-/** Green gradient bar with rounded top corners and one circle per tab. */
+
+/**
+ * The bar as the details page sees it: a tab picker with no live graph under it, so
+ * the caller names the lit position by index instead of a nav position. The tap hands
+ * over the tab's Screen, which is what a caller needs to name that tab to Home.
+ *
+ * @param tabs The role's tabs, in bar order.
+ * @param selectedIndex Which circle is lit right now.
+ * @param onSelect Runs with the Screen the tapped tab shows.
+ */
 @Composable
-fun RoleBottomBar(tabs: List<HomeTab>, selectedIndex: Int, onSelect: (Int) -> Unit) {
+fun RoleBottomBar(
+    tabs: List<HomeTab>,
+    selectedIndex: Int,
+    onSelect: (Screen) -> Unit
+) {
     Row(
         Modifier
             .fillMaxWidth()
@@ -128,10 +198,11 @@ fun RoleBottomBar(tabs: List<HomeTab>, selectedIndex: Int, onSelect: (Int) -> Un
         verticalAlignment = Alignment.CenterVertically
     ) {
         tabs.forEachIndexed { index, tab ->
-            NavCircle(tab.label, selected = index == selectedIndex) { onSelect(index) }
+            NavCircle(tab.label, selected = index == selectedIndex) { onSelect(tab.destination) }
         }
     }
 }
+
 
 @Composable
 private fun NavCircle(label: String, selected: Boolean, onClick: () -> Unit) {
@@ -140,6 +211,7 @@ private fun NavCircle(label: String, selected: Boolean, onClick: () -> Unit) {
             .size(52.dp)
             .clip(CircleShape)
             .background(if (selected) Color.White else FieldGrey)
+            .testTag("home_tab")
             .clickable(onClick = onClick)
             .padding(2.dp),
         contentAlignment = Alignment.Center
@@ -155,12 +227,17 @@ private fun NavCircle(label: String, selected: Boolean, onClick: () -> Unit) {
     }
 }
 
+// The route prefix nav-compose gives one of the bottom bar's screens: the JVM class
+// name of the screen object, read off the object itself rather than spelled out here.
+private fun routePrefixOf(screen: Screen): String = screen.toString().takeWhile { it != '@' }
+
+
 /** Temporary content for tabs that don't have a screen yet. */
 @Composable
-fun PlaceholderTab(destination: HomeDestination) {
+fun PlaceholderTab(title: String) {
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         Text(
-            destination.name.replace('_', ' ').lowercase().replaceFirstChar { it.uppercase() },
+            title,
             fontSize = 22.sp
         )
     }

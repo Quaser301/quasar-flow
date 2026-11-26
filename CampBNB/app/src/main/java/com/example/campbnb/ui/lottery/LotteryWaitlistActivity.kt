@@ -28,6 +28,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -120,7 +121,7 @@ class LotteryWaitlistActivity(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    Button(onClick = navigateBackwards) {
+                    Button(modifier = Modifier.testTag("lottery_waitlist_back"), onClick = navigateBackwards) {
                         Text("Back")
                     }
                     Text(

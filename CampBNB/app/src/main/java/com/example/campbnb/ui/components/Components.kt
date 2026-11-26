@@ -35,6 +35,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
@@ -139,7 +140,9 @@ fun GreyField(
             focusedTextColor = Color.Black,
             unfocusedTextColor = Color.Black
         ),
-        modifier = Modifier.fillMaxWidth()
+        // the shared affordance: this primitive renders the typing field, one name
+        // for every field it draws (device tests find the nearest one).
+        modifier = Modifier.testTag("text_field").fillMaxWidth()
     )
 }
 
@@ -153,7 +156,7 @@ fun LinkRow(prefix: String, link: String, onClick: () -> Unit) {
             fontSize = 12.sp,
             color = LinkBlue,
             textDecoration = TextDecoration.Underline,
-            modifier = Modifier.clickable(onClick = onClick)
+            modifier = Modifier.testTag("link_row").clickable(onClick = onClick)
         )
     }
 }
@@ -203,6 +206,7 @@ fun RoleDropdown(selected: UserRole?, onSelected: (UserRole) -> Unit) {
                 .height(56.dp)
                 .clip(RoundedCornerShape(4.dp))
                 .background(FieldGrey)
+                .testTag("role_field")
                 .clickable { expanded = true }
                 .padding(horizontal = 16.dp),
             verticalAlignment = Alignment.CenterVertically
@@ -219,6 +223,7 @@ fun RoleDropdown(selected: UserRole?, onSelected: (UserRole) -> Unit) {
             UserRole.entries.forEach { role ->
                 DropdownMenuItem(
                     text = { Text(role.label) },
+                    modifier = Modifier.testTag("role_choice"),
                     onClick = { onSelected(role); expanded = false }
                 )
             }
