@@ -118,6 +118,24 @@ class LotteryCampsitesTest {
         Assert.assertFalse(lottery.isValid(now))
     }
 
+    // A lottery must be able to offer a stay of at least one day (main's US 02.08.02 rule:
+    // the same field ReservationController bounds a winner's date selection with).
+    @Test
+    fun a_lottery_that_offers_no_stay_never_creates() {
+        val now = System.currentTimeMillis()
+        val lottery = Lottery(
+            ownerId = "owner-1",
+            campsiteIds = listOf("camp-one"),
+            registrationStart = now + 1000L,
+            registrationEnd = now + 2000L,
+            bookingStart = now + 3000L,
+            bookingEnd = now + 4000L,
+            numberOfWinners = 1,
+            maxBookingDays = 0
+        )
+        Assert.assertFalse(lottery.isValid(now))
+    }
+
     @Test
     fun an_unlimited_waitlist_is_allowed() {
         val now = System.currentTimeMillis()

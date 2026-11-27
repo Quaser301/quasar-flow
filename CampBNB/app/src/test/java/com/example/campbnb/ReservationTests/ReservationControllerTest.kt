@@ -429,4 +429,402 @@ class ReservationControllerTest {
         verify(exactly = 0) { reservations.save(any(), any(), any()) }
         verify(exactly = 0) { notifications.notify(any()) }
     }
+
+    /**
+     * The gate arms main's US 02.08.02 made checkable (controller.md): the lottery must
+     * exist and offer a stay, the campsite must exist and belong to the owner, and the
+     * dates must fit the lottery's bound and step one day at a time. Each refusal goes
+     * to onFailure and nothing else runs.
+     */
+    private fun bookingController(
+        lottery: Lottery?,
+        campsite: Campsite?
+    ): ReservationController {
+        val lotteryController = mockk<LotteryController>()
+        val availability = mockk<Availability>()
+        val notifications = mockk<NotificationController>(relaxed = true)
+
+        every {
+            lotteryController.getLottery(any(), any(), any())
+        } answers {
+            secondArg<(Lottery?) -> Unit>().invoke(lottery)
+        }
+        every {
+            availability.getCampsite(any(), any(), any())
+        } answers {
+            secondArg<(Campsite?) -> Unit>().invoke(campsite)
+        }
+        return ReservationController(
+            lotteryController,
+            availability,
+            mockk<ReservationRepository>(),
+            notifications
+        )
+    }
+
+    /** Runs the reservation call past the policy gate with the given dates and rules. */
+    private fun reserveOn(
+        controller: ReservationController,
+        dates: Set<String>,
+        rules: Boolean
+    ): Exception? {
+        controller.confirmPolicies("entry1")
+
+        var error: Exception? = null
+        controller.createReservation(
+            lotteryEntryId = "entry1",
+            entrantId = "entrant1",
+            ownerId = "owner1",
+            campsiteId = "camp1",
+            dates = dates,
+            onSuccess = {},
+            onFailure = { error = it },
+            guests = 2,
+            refundRecorded = false,
+            createdAt = 1000L,
+            rules = rules,
+            lotteryId = "some-lottery-id"
+        )
+        return error
+    }
+
+    @Test
+    fun createReservation_withoutAcceptedRules_fails() {
+        val error = reserveOn(bookingController(Lottery(maxBookingDays = 1), Campsite(ownerId = "owner1")), dates = setOf("2026-12-01"), rules = false)
+
+        Assert.assertTrue(error is IllegalStateException)
+        Assert.assertEquals(
+            "You must accept the campsite rules and policies",
+            error?.message
+        )
+    }
+
+    @Test
+    fun createReservation_refuses_when_the_lottery_is_gone() {
+        val error = reserveOn(bookingController(null, Campsite(ownerId = "owner1")), dates = setOf("2026-12-01"), rules = true)
+
+        Assert.assertTrue(error is NoSuchElementException)
+        Assert.assertEquals("Lottery not found", error?.message)
+    }
+
+    @Test
+    fun createReservation_refuses_a_lottery_that_offers_no_stay() {
+        val error = reserveOn(bookingController(Lottery(maxBookingDays = 0), Campsite(ownerId = "owner1")), dates = setOf("2026-12-01"), rules = true)
+
+        Assert.assertTrue(error is IllegalStateException)
+        Assert.assertEquals(
+            "This lottery has an invalid maximum booking length",
+            error?.message
+        )
+    }
+
+    @Test
+    fun createReservation_refuses_a_campsite_that_is_not_there() {
+        val error = reserveOn(bookingController(Lottery(maxBookingDays = 1), null), dates = setOf("2026-12-01"), rules = true)
+
+        Assert.assertTrue(error is NoSuchElementException)
+        Assert.assertEquals("Campsite not found", error?.message)
+    }
+
+    @Test
+    fun createReservation_refuses_an_owner_who_does_not_own_the_campsite() {
+        val error = reserveOn(
+            bookingController(
+                Lottery(maxBookingDays = 1),
+                Campsite(ownerId = "someone-else")
+            ),
+            dates = setOf("2026-12-01"),
+            rules = true
+        )
+
+        Assert.assertTrue(error is SecurityException)
+        Assert.assertEquals(
+            "The selected owner does not own this campsite",
+            error?.message
+        )
+    }
+
+    @Test
+    fun createReservation_refuses_more_dates_than_the_lottery_offers() {
+        val error = reserveOn(
+            bookingController(Lottery(maxBookingDays = 1), Campsite(ownerId = "owner1")),
+            dates = setOf("2026-12-01", "2026-12-02"),
+            rules = true
+        )
+
+        Assert.assertTrue(error is IllegalArgumentException)
+        Assert.assertEquals("You can select at most 1 consecutive days", error?.message)
+    }
+
+    @Test
+    fun createReservation_refuses_dates_that_are_not_consecutive() {
+        val error = reserveOn(
+            bookingController(Lottery(maxBookingDays = 2), Campsite(ownerId = "owner1")),
+            dates = setOf("2026-12-01", "2026-12-03"),
+            rules = true
+        )
+
+        Assert.assertTrue(error is IllegalArgumentException)
+        Assert.assertEquals("Your reservation dates must be consecutive", error?.message)
+    }
+
+    /**
+     * The success half of the gate (controller.md step 8): the model handed to
+     * onSuccess carries the dates SORTED as text, startDate the first and endDate the
+     * last, and status PENDING — a reservation is NOT active when it is made.
+     */
+    @Test
+    fun createReservation_builds_the_model_the_spec_states() {
+        val lotteryController = mockk<LotteryController>()
+        val availability = mockk<Availability>()
+        val reservations = mockk<ReservationRepository>()
+        val notifications = mockk<NotificationController>(relaxed = true)
+
+        val onWon = slot<Function1<Boolean, Unit>>()
+        val onBookingOpen = slot<Function1<Boolean, Unit>>()
+        val onOpenDates = slot<Function1<Set<String>, Unit>>()
+        val onBookedDates = slot<Function1<Set<String>, Unit>>()
+        val onSaved = slot<Function0<Unit>>()
+
+        every {
+            lotteryController.checkIfWon(any(), any(), any(), capture(onWon), any())
+        } answers {
+            onWon.captured.invoke(true)
+        }
+        every {
+            lotteryController.checkEntrantAccepted(any(), any(), any(), any())
+        } answers {
+            thirdArg<(Boolean) -> Unit>().invoke(true)
+        }
+        every {
+            lotteryController.isBookingOpen(any(), capture(onBookingOpen), any())
+        } answers {
+            onBookingOpen.captured.invoke(true)
+        }
+        every {
+            lotteryController.getLottery(any(), any(), any())
+        } answers {
+            secondArg<(Lottery?) -> Unit>().invoke(
+                Lottery(
+                    ownerId = "owner1",
+                    campsiteIds = listOf("camp1"),
+                    bookingStart = 1795737600000L, // November 27, 2026
+                    bookingEnd = 1798675200000L,   // December 31, 2026
+                    maxBookingDays = 2
+                )
+            )
+        }
+        every {
+            availability.getCampsite(any(), any(), any())
+        } answers {
+            secondArg<(Campsite?) -> Unit>().invoke(
+                Campsite(ownerId = "owner1", campName = "Test Campsite")
+            )
+        }
+        every {
+            availability.getOpenDates(any(), capture(onOpenDates), any())
+        } answers {
+            onOpenDates.captured.invoke(setOf("2026-12-02", "2026-12-01"))
+        }
+        every {
+            reservations.getBookedDates(any(), capture(onBookedDates), any())
+        } answers {
+            onBookedDates.captured.invoke(setOf())
+        }
+        every {
+            reservations.save(any(), capture(onSaved), any())
+        } answers {
+            onSaved.captured.invoke()
+        }
+
+        val reservingController =
+            ReservationController(lotteryController, availability, reservations, notifications)
+
+        val lotteryEntryId = WaitingListEntry.makeId("some-lottery-id", "entrant1")
+        reservingController.confirmPolicies(lotteryEntryId)
+
+        var built: ReservationModel? = null
+        reservingController.createReservation(
+            lotteryEntryId = lotteryEntryId,
+            entrantId = "entrant1",
+            ownerId = "owner1",
+            campsiteId = "camp1",
+            // offered out of order: the model must sort them as text
+            dates = setOf("2026-12-02", "2026-12-01"),
+            onSuccess = { built = it },
+            onFailure = {},
+            guests = 2,
+            refundRecorded = false,
+            createdAt = 1000L,
+            rules = true,
+            lotteryId = "some-lottery-id"
+        )
+
+        Assert.assertNotNull(built)
+        Assert.assertEquals(listOf("2026-12-01", "2026-12-02"), built?.dates)
+        Assert.assertEquals("2026-12-01", built?.startDate)
+        Assert.assertEquals("2026-12-02", built?.endDate)
+        Assert.assertEquals(ReservationStatus.PENDING, built?.status)
+    }
+
+    /** The record is read with getByLotteryEntry; an absent one is named in the refusal. */
+    @Test
+    fun cancelReservation_names_a_record_that_is_not_there() {
+        val reservations = mockk<ReservationRepository>()
+        val onFound = slot<Function1<ReservationModel?, Unit>>()
+        every {
+            reservations.getByLotteryEntry(any(), capture(onFound), any())
+        } answers {
+            onFound.captured.invoke(null)
+        }
+        val reservingController = ReservationController(
+            mockk<LotteryController>(),
+            mockk<Availability>(),
+            reservations,
+            mockk<NotificationController>(relaxed = true)
+        )
+
+        var error: Exception? = null
+        reservingController.cancelReservation(
+            reservationId = "entry1",
+            requesterId = "entrant1",
+            onSuccess = {},
+            onFailure = { error = it }
+        )
+
+        Assert.assertTrue(error is NoSuchElementException)
+        Assert.assertEquals("No reservation entry1", error?.message)
+    }
+
+    @Test
+    fun cancelReservation_only_the_entrant_can_cancel() {
+        val reservations = mockk<ReservationRepository>()
+        val onFound = slot<Function1<ReservationModel?, Unit>>()
+        every {
+            reservations.getByLotteryEntry(any(), capture(onFound), any())
+        } answers {
+            onFound.captured.invoke(
+                ReservationModel(
+                    lotteryEntryId = "entry1",
+                    campsiteId = "camp1",
+                    entrantId = "entrant1",
+                    ownerId = "owner1",
+                    dates = listOf("2026-12-01"),
+                    startDate = "2026-12-01",
+                    endDate = "2026-12-01",
+                    status = ReservationStatus.PENDING
+                )
+            )
+        }
+        val reservingController = ReservationController(
+            mockk<LotteryController>(),
+            mockk<Availability>(),
+            reservations,
+            mockk<NotificationController>(relaxed = true)
+        )
+
+        var error: Exception? = null
+        reservingController.cancelReservation(
+            reservationId = "entry1",
+            requesterId = "someone-else",
+            onSuccess = {},
+            onFailure = { error = it }
+        )
+
+        Assert.assertTrue(error is SecurityException)
+        Assert.assertEquals(
+            "Only the entrant can cancel this reservation",
+            error?.message
+        )
+    }
+
+    @Test
+    fun rejectReservation_only_the_owner_can_reject() {
+        val reservations = mockk<ReservationRepository>()
+        val onFound = slot<Function1<ReservationModel?, Unit>>()
+        every {
+            reservations.getByLotteryEntry(any(), capture(onFound), any())
+        } answers {
+            onFound.captured.invoke(
+                ReservationModel(
+                    lotteryEntryId = "entry1",
+                    campsiteId = "camp1",
+                    entrantId = "entrant1",
+                    ownerId = "owner1",
+                    dates = listOf("2026-12-01"),
+                    startDate = "2026-12-01",
+                    endDate = "2026-12-01",
+                    status = ReservationStatus.PENDING
+                )
+            )
+        }
+        val reservingController = ReservationController(
+            mockk<LotteryController>(),
+            mockk<Availability>(),
+            reservations,
+            mockk<NotificationController>(relaxed = true)
+        )
+
+        var error: Exception? = null
+        reservingController.rejectReservation(
+            reservationId = "entry1",
+            requesterId = "someone-else",
+            onSuccess = {},
+            onFailure = { error = it }
+        )
+
+        Assert.assertTrue(error is SecurityException)
+        Assert.assertEquals(
+            "Only the campsite owner can reject this reservation",
+            error?.message
+        )
+    }
+
+    /** The entrant cancelling their own stay: markCancelled runs and it is reported. */
+    @Test
+    fun cancelReservation_the_entrant_cancels_their_own_stay() {
+        val reservations = mockk<ReservationRepository>()
+        val notifications = mockk<NotificationController>(relaxed = true)
+        val onFound = slot<Function1<ReservationModel?, Unit>>()
+        every {
+            reservations.getByLotteryEntry(any(), capture(onFound), any())
+        } answers {
+            onFound.captured.invoke(
+                ReservationModel(
+                    lotteryEntryId = "entry1",
+                    campsiteId = "camp1",
+                    entrantId = "entrant1",
+                    ownerId = "owner1",
+                    dates = listOf("2026-12-01"),
+                    startDate = "2026-12-01",
+                    endDate = "2026-12-01",
+                    status = ReservationStatus.PENDING
+                )
+            )
+        }
+        val onCancelled = slot<Function0<Unit>>()
+        every {
+            reservations.markCancelled(any(), capture(onCancelled), any())
+        } answers {
+            onCancelled.captured.invoke()
+        }
+        val reservingController = ReservationController(
+            mockk<LotteryController>(),
+            mockk<Availability>(),
+            reservations,
+            notifications
+        )
+
+        var done = false
+        reservingController.cancelReservation(
+            reservationId = "entry1",
+            requesterId = "entrant1",
+            onSuccess = { done = true },
+            onFailure = {}
+        )
+
+        Assert.assertTrue(done)
+        verify(exactly = 1) { reservations.markCancelled(any(), any(), any()) }
+        verify(exactly = 1) { notifications.notify(any()) }
+    }
 }

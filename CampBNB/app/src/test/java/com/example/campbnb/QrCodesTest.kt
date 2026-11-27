@@ -67,14 +67,18 @@ class QrCodesTest {
         }
     }
 
-    // TEST: text that names no campsite is not code text
+    // TEST: text that names no campsite is not code text — the reading is strict:
+    // exactly two parts, the exact prefix, a non-blank id (case counts)
     @Test
     fun qrCodeOfScannedText_rejectsTextThatNamesNoCampsite() {
         val unreadable = listOf(
             "",
             "hello",
+            "CAMPBNB",
             "CAMPBNB:",
             "CAMPBNB:  ",
+            "CAMPBNB:c1:",
+            "campbnb:target",
             "OTHER:target"
         )
         for (text in unreadable) {
