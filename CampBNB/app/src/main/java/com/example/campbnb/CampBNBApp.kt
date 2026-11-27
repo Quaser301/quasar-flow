@@ -367,6 +367,7 @@ fun CampBnbApp(
 
             campsiteRepo = deps.campsiteRepository,
             reservationRepo = deps.reservationRepository,
+            reservationController = deps.reservationController,
             notificationPreferences = deps.notificationPreferencesService,
             fileDownloadWriter = deps.fileDownloadWriter,
 
@@ -588,6 +589,7 @@ fun CampBnbApp(
 
                     campsiteRepo = deps.campsiteRepository,
                     reservationRepo = deps.reservationRepository,
+                    reservationController = deps.reservationController,
                     notificationPreferences = deps.notificationPreferencesService,
                     fileDownloadWriter = deps.fileDownloadWriter,
 

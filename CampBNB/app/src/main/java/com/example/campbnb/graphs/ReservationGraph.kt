@@ -9,6 +9,7 @@ import com.example.campbnb.data.FileDownloadWriter
 import com.example.campbnb.data.NotificationPreferencesService
 import com.example.campbnb.data.ReservationRepository
 import com.example.campbnb.panels.ReservationsPanel
+import com.example.campbnb.controller.ReservationController
 import kotlinx.serialization.Serializable
 
 
@@ -22,6 +23,7 @@ fun NavGraphBuilder.ReservationGraph(
 
     campsiteRepo: CampsiteRepository,
     reservationRepo: ReservationRepository,
+    reservationController: ReservationController,
     notificationPreferences: NotificationPreferencesService,
     fileDownloadWriter: FileDownloadWriter,
 
@@ -41,6 +43,7 @@ fun NavGraphBuilder.ReservationGraph(
                 userID,
                 campsiteRepo,
                 reservationRepo,
+                reservationController,
                 notificationPreferences,
                 currentUserId,
                 fileDownloadWriter,

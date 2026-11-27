@@ -1,14 +1,13 @@
 # Application
 
-UML documentation for the whole CampBNB application
-(`CampBNB/app/src/main/java/com/example/campbnb/`): the layers it is split into, the
-domain entities stored in Firestore, the observable models, the controllers and
-repositories that hold the business rules, the notification and messaging subsystem,
-and the navigation and wiring that tie it together. The generic database layer is
-documented in detail in Engines, FirestoreViews and Transactions; here it appears only
-as far as the rest of the app touches it. `ViewModel`, `ComponentActivity`,
-`FirebaseFirestore`, `Timestamp`, `Context` and `Result` are library types, not part of
-this repository.
+UML documentation for the CampBNB application
+(`CampBNB/app/src/main/java/com/example/campbnb/`),
+covering its architecture, domain entities, observable
+models, controllers, repositories, notifications,
+messaging and navigation.
+
+The database layer is documented separately in Engines,
+FirestoreViews and Transactions.
 
 ## Layers
 
@@ -93,23 +92,17 @@ classDiagram
 
 Reading the diagram:
 
-- Namespaces are the source packages. The app is MVC wired by hand, with no DI framework:
-  `ui` draws and forwards user actions, `controller` decides what is allowed, `models`
-  holds what is shown, `data` knows how each schema is stored, and `database` is the
-  only code that talks to Firestore.
-- Only one representative edge per layer is drawn (e.g. `ComposeScreens ..> UserController`,
-  `UserRepository ..> Database`); every controller and every repository follows the same
-  edge, as the later sections show in full.
-- Aggregation (open diamond, `o--`): every controller receives its repository and its
-  model through the constructor, so it references them without owning them; the
-  same holds for the watcher's collaborators.
-- Composition (filled diamond, `*--`): `MainActivity` creates its `NotificationWatcher`
-  in a lazy field, starts it in `onCreate` and stops it in `onDestroy`, so the watcher
-  lives exactly as long as the activity.
-- `ComposeScreens` stands for the Compose screen functions as a group (they are named
-  `*Activity.kt` but are composables; `MainActivity` is the only real Android Activity).
-- `AppContainer` is the app-wide `object` that hands out the shared notification,
-  message and reservation instances that must be the same for the whole process.
+- The namespaces represent the source packages. The app
+  follows MVC, with controllers handling business rules,
+  models holding state, and the UI displaying data.
+- Repositories access Firestore through the database layer.
+- Aggregation (o--) represents shared collaborators passed
+  into controllers.
+- Composition (*--) represents the NotificationWatcher
+  owned by MainActivity.
+- ComposeScreens represents the Compose screen functions.
+- AppContainer provides shared application instances.
+
 
 ## Domain entities
 
@@ -316,28 +309,19 @@ classDiagram
     Conversations ..> Conversation : group() builds one per reservation
     Conversations ..> Message : reads them, never writes
 ```
-
 Reading the diagram:
 
-- Inheritance (solid line, hollow triangle): every stored schema extends `Identifiable`,
-  whose `id` starts as a random UUID and is overwritten from the `DocumentId` on read.
-  Several schemas pin the id instead: `User` uses its `deviceId`, `WaitingListEntry`
-  and `Rating` use `parent_userId` from their static `makeId`, a reservation uses its
-  lottery entry id, and a `BookedDate` is keyed `campsiteId_yyyy-MM-dd`. Deterministic
-  ids are what make "one entry per user per lottery", "one rating per user per
-  campsite", "one reservation per entry" and "no night booked twice" hold in storage.
-- Association (plain line with multiplicities): Firestore has no foreign keys, so every
-  association is an id field on one side, named in the label. The labels read from the
-  left class to the right one.
-- Directed association (solid arrow, `-->`): the enum a field is typed with.
-- Dependency (dotted arrow, `..>`): `statusAt` computes a `LotteryStatus` from the four
-  timestamps rather than storing it (see Lottery and reservation lifecycles below);
-  `Conversations` is a pure grouping object over messages, so a `Conversation` is
-  derived on demand and never stored.
-- Dates inside documents are ISO `yyyy-MM-dd` strings so Firestore range queries work
-  as text comparisons; lottery windows are epoch-millisecond `Long`s.
-- `SearchFilters` and `Conversation` are plain data classes, not `Identifiable`: nothing
-  about them is written to the database.
+- Stored Firestore entities extend Identifiable.
+- Deterministic IDs prevent duplicate entries, ratings,
+  reservations and booked nights.
+- Associations represent references between documents
+  through ID fields.
+- Directed associations represent enum-typed fields.
+- LotteryStatus is derived from timestamps rather than stored.
+- Dates use ISO yyyy-MM-dd strings, while lottery windows
+  use epoch milliseconds.
+- SearchFilters and Conversation are not stored in Firestore.
+
 
 ## Lottery and reservation lifecycles
 
@@ -359,16 +343,14 @@ stateDiagram-v2
 
 Reading the diagram:
 
-- The outer states are `LotteryStatus` as `Lottery.statusAt(now)` derives it; no state
-  is stored, the four timestamps decide it. `isValid` refuses any lottery whose windows
-  would not run in this order (registration ends in the future, booking starts after
-  registration ends, booking ends after it starts), with at least one winner and a
-  waitlist capacity, if set, not below the winner count.
-- Joining and leaving the waitlist (`LotteryController.join` / `leave`) is only allowed
-  in `OPEN`. The `OPEN` to `DRAWN` edge is where the out-of-app scheduled function picks
-  winners (documented in AutomaticDraws).
-- The nested states are `ReservationStatus`. Cancelling and rejecting both free the
-  reservation's booked dates; cancelling also records the refund.
+- Lottery.statusAt(now) determines the current lottery
+  status from its timestamps.
+- Entrants can join or leave the waitlist while registration
+  is OPEN.
+- The scheduled function draws winners after registration
+  closes (see AutomaticDraws).
+- Cancelling or rejecting a reservation releases its
+  booked dates. Cancellation also records the refund.
 
 ## Observable models
 
@@ -451,22 +433,15 @@ classDiagram
 
 Reading the diagram:
 
-- Inheritance (solid line, hollow triangle): each `*Model` extends `ObservableModel` with
-  itself as `M`. Realization (dotted line, hollow triangle, `<|..`): the screen classes
-  implement `ViewObserver`.
-- Every setter on `UserModel` and `CampsiteModel` assigns and then calls the protected
-  `notifyViews()`, so every registered `update(model)` runs. Their public properties
-  have private setters: only a controller, through the setters, moves them.
-- `LotteryModel` is the exception: it keeps its values in Compose `mutableStateOf`
-  holders and does not call `notifyViews()`, so Compose re-renders directly from the
-  state reads and the `ViewObserver.update` of the lottery screens is never triggered.
-- `observeModel` is the Compose bridge: called once at the top of a screen, it registers
-  an anonymous `ViewObserver` that bumps a counter on each change (forcing a re-render)
-  and removes it when the screen leaves composition.
-- Aggregation (open diamond): models hold lists of entities the controllers loaded;
-  the entities exist in Firestore independently of any model.
-
-## Controllers and repositories
+- UserModel, CampsiteModel and LotteryModel extend
+  ObservableModel.
+- UserModel and CampsiteModel notify registered observers
+  when their state changes.
+- LotteryModel uses Compose mutableStateOf instead.
+- observeModel connects the observer pattern to Compose
+  and removes its observer when the screen leaves composition.
+- Aggregation represents entities held by models that
+  exist independently in Firestore.## Controllers and repositories
 
 The business rules in `controller/` and the storage rules in `data/`.
 
@@ -627,24 +602,17 @@ classDiagram
 
 Reading the diagram:
 
-- Aggregation (open diamond): every collaborator is constructed outside and passed in;
-  `LotteryController` additionally takes its `clock` as a constructor lambda (default
-  `System::currentTimeMillis`) so the time-window rules are testable.
-- Realization (dotted line, hollow triangle): `UserController` implements the
-  `OptOutChecker` functional interface that `NotificationController` uses to drop
-  users who switched notifications off; `OptOutChecker.AllowAll` is the default.
-- Dependency (dotted arrow): repositories never hold a Firestore handle; each call opens
-  the engine it needs from the named `Database` collection object (labels list which).
-  `ReservationRepository` is the one repository whose engines are injected instead,
-  which is why its fields are shown.
-- Members ending `(...)` take the usual pair of `onSuccess` / `onFailure` callbacks after
-  the listed parameters; they are elided only to keep the diagram readable.
-- `getAvailableDates` is the composition of three answers: the lottery says the entrant
-  won and booking is open, `Availability` gives the campsite's open nights (its
-  availability window from today on, minus its blocked dates), and the repository's booked nights are subtracted.
-  `createReservation` refuses to run before `confirmPolicies` was called for the entry,
-  re-checks the dates are still free, then `save` claims one `BookedDate` per night
-  and gives them back if the reservation write fails.
+- Controllers receive their collaborators through their
+  constructors.
+- LotteryController accepts a clock for testing time-based rules.
+- UserController implements OptOutChecker to respect
+  notification preferences.
+- Repositories access Firestore through database engines.
+  ReservationRepository receives its engines directly.
+- Callback parameters are shortened where necessary
+  for readability.
+- ReservationController checks eligibility, policies
+  and date availability before saving a reservation.
 
 ## Booking a won campsite
 
@@ -675,12 +643,10 @@ sequenceDiagram
 
 Reading the diagram:
 
-- Any failing step calls `onFailure` and stops there: an unconfirmed policy, an empty
-  selection, an ineligible entrant, a night taken since the list was shown, or an
-  entry that already has a reservation.
-- Double booking is prevented by storage, not by the check alone: the `BookedDate` ids
-  are deterministic and Firestore security rules forbid overwriting one, so two
-  entrants racing for the same night cannot both claim it.
+- A failed validation calls onFailure and stops the
+  reservation process.
+- Deterministic BookedDate IDs and Firestore security
+  rules prevent two entrants from booking the same night.
 
 ## Notifications and messaging
 
@@ -824,24 +790,16 @@ classDiagram
 
 Reading the diagram:
 
-- Realization (dotted line, hollow triangle): `NotificationRepository` and
-  `MessageRepository` are interfaces with one Firestore implementation each, so unit
-  tests substitute fakes; `MessageNotificationAdapter` implements `NewMessageNotifier`
-  so the message controller never depends on the notification controller directly.
-- `InboxState` is a Kotlin `sealed interface`; its `Loading` and `Error` members are
-  shown as `InboxLoading` and `InboxError` only so their names do not collide with the
-  other state hierarchies in this file.
-- Both listeners return a `() -> Unit` that stops them. `NotificationWatcher` holds
-  that handle between `start` and `stop`, and `NotificationViewModel` releases its own
-  in `onCleared`, so no Firestore listener outlives its screen or activity.
-- Aggregation (open diamond): `AppContainer` builds one `NotificationController` (with a
-  `UserController` as its `OptOutChecker`) and one `MessageController` per process, and
-  hands the same instances to the watcher, the inbox and the message screens.
-- Composition (filled diamond): the view model owns its private state flow, which
-  exists only for the screen's lifecycle.
-- `Notification` is the permanent in-app record; `SystemNotifier` additionally shows a
-  phone banner while the app process is alive. `NotificationPermission` lets the
-  profile screen detect and fix a denied system permission.
+- Repository interfaces allow Firestore implementations
+  to be replaced with fakes during testing.
+- MessageNotificationAdapter connects messaging to
+  notifications without directly coupling the controllers.
+- Notification listeners are stopped when their owning
+  screen or activity is destroyed.
+- AppContainer provides shared controller instances.
+- NotificationViewModel owns its private state flow.
+- Notification stores the in-app record, while
+  SystemNotifier displays phone notifications.
 
 ## Navigation and wiring
 
@@ -988,28 +946,16 @@ classDiagram
 
 Reading the diagram:
 
-- Realization (dotted line, hollow triangle): every route is a member of the `sealed
-  interface Screen`, a Kotlin `data object` when it carries nothing and a `data class`
-  when it carries arguments, so navigation is type-checked. `RoleSelect` is shown under
-  that name only to avoid a clash with the `Role` enum; in code it is `Screen.Role`.
-- The sign-on flow runs `Start` to `Login` (device sign-in, which calls
-  `UserController.identify`): a known device lands on `Home` with the user's first
-  stored role; an unknown one goes to `SignUp` then `RoleSelect`, which also moves the
-  `AppView` to match, and lands on `Home(role)`. `SignUp` currently saves the new
-  `User` straight through `Database.Users` (with `Role.ADMIN`) rather than through
-  `UserController.register`.
-- `Home` mounts its bottom bar from `tabsFor(role)`: every role gets Explore and
-  Messages; campers add Bookings, Inbox and Profile, owners add My Campsites, Inbox and
-  Profile, admins add Reports, Flagged and Profiles.
-- Two role vocabularies exist: `Role` is what is stored on `User`, `UserRole` is what
-  the UI shows, and `AppView` is the perspective an admin can switch to. `RoleMapping`
-  is the single place they are converted.
-- `CampBnbApp` builds most controllers and models inside each destination with
-  `remember`, so their lifetime is the destination's; only the shared instances come
-  from `AppContainer`.
-- Dependency (dotted arrow) from `MainActivity`: a tapped notification banner arrives
-  through `onNewIntent`, is turned into `pendingRoute`, handed to `CampBnbApp` to
-  navigate, and marked read.
+- Screen is a sealed interface providing typed
+  navigation routes.
+- Known users navigate to Home, while new users
+  complete SignUp and role selection.
+- Home displays navigation tabs based on the user's role.
+- RoleMapping converts between Role, UserRole and AppView.
+- Destination-specific controllers and models are created
+  using remember, while shared instances come from AppContainer.
+- MainActivity handles notification taps and passes
+  the destination to CampBnbApp.
 
 ## Placeholders not yet built
 

@@ -58,4 +58,16 @@ class Availability(private val campsites: QueryEngine<Campsite>) {
             onSuccess(open)
         }, onFailure = onFailure)
     }
+
+    fun getCampsite(
+        campsiteId: String,
+        onSuccess: (Campsite?) -> Unit,
+        onFailure: (Exception) -> Unit
+    ) {
+        campsites.getById(
+            id = campsiteId,
+            onSuccess = onSuccess,
+            onFailure = onFailure
+        )
+    }
 }

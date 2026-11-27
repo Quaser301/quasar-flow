@@ -1,7 +1,7 @@
-
-package com.example.campbnb.reservationTests
+package com.example.campbnb.ReservationTests
 
 import com.example.campbnb.controller.LotteryController
+import com.example.campbnb.models.Campsite
 import com.example.campbnb.controller.NotificationController
 import com.example.campbnb.controller.ReservationController
 import com.example.campbnb.data.ReservationRepository
@@ -9,6 +9,8 @@ import com.example.campbnb.models.Availability
 import com.example.campbnb.models.ReservationModel
 import com.example.campbnb.models.ReservationStatus
 import com.example.campbnb.models.DateUtils
+import com.example.campbnb.models.Lottery
+import com.example.campbnb.models.WaitingListEntry
 
 import io.mockk.every
 import io.mockk.mockk
@@ -53,7 +55,8 @@ class ReservationControllerTest {
             guests = 2,
             refundRecorded = false,
             createdAt = 1000L,
-            rules = true
+            rules = true,
+            lotteryId = "some-lottery-id"
         )
 
         Assert.assertTrue(error is IllegalStateException)
@@ -80,7 +83,8 @@ class ReservationControllerTest {
             guests = 2,
             refundRecorded = false,
             createdAt = 1000L,
-            rules = true
+            rules = true,
+            lotteryId = "some-lottery-id"
         )
 
         Assert.assertTrue(error is IllegalArgumentException)
@@ -151,14 +155,45 @@ class ReservationControllerTest {
             onWon.captured.invoke(true)
         }
         every {
+            lotteryController.checkEntrantAccepted(
+                any(),
+                any(),
+                any(),
+                any()
+            )
+        } answers {
+            thirdArg<(Boolean) -> Unit>().invoke(true)
+        }
+        every {
             lotteryController.isBookingOpen(any(), capture(onBookingOpen), any())
         } answers {
             onBookingOpen.captured.invoke(true)
         }
         every {
-            availability.getOpenDates(any(), capture(onOpenDates), any())
+            availability.getCampsite(any(), any(), any())
         } answers {
-            onOpenDates.captured.invoke(setOf("2026-12-01"))
+            secondArg<(Campsite?) -> Unit>().invoke(
+                Campsite(
+                    ownerId = "owner1",
+                    campName = "Test Campsite",
+                    availableStartDate = "2026-11-27",
+                    availableEndDate = "2026-12-01",
+                    blockedDates = emptyList()
+                )
+            )
+        }
+        every {
+            availability.getOpenDates(any(), any(), any())
+        } answers {
+            secondArg<(Set<String>) -> Unit>().invoke(
+                setOf(
+                    "2026-11-27",
+                    "2026-11-28",
+                    "2026-11-29",
+                    "2026-11-30",
+                    "2026-12-01"
+                )
+            )
         }
         every {
             reservations.getBookedDates(any(), capture(onBookedDates), any())
@@ -170,14 +205,35 @@ class ReservationControllerTest {
         } answers {
             onSaved.captured.invoke()
         }
+        every {
+            lotteryController.getLottery(any(), any(), any())
+        } answers {
+            secondArg<(Lottery?) -> Unit>().invoke(
+                Lottery(
+                    ownerId = "owner1",
+                    campsiteIds = listOf("camp1"),
+                    bookingStart = 1795737600000L, // November 27, 2026
+                    bookingEnd = 1798675200000L,   // December 31, 2026
+                    maxBookingDays = 1
+                )
+            )
+        }
 
         val reservingController =
             ReservationController(lotteryController, availability, reservations, notifications)
         reservingController.confirmPolicies("entry1")
 
         var failure: Exception? = null
+
+        val lotteryEntryId = WaitingListEntry.makeId(
+            "some-lottery-id",
+            "entrant1"
+        )
+
+        reservingController.confirmPolicies(lotteryEntryId)
+
         reservingController.createReservation(
-            lotteryEntryId = "entry1",
+            lotteryEntryId = lotteryEntryId,
             entrantId = "entrant1",
             ownerId = "owner1",
             campsiteId = "camp1",
@@ -187,7 +243,8 @@ class ReservationControllerTest {
             guests = 2,
             refundRecorded = false,
             createdAt = 1000L,
-            rules = true
+            rules = true,
+            lotteryId = "some-lottery-id"
         )
 
         Assert.assertNull(failure)
@@ -277,19 +334,63 @@ class ReservationControllerTest {
             onWon.captured.invoke(true)
         }
         every {
+            lotteryController.checkEntrantAccepted(
+                any(),
+                any(),
+                any(),
+                any()
+            )
+        } answers {
+            thirdArg<(Boolean) -> Unit>().invoke(true)
+        }
+        every {
             lotteryController.isBookingOpen(any(), capture(onBookingOpen), any())
         } answers {
             onBookingOpen.captured.invoke(true)
         }
         every {
-            availability.getOpenDates(any(), capture(onOpenDates), any())
+            availability.getCampsite(any(), any(), any())
         } answers {
-            onOpenDates.captured.invoke(setOf("2026-12-01"))
+            secondArg<(Campsite?) -> Unit>().invoke(
+                Campsite(
+                    ownerId = "owner1",
+                    campName = "Test Campsite",
+                    availableStartDate = "2026-11-27",
+                    availableEndDate = "2026-12-01",
+                    blockedDates = emptyList()
+                )
+            )
+        }
+        every {
+            availability.getOpenDates(any(), any(), any())
+        } answers {
+            secondArg<(Set<String>) -> Unit>().invoke(
+                setOf(
+                    "2026-11-27",
+                    "2026-11-28",
+                    "2026-11-29",
+                    "2026-11-30",
+                    "2026-12-01"
+                )
+            )
         }
         every {
             reservations.getBookedDates(any(), capture(onBookedDates), any())
         } answers {
             onBookedDates.captured.invoke(setOf("2026-12-01"))
+        }
+        every {
+            lotteryController.getLottery(any(), any(), any())
+        } answers {
+            secondArg<(Lottery?) -> Unit>().invoke(
+                Lottery(
+                    ownerId = "owner1",
+                    campsiteIds = listOf("camp1"),
+                    bookingStart = 1795737600000L, // November 27, 2026
+                    bookingEnd = 1798675200000L,   // December 31, 2026
+                    maxBookingDays = 1
+                )
+            )
         }
 
         val reservingController =
@@ -297,8 +398,16 @@ class ReservationControllerTest {
         reservingController.confirmPolicies("entry1")
 
         var failure: Exception? = null
+
+        val lotteryEntryId = WaitingListEntry.makeId(
+            "some-lottery-id",
+            "entrant1"
+        )
+
+        reservingController.confirmPolicies(lotteryEntryId)
+
         reservingController.createReservation(
-            lotteryEntryId = "entry1",
+            lotteryEntryId = lotteryEntryId,
             entrantId = "entrant1",
             ownerId = "owner1",
             campsiteId = "camp1",
@@ -308,12 +417,13 @@ class ReservationControllerTest {
             guests = 2,
             refundRecorded = false,
             createdAt = 1000L,
-            rules = true
+            rules = true,
+            lotteryId = "some-lottery-id"
         )
 
         Assert.assertTrue(failure is IllegalStateException)
         Assert.assertEquals(
-            "One or more dates are no longer available",
+            "One or more selected dates are no longer available",
             failure?.message
         )
         verify(exactly = 0) { reservations.save(any(), any(), any()) }
