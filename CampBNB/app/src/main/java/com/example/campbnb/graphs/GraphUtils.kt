@@ -41,6 +41,6 @@ fun graphNodeFor(screen: Screen): Any = when (screen) {
     Screen.MyCampsites -> NavGraphNodes.CampsiteGraph
     Screen.Messages, Screen.Bookings, Screen.Inbox -> NavGraphNodes.CorrespondenceGraph
     Screen.Reservations -> NavGraphNodes.ReservationGraph
-    Screen.AdminProfileView, Screen.AdminNotificationView -> NavGraphNodes.DebugGraph
+    Screen.AdminProfileView, Screen.AdminNotificationView, Screen.AdminImages -> NavGraphNodes.DebugGraph
     else -> screen
 }

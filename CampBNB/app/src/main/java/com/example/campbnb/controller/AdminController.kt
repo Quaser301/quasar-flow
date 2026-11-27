@@ -26,6 +26,9 @@ import com.example.campbnb.models.RemovalReason
 import com.example.campbnb.models.ReservationModel
 import com.example.campbnb.models.Role
 import com.example.campbnb.models.WaitingListEntry
+import com.example.campbnb.models.ImageKind
+import com.example.campbnb.models.UploadedImage
+import com.example.campbnb.models.uploadedImagesFor
 
 
 /**
@@ -259,6 +262,119 @@ class AdminController(
             },
             onFailure = { onDone(false, "Could not check the rating, so it was not deleted") }
         )
+    }
+
+    /**
+     * Reads every uploaded picture, campsite and profile, for the admin to browse (US 03.06.01).
+     *
+     * @param onDone Called once with the pictures, or with the reason it could not load.
+     */
+    fun loadUploadedImages(onDone: (List<UploadedImage>, String?) -> Unit) {
+        if (!userController.isAdmin()) {
+            onDone(emptyList(), "Only an admin can browse uploaded images")
+            return
+        }
+        campsiteRepo.getAll(
+            onSuccess = { campsites ->
+                userRepo.getAll(
+                    onSuccess = { users -> onDone(uploadedImagesFor(campsites, users), null) },
+                    onFailure = { onDone(emptyList(), "Could not load the profile pictures") }
+                )
+            },
+            onFailure = { onDone(emptyList(), "Could not load the campsite pictures") }
+        )
+    }
+
+    /**
+     * Removes one uploaded picture that breaks app policy (US 03.03.01): the picture text is
+     * emptied, so it is gone for entrants and owners alike, and whoever uploaded it is told why.
+     * The campsite or profile itself is kept.
+     *
+     * Refused (nothing is changed) if the signed-in user is not an admin, the id is blank, the
+     * campsite or profile no longer exists, or it has no picture.
+     *
+     * @param kind Whether it is a campsite's picture or a profile's.
+     * @param sourceId The id of that campsite or profile.
+     * @param reason Why it is being removed; shown in the notice.
+     * @param onDone Called once with whether it worked and a message the screen can show.
+     */
+    fun removeImage(
+        kind: ImageKind,
+        sourceId: String,
+        reason: RemovalReason?,
+        onDone: (Boolean, String) -> Unit
+    ) {
+        if (!userController.isAdmin()) {
+            onDone(false, "Only an admin can remove images")
+            return
+        }
+        if (sourceId.isBlank()) {
+            onDone(false, "No image selected")
+            return
+        }
+        // Read fresh from the database: we need the uploader to send the notice, and the
+        // picture may already be gone.
+        if (kind == ImageKind.CAMPSITE) {
+            campsiteRepo.getById(
+                sourceId,
+                onSuccess = { campsite ->
+                    if (campsite == null) {
+                        onDone(false, "That campsite no longer exists")
+                    } else if (campsite.campImg.isBlank()) {
+                        onDone(false, "That image was already removed")
+                    } else {
+                        campsiteRepo.saveCampsiteImage(sourceId, "") { result ->
+                            if (result.isSuccess) {
+                                notifier.sendNotice(
+                                    campsite.ownerId,
+                                    "Your campsite image was removed",
+                                    imageRemovalText("the image of your campsite \"" + campsite.campName + "\"", reason)
+                                )
+                                onDone(true, "Image removed")
+                            } else {
+                                onDone(false, "Could not remove the image")
+                            }
+                        }
+                    }
+                },
+                onFailure = { onDone(false, "Could not check the image, so it was not removed") }
+            )
+        } else {
+            userRepo.findByDeviceId(
+                sourceId,
+                onSuccess = { user ->
+                    if (user == null) {
+                        onDone(false, "That profile no longer exists")
+                    } else if (user.profileImg.isBlank()) {
+                        onDone(false, "That image was already removed")
+                    } else {
+                        userRepo.saveProfileImage(sourceId, "") { result ->
+                            if (result.isSuccess) {
+                                notifier.sendNotice(
+                                    sourceId,
+                                    "Your profile picture was removed",
+                                    imageRemovalText("your profile picture", reason)
+                                )
+                                userController.loadAllUsers()
+                                onDone(true, "Image removed")
+                            } else {
+                                onDone(false, "Could not remove the image")
+                            }
+                        }
+                    }
+                },
+                onFailure = { onDone(false, "Could not check the image, so it was not removed") }
+            )
+        }
+    }
+
+    /** The message the uploader receives; [what] finishes "An admin removed ...". */
+    private fun imageRemovalText(what: String, reason: RemovalReason?): String {
+        val base = "An admin removed " + what + " for violating the app policy."
+        if (reason == null) {
+            return base
+        }
+        return base + " Reason: " + reason.label + "."
     }
 
     /** The deletion itself, once the rating is known to exist. */

@@ -21,6 +21,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
@@ -34,11 +35,16 @@ import com.example.campbnb.ui.components.StarGlyph
 import com.example.campbnb.ui.components.UserRole
 import com.example.campbnb.ui.screens.RoleBottomBar
 import com.example.campbnb.ui.screens.tabsFor
+import com.example.campbnb.ui.shared.StoredImage
 import com.example.campbnb.ui.theme.*
 import java.util.Locale
 import kotlin.math.roundToInt
 import com.example.campbnb.models.RemovalReason
 import com.example.campbnb.ui.admin.ConfirmRemovalDialog
+import com.example.campbnb.ui.admin.AdminImageRemoval
+
+// Prompted Claude Sonnet 5.5 for some implementations, especially related to image deletion
+// functionality for admins
 
 /** Everything the details screen shows about one campsite. */
 data class CampsiteDetails(
@@ -98,6 +104,9 @@ private const val TAGS_SHOWN = 3
  * @param onEnterLottery Called when a camper chooses the lottery action from their menu.
  * @param onDeleteSite Called with the app-policy reason the admin picked for the deletion,
  *     after they confirm deleting the site (US 03.01.01).
+ * @param onRemoveImage Called with the app-policy reason the admin picked for removing the
+ *     campsite's picture (US 03.03.01). The admin opens it by tapping the picture, which shows
+ *     the image settings with a red "Remove image" button and a confirmation pop-up.
  * @param onSeeReviews Called when "See all reviews" is tapped.
  * @param reviewsContent The reviews screen. "See all reviews" swaps it in for the details (the
  *     role's bottom bar stays); it gets a function that closes it and shows the details again.
@@ -115,6 +124,7 @@ fun CampsiteDetailsScreen(
     lotteryButtonEnabled: Boolean = true,
     lotteryButtonIsLeave: Boolean = false,
     onDeleteSite: (RemovalReason?) -> Unit = {},
+    onRemoveImage: (RemovalReason?) -> Unit = {},
     onSeeReviews: () -> Unit = {},
     reviewsContent: @Composable (onClose: () -> Unit) -> Unit = {},
     entrantContent: @Composable () -> Unit = {}
@@ -123,10 +133,15 @@ fun CampsiteDetailsScreen(
     var showAllTags by remember { mutableStateOf(false) }
     var confirmDelete by remember { mutableStateOf(false) }
     var lotteryMenuOpen by remember { mutableStateOf(false) }
+    var imageSettingsOpen by remember { mutableStateOf(false) }
+    // Only an admin can click the picture, and only if the campsite has one to remove.
+    val imageClickable = role == UserRole.ADMIN && campsite.imageUrl.isNotBlank()
+
     // The admin's delete asks which app policy the site broke before it is deleted
     // (US 03.01.01): confirming the delete opens the reason picker, and the picker is
     // what calls [onDeleteSite] with the reason.
     var pickReason by remember { mutableStateOf(false) }
+
     // "See all reviews" swaps the reviews screen in for the details (the reviews screen
     // is handed through reviewsContent, where the app knows it); the system back button
     // closes it too.
@@ -155,7 +170,12 @@ fun CampsiteDetailsScreen(
                         .padding(bottom = 16.dp),
                     verticalArrangement = Arrangement.spacedBy(20.dp)
                 ) {
-                    DetailsHeader(campsite.name, onBack)
+                    DetailsHeader(
+                        campsite.name,
+                        campsite.imageUrl,
+                        onBack,
+                        onImageClick = if (imageClickable) { { imageSettingsOpen = true } } else null
+                    )
 
                     Column(
                         Modifier.padding(horizontal = 16.dp),
@@ -237,6 +257,15 @@ fun CampsiteDetailsScreen(
         }
     }
 
+    if (imageSettingsOpen && imageClickable) {
+        AdminImageRemoval(
+            title = campsite.name,
+            stored = campsite.imageUrl,
+            onRemove = onRemoveImage,
+            onDismiss = { imageSettingsOpen = false }
+        )
+    }
+
     if (showAllTags) {
         AlertDialog(
             onDismissRequest = { showAllTags = false },
@@ -283,19 +312,34 @@ fun CampsiteDetailsScreen(
 }
 
 /**
- * The top of the page: a green banner with the back circle and the campsite's name.
- * Todo: the campsite's picture (CampsiteDetails.imageUrl) is not shown yet because the app has
- * no image loader; when it does, draw the picture behind the dark fade below.
+ * The top of the page: the campsite's picture (US 02.01.02) behind the back circle and the
+ * campsite's name. The green gradient underneath is what shows for a campsite with no
+ * picture, or while the picture is still decoding or if it can't be decoded.
+ *
+ * @param imageData The campsite's picture as stored text (CampsiteDetails.imageUrl); empty if none.
+ * @param imageData The campsite's picture as stored text (CampsiteDetails.imageUrl); empty if none.
+ * @param onImageClick Called when the picture is tapped; null when it is not clickable (only
+ * an admin can, to remove it, US 03.03.01).
  */
 @Composable
-private fun DetailsHeader(name: String, onBack: () -> Unit) {
-    Box(
-        Modifier
-            .fillMaxWidth()
-            .height(230.dp)
-            .clip(RoundedCornerShape(bottomStart = 28.dp, bottomEnd = 28.dp))
-            .background(ScreenGradient)
-    ) {
+private fun DetailsHeader(name: String, imageData: String, onBack: () -> Unit, onImageClick: (() -> Unit)? = null) {
+    var headerModifier = Modifier
+        .fillMaxWidth()
+        .height(230.dp)
+        .clip(RoundedCornerShape(bottomStart = 28.dp, bottomEnd = 28.dp))
+        .background(ScreenGradient)
+    headerModifier = headerModifier.testTag("details_header")
+    if (onImageClick != null) {
+        headerModifier = headerModifier.clickable(onClick = onImageClick)
+    }
+    Box(headerModifier) {
+        // Draws nothing when there is no picture, so the gradient above stays visible.
+        StoredImage(
+            stored = imageData,
+            contentDescription = name,
+            modifier = Modifier.fillMaxSize().testTag("details_image"),
+            contentScale = ContentScale.Crop
+        )
         // Darkens the bottom so the white name stays readable on any picture.
         Box(
             Modifier

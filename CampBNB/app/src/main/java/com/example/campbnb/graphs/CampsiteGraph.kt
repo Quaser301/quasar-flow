@@ -50,9 +50,8 @@ import com.example.campbnb.ui.shared.observeModel
 import com.example.campbnb.ui.shared.roleFor
 import com.example.campbnb.viewModels.AppViewSetting
 import kotlinx.serialization.Serializable
-
-
-
+import com.example.campbnb.models.ImageKind
+import com.example.campbnb.ui.admin.AdminImagesScreen
 
 
 /**
@@ -111,7 +110,7 @@ fun NavGraphBuilder.campsiteGraph(
 
             CampsiteRegistrationForm(
                 onBack = onNavBack,
-                onUpload = { campsite, uri ->
+                onUpload = { campsite ->
                     controller.registerCampsite(campsite, deviceID) { success ->
                         if (success) {
                             onNavBack()
@@ -158,9 +157,9 @@ fun NavGraphBuilder.campsiteGraph(
                 CampsiteRegistrationForm(
                     existingCampsite = campsite,
                     onBack = onNavBack,
-                    onUpload = { updated, uri ->
-                        controller.updateCampsite(
-                            updated,
+                    onUpload = { updated ->
+                        controller.updateCampsite((
+                            updated),
                             deviceID
                         ) { success ->
                             if (success) {
@@ -336,6 +335,18 @@ fun NavGraphBuilder.campsiteGraph(
                                 }
                             }
                         },
+
+                        // The admin taps the picture, opens its settings and removes it
+                        // (US 03.03.01); the page then shows no picture.
+                        onRemoveImage = { reason ->
+                            admin.removeImage(ImageKind.CAMPSITE, route.campsiteId, reason) { ok, message ->
+                                toastGenerator(message, Toast.LENGTH_SHORT)
+                                if (ok) {
+                                    campsiteDetails = campsiteDetails?.copy(imageUrl = "")
+                                }
+                            }
+                        },
+
                         // "See all reviews" on the details screen swaps this reviews
                         // screen in for the details. The ratings come from the same
                         // model the rating section writes through, so the list shows
@@ -379,6 +390,11 @@ fun NavGraphBuilder.campsiteGraph(
                     )
                 }
             }
+        }
+
+        // The admin's browser of every uploaded picture (US 03.06.01).
+        composable<Screen.AdminImages> {
+            AdminImagesScreen(back = onNavBack, adminController = admin)
         }
 
         // Campsite monitor (owner's list of campsites)

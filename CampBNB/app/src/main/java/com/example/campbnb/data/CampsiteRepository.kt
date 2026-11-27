@@ -29,6 +29,18 @@ open class CampsiteRepository {
         Database.Campsites.writeEngine().delete(campsiteId, onComplete)
     }
 
+    /**
+     * Writes only one campsite's picture text (US 03.03.01), so nothing else on the listing is
+     * touched. Empty [image] removes the picture.
+     */
+    open fun saveCampsiteImage(
+        campsiteId: String,
+        image: String,
+        onComplete: (Result<Exception?>) -> Unit
+    ) {
+        Database.Campsites.writeEngine().update(campsiteId, mapOf(Campsite::campImg.name to image), onComplete)
+    }
+
     open fun getAll(onSuccess: (List<Campsite>) -> Unit, onFailure: (Exception) -> Unit) {
         Database.Campsites.readEngine().query().execute(onSuccess, onFailure)
     }
