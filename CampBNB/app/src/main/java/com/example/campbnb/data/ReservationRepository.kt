@@ -1,3 +1,4 @@
+
 package com.example.campbnb.data
 
 import com.example.campbnb.database.QueryEngine
@@ -8,45 +9,14 @@ import com.example.campbnb.models.ReservationModel
 import com.example.campbnb.models.ReservationStatus
 
 /**
- * Persists reservations and serves every query the owner and entrant screens need.
+ * Persists reservations and serves the queries needed by owner and entrant screens.
  *
- * This is the store that [com.example.campbnb.controller.ReservationController] depends on.
- * Reads go through [QueryEngine] and writes through [WriteEngine]; nothing here touches
- * Firestore directly. It stores data and enforces storage rules; deciding who may book is
- * the controller's job.
+ * Reservation document IDs are the lottery entry IDs, allowing one reservation per entry.
  *
- * Dates are ISO strings (yyyy-MM-dd), which sort correctly as text, so range queries on
- * `endDate` work without a date library.
+ * BookedDates contains one document per campsite and date:
+ * campsiteId_yyyy-MM-dd
  *
- * Document IDs in the `Reservations` collection are the lottery entry ID, which means one
- * reservation per entry. The `BookedDates` collection holds one document per campsite and
- * date (`campsiteId_yyyy-MM-dd`). Firestore security rules allow creating such a document
- * but not overwriting it, so two people can never claim the same date. See [save].
- *
- * Owner queries:
- *  - [getActive]: active reservations for a campsite that haven't ended yet.
- *  - [getPast]: active reservations for a campsite whose end date has passed.
- *  - [getCancelled]: cancelled and rejected reservations for a campsite.
- *  - [getBookedDates]: every date currently booked at a campsite.
- *  - [getForOwner]: all reservations across an owner's campsites.
- *
- * Entrant queries:
- *  - [getByLotteryEntry]: the reservation for a lottery entry, or null.
- *  - [hasReservation]: whether an entry already has one (drives the "already reserved" badge).
- *  - [getForEntrant]: all of an entrant's reservations.
- *
- * Commands:
- *  - [save]: books the dates, then creates the reservation.
- *  - [markCancelled]: sets a reservation to cancelled, frees its dates, records the refund.
- *  - [markRejected]: sets a reservation to rejected, frees its dates, records the refund.
- *
- * @property engine Reads on the `Reservations` collection.
- * @property reservationWriter Writes on the `Reservations` collection.
- * @property bookedDateWriter Writes on the `BookedDates` collection.
- * @author Zino
- * @see ReservationModel
- * @see QueryEngine
- * @see WriteEngine
+ * Both PENDING and ACTIVE reservations hold their dates.
  */
 class ReservationRepository(
     private val engine: QueryEngine<ReservationModel>,
@@ -57,12 +27,7 @@ class ReservationRepository(
     // ---------- Owner queries ----------
 
     /**
-     * Gets active reservations for a campsite whose end date is [today] or later.
-     *
-     * @param campsiteId The campsite to look up.
-     * @param onSuccess Receives the reservations, soonest ending first.
-     * @param onFailure Receives any Firestore error.
-     * @param today Today as yyyy-MM-dd. Defaults to the device's current date.
+     * Gets reservations that have started and have not ended.
      */
     fun getActive(
         campsiteId: String,
@@ -79,12 +44,25 @@ class ReservationRepository(
     }
 
     /**
-     * Gets active reservations for a campsite whose end date is before [today].
+     * Gets pending reservations whose dates have not started yet.
      *
-     * @param campsiteId The campsite to look up.
-     * @param onSuccess Receives the reservations, oldest first.
-     * @param onFailure Receives any Firestore error.
-     * @param today Today as yyyy-MM-dd. Defaults to the device's current date.
+     * The controller/status-update process must promote reservations to ACTIVE
+     * when their start date arrives.
+     */
+    fun getPending(
+        campsiteId: String,
+        onSuccess: (List<ReservationModel>) -> Unit,
+        onFailure: (Exception) -> Unit
+    ) {
+        engine.query()
+            .whereEquals(ReservationModel::campsiteId, campsiteId)
+            .whereEquals(ReservationModel::status, ReservationStatus.PENDING.name)
+            .orderBy(ReservationModel::startDate)
+            .execute(onSuccess, onFailure)
+    }
+
+    /**
+     * Gets active reservations whose end date has passed.
      */
     fun getPast(
         campsiteId: String,
@@ -101,11 +79,7 @@ class ReservationRepository(
     }
 
     /**
-     * Gets cancelled and rejected reservations for a campsite.
-     *
-     * @param campsiteId The campsite to look up.
-     * @param onSuccess Receives the reservations.
-     * @param onFailure Receives any Firestore error.
+     * Gets cancelled and rejected reservations.
      */
     fun getCancelled(
         campsiteId: String,
@@ -116,17 +90,16 @@ class ReservationRepository(
             .whereEquals(ReservationModel::campsiteId, campsiteId)
             .whereIn(
                 ReservationModel::status,
-                listOf(ReservationStatus.CANCELLED.name, ReservationStatus.REJECTED.name)
+                listOf(
+                    ReservationStatus.CANCELLED.name,
+                    ReservationStatus.REJECTED.name
+                )
             )
             .execute(onSuccess, onFailure)
     }
 
     /**
-     * Gets every date currently booked by an active reservation at a campsite.
-     *
-     * @param campsiteId The campsite to look up.
-     * @param onSuccess Receives the booked dates as yyyy-MM-dd strings.
-     * @param onFailure Receives any Firestore error.
+     * Gets every date held by a pending or active reservation.
      */
     fun getBookedDates(
         campsiteId: String,
@@ -135,19 +108,23 @@ class ReservationRepository(
     ) {
         engine.query()
             .whereEquals(ReservationModel::campsiteId, campsiteId)
-            .whereEquals(ReservationModel::status, ReservationStatus.ACTIVE.name)
+            .whereIn(
+                ReservationModel::status,
+                listOf(
+                    ReservationStatus.PENDING.name,
+                    ReservationStatus.ACTIVE.name
+                )
+            )
             .execute(
-                onSuccess = { list -> onSuccess(list.flatMap { it.dates }.toSet()) },
+                onSuccess = { reservations ->
+                    onSuccess(reservations.flatMap { it.dates }.toSet())
+                },
                 onFailure = onFailure
             )
     }
 
     /**
-     * Gets every reservation across all of an owner's campsites, any status.
-     *
-     * @param ownerId The owner to look up.
-     * @param onSuccess Receives the reservations, earliest start date first.
-     * @param onFailure Receives any Firestore error.
+     * Gets all reservations across an owner's campsites.
      */
     fun getForOwner(
         ownerId: String,
@@ -163,11 +140,7 @@ class ReservationRepository(
     // ---------- Entrant queries ----------
 
     /**
-     * Gets the reservation for a lottery entry.
-     *
-     * @param lotteryEntryId The entry to look up (also the reservation's document ID).
-     * @param onSuccess Receives the reservation, or null if the entrant hasn't reserved yet.
-     * @param onFailure Receives any Firestore error.
+     * Gets the reservation belonging to a lottery entry.
      */
     fun getByLotteryEntry(
         lotteryEntryId: String,
@@ -177,10 +150,6 @@ class ReservationRepository(
 
     /**
      * Checks whether a lottery entry already has a reservation.
-     *
-     * @param lotteryEntryId The entry to check.
-     * @param onSuccess Receives true if a reservation exists.
-     * @param onFailure Receives any Firestore error.
      */
     fun CheckIfReserved(
         lotteryEntryId: String,
@@ -189,11 +158,7 @@ class ReservationRepository(
     ) = engine.exists(lotteryEntryId, onSuccess, onFailure)
 
     /**
-     * Gets every reservation an entrant has made, any status.
-     *
-     * @param entrantId The entrant to look up.
-     * @param onSuccess Receives the reservations, earliest start date first.
-     * @param onFailure Receives any Firestore error.
+     * Gets all reservations belonging to an entrant.
      */
     fun getForEntrant(
         entrantId: String,
@@ -209,16 +174,9 @@ class ReservationRepository(
     // ---------- Commands ----------
 
     /**
-     * Books the reservation's dates one by one, then creates the reservation.
+     * Claims the reservation dates and then saves the reservation.
      *
-     * Each date is claimed by creating its `BookedDates` document. The security rules reject
-     * a second claim on the same date, so a conflict surfaces as a failed write. If any date
-     * fails, the dates already claimed are released and nothing else is written.
-     *
-     * @param reservation The reservation to store. Its `id` is set to its `lotteryEntryId`.
-     * @param onSuccess Called once the dates are booked and the reservation is saved.
-     * @param onFailure Receives the failure. A failed date claim is reported as
-     * "One or more dates are already booked", so callers should refresh the available dates.
+     * New reservations are always saved as PENDING.
      */
     fun save(
         reservation: ReservationModel,
@@ -226,49 +184,80 @@ class ReservationRepository(
         onFailure: (Exception) -> Unit
     ) {
         reservation.id = reservation.lotteryEntryId
+        reservation.status = ReservationStatus.PENDING
 
-        CheckIfReserved(reservation.lotteryEntryId, onSuccess = { exists ->
-            if (exists) {
-                onFailure(IllegalStateException("Entry already has a reservation"))
-            } else {
-                claimDates(reservation, index = 0, onClaimed = {
-                    reservationWriter.save(reservation) { result ->
-                        result.onSuccess { onSuccess() }
-                            .onFailure { e ->
-                                // Couldn't save the reservation: give the dates back.
-                                releaseDates(reservation.campsiteId, reservation.dates) {
-                                    onFailure(e.asException())
+        CheckIfReserved(
+            reservation.lotteryEntryId,
+            onSuccess = { exists ->
+                if (exists) {
+                    onFailure(
+                        IllegalStateException("Entry already has a reservation")
+                    )
+                } else {
+                    claimDates(
+                        reservation = reservation,
+                        index = 0,
+                        onClaimed = {
+                            reservationWriter.save(reservation) { result ->
+                                result.onSuccess {
+                                    onSuccess()
+                                }.onFailure { error ->
+                                    // If saving the reservation fails,
+                                    // release the dates claimed by this attempt.
+                                    releaseDates(
+                                        reservation.campsiteId,
+                                        reservation.dates
+                                    ) {
+                                        onFailure(error.asException())
+                                    }
                                 }
                             }
-                    }
-                }, onConflict = onFailure)
-            }
-        }, onFailure = onFailure)
+                        },
+                        onConflict = onFailure
+                    )
+                }
+            },
+            onFailure = onFailure
+        )
     }
 
     /**
-     * Sets a reservation to cancelled, frees its dates, and records the refund.
-     *
-     * @param reservationId The reservation's ID (the lottery entry ID).
-     * @param onSuccess Called once the change is written and the dates are freed.
-     * @param onFailure Receives the failure, including "not found" and "already closed".
+     * Cancels a pending or active reservation and releases its dates.
      */
-    fun markCancelled(reservationId: String, onSuccess: () -> Unit, onFailure: (Exception) -> Unit) =
-        close(reservationId, ReservationStatus.CANCELLED, onSuccess, onFailure)
+    fun markCancelled(
+        reservationId: String,
+        onSuccess: () -> Unit,
+        onFailure: (Exception) -> Unit
+    ) = close(
+        reservationId,
+        ReservationStatus.CANCELLED,
+        onSuccess,
+        onFailure
+    )
 
     /**
-     * Sets a reservation to rejected, frees its dates, and records the refund.
+     * Retained for compatibility with existing callers.
      *
-     * @param reservationId The reservation's ID (the lottery entry ID).
-     * @param onSuccess Called once the change is written and the dates are freed.
-     * @param onFailure Receives the failure, including "not found" and "already closed".
+     * The intended owner workflow is read-only for pending reservations;
+     * owners should not use this to approve or reject a reservation.
      */
-    fun markRejected(reservationId: String, onSuccess: () -> Unit, onFailure: (Exception) -> Unit) =
-        close(reservationId, ReservationStatus.REJECTED, onSuccess, onFailure)
+    fun markRejected(
+        reservationId: String,
+        onSuccess: () -> Unit,
+        onFailure: (Exception) -> Unit
+    ) = close(
+        reservationId,
+        ReservationStatus.REJECTED,
+        onSuccess,
+        onFailure
+    )
 
     // ---------- Helpers ----------
 
-    /** Claims `dates[index]` and everything after it, one at a time. Rolls back on a conflict. */
+    /**
+     * Claims dates one at a time.
+     * If a claim fails, releases the dates already claimed by this attempt.
+     */
     private fun claimDates(
         reservation: ReservationModel,
         index: Int,
@@ -280,58 +269,214 @@ class ReservationRepository(
             return
         }
 
-        val claim = BookedDate(reservation.campsiteId, reservation.lotteryEntryId).also {
-            it.id = bookedKey(reservation.campsiteId, reservation.dates[index])
+        val claim = BookedDate(
+            reservation.campsiteId,
+            reservation.lotteryEntryId
+        ).also {
+            it.id = bookedKey(
+                reservation.campsiteId,
+                reservation.dates[index]
+            )
         }
+
         bookedDateWriter.save(claim) { result ->
             result.onSuccess {
-                claimDates(reservation, index + 1, onClaimed, onConflict)
+                claimDates(
+                    reservation,
+                    index + 1,
+                    onClaimed,
+                    onConflict
+                )
             }.onFailure {
-                // Release only the dates this call already claimed, then report the conflict.
-                releaseDates(reservation.campsiteId, reservation.dates.take(index)) {
-                    onConflict(IllegalStateException("One or more dates are already booked"))
+                releaseDates(
+                    reservation.campsiteId,
+                    reservation.dates.take(index)
+                ) {
+                    onConflict(
+                        IllegalStateException(
+                            "One or more dates are already booked"
+                        )
+                    )
                 }
             }
         }
     }
 
-    /** Deletes the booked-date documents for [dates], one at a time. Carries on if one fails. */
-    private fun releaseDates(campsiteId: String, dates: List<String>, onDone: () -> Unit) {
+    /**
+     * Deletes booked-date documents one at a time.
+     */
+    private fun releaseDates(
+        campsiteId: String,
+        dates: List<String>,
+        onDone: () -> Unit
+    ) {
         if (dates.isEmpty()) {
             onDone()
             return
         }
-        bookedDateWriter.delete(bookedKey(campsiteId, dates.first())) {
+
+        bookedDateWriter.delete(
+            bookedKey(campsiteId, dates.first())
+        ) {
             releaseDates(campsiteId, dates.drop(1), onDone)
         }
     }
 
+    /**
+     * Changes the reservation status and releases its dates.
+     */
     private fun close(
         reservationId: String,
         newStatus: ReservationStatus,
         onSuccess: () -> Unit,
         onFailure: (Exception) -> Unit
     ) {
-        getByLotteryEntry(reservationId, onSuccess = { reservation ->
-            when {
-                reservation == null ->
-                    onFailure(NoSuchElementException("No reservation $reservationId"))
-                reservation.status != ReservationStatus.ACTIVE ->
-                    onFailure(IllegalStateException("Reservation is already ${reservation.status}"))
-                else -> {
-                    // Status first: if freeing the dates fails, the reservation is still closed.
-                    val changes = mapOf("status" to newStatus.name, "refundRecorded" to true)
-                    reservationWriter.update(reservationId, changes) { result ->
-                        result.onSuccess {
-                            releaseDates(reservation.campsiteId, reservation.dates) { onSuccess() }
-                        }.onFailure { e -> onFailure(e.asException()) }
+        getByLotteryEntry(
+            reservationId,
+            onSuccess = { reservation ->
+                when {
+                    reservation == null -> {
+                        onFailure(
+                            NoSuchElementException(
+                                "No reservation $reservationId"
+                            )
+                        )
+                    }
+
+                    reservation.status != ReservationStatus.PENDING &&
+                            reservation.status != ReservationStatus.ACTIVE -> {
+                        onFailure(
+                            IllegalStateException(
+                                "Reservation is already ${reservation.status}"
+                            )
+                        )
+                    }
+
+                    else -> {
+                        val changes = mapOf(
+                            "status" to newStatus.name,
+                            "refundRecorded" to true
+                        )
+
+                        reservationWriter.update(reservationId, changes) { result ->
+                            result.onSuccess {
+                                releaseDates(
+                                    reservation.campsiteId,
+                                    reservation.dates
+                                ) {
+                                    onSuccess()
+                                }
+                            }.onFailure { error ->
+                                onFailure(error.asException())
+                            }
+                        }
                     }
                 }
-            }
-        }, onFailure = onFailure)
+            },
+            onFailure = onFailure
+        )
     }
 
-    private fun bookedKey(campsiteId: String, date: String) = "${campsiteId}_$date"
+    private fun bookedKey(campsiteId: String, date: String): String =
+        "${campsiteId}_$date"
 
-    private fun Throwable.asException(): Exception = this as? Exception ?: Exception(this)
+    private fun Throwable.asException(): Exception =
+        this as? Exception ?: Exception(this)
+
+    fun activateDueReservations(
+        today: String = DateUtils.today(),
+        onComplete: (Result<Int>) -> Unit
+    ) {
+        engine.query()
+            .whereEquals(
+                ReservationModel::status,
+                ReservationStatus.PENDING.name
+            )
+            .execute(
+                onSuccess = { pendingReservations ->
+                    val dueReservations = pendingReservations.filter {
+                        it.startDate.isNotBlank() && it.startDate <= today
+                    }
+
+                    updateDueReservationStatuses(
+                        reservations = dueReservations,
+                        index = 0,
+                        updatedCount = 0,
+                        onComplete = onComplete
+                    )
+                },
+                onFailure = { exception ->
+                    onComplete(Result.failure(exception))
+                }
+            )
+    }
+
+    private fun updateDueReservationStatuses(
+        reservations: List<ReservationModel>,
+        index: Int,
+        updatedCount: Int,
+        onComplete: (Result<Int>) -> Unit
+    ) {
+        if (index >= reservations.size) {
+            onComplete(Result.success(updatedCount))
+            return
+        }
+
+        val reservation = reservations[index]
+        val today = DateUtils.today()
+
+        val newStatus = when (reservation.status) {
+            ReservationStatus.PENDING -> {
+                if (reservation.startDate <= today) {
+                    ReservationStatus.ACTIVE
+                } else {
+                    null
+                }
+            }
+
+            ReservationStatus.ACTIVE -> {
+                if (reservation.endDate < today) {
+                    ReservationStatus.PAST
+                } else {
+                    null
+                }
+            }
+
+            else -> null
+        }
+
+        // No transition is due; move to the next reservation.
+        if (newStatus == null) {
+            updateDueReservationStatuses(
+                reservations = reservations,
+                index = index + 1,
+                updatedCount = updatedCount,
+                onComplete = onComplete
+            )
+            return
+        }
+
+        reservationWriter.update(
+            id = reservation.id,
+            fieldMap = mapOf(
+                "status" to newStatus.name
+            )
+        ) { result ->
+            if (result.isSuccess) {
+                updateDueReservationStatuses(
+                    reservations = reservations,
+                    index = index + 1,
+                    updatedCount = updatedCount + 1,
+                    onComplete = onComplete
+                )
+            } else {
+                onComplete(
+                    Result.failure(
+                        result.exceptionOrNull()
+                            ?: Exception("Could not update reservation status")
+                    )
+                )
+            }
+        }
+    }
 }

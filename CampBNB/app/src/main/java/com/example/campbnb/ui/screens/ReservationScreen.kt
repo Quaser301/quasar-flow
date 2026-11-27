@@ -68,7 +68,7 @@ fun ReservationScreen(
             .background(MaterialTheme.colorScheme.background)
             .padding(horizontal = 16.dp, vertical = 12.dp)
     ) {
-        // Back button and campsite selector
+        // Back button and campsite selector.
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
@@ -102,7 +102,8 @@ fun ReservationScreen(
 
         Spacer(Modifier.height(20.dp))
 
-        // Active / Past / Cancelled
+        // Pending / Active / Past / Cancelled reservation filters.
+        // Selecting a filter tells ReservationsPanel to load the matching records.
         ReservationFilterTabs(
             selectedFilter = selectedFilter,
             onFilterSelected = onFilterSelected
@@ -110,7 +111,9 @@ fun ReservationScreen(
 
         Spacer(Modifier.height(16.dp))
 
-        // Reservation content
+        // Reservation content.
+        // The list displays an empty-state message when the selected category has
+        // no reservations, rather than showing an error or a blank screen.
         ReservationList(
             reservations = reservations,
             filter = selectedFilter,
@@ -145,6 +148,7 @@ private fun CampsiteSelector(
         return
     }
 
+    // Horizontally scrollable campsite selector.
     LazyRow(
         modifier = modifier,
         horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -153,9 +157,11 @@ private fun CampsiteSelector(
             val selected = campsite.id == selectedCampsiteId
 
             Surface(
-                modifier = Modifier.testTag("campsite_choice").clickable {
-                    onCampsiteSelected(campsite.id)
-                },
+                modifier = Modifier
+                    .testTag("campsite_choice")
+                    .clickable {
+                        onCampsiteSelected(campsite.id)
+                    },
                 shape = RoundedCornerShape(10.dp),
                 color = if (selected) CampLightGray
                 else MaterialTheme.colorScheme.surfaceVariant
@@ -187,6 +193,7 @@ private fun ReservationFilterTabs(
     selectedFilter: ReservationFilter,
     onFilterSelected: (ReservationFilter) -> Unit
 ) {
+    // Each filter receives equal width so all four categories fit in the row.
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -197,12 +204,25 @@ private fun ReservationFilterTabs(
             .padding(3.dp)
     ) {
         ReservationTab(
+            label = "Pending",
+            selected = selectedFilter == ReservationFilter.PENDING,
+            onClick = {
+                onFilterSelected(ReservationFilter.PENDING)
+            },
+            modifier = Modifier
+                .testTag("reservation_tab_pending")
+                .weight(1f)
+        )
+
+        ReservationTab(
             label = "Active",
             selected = selectedFilter == ReservationFilter.ACTIVE,
             onClick = {
                 onFilterSelected(ReservationFilter.ACTIVE)
             },
-            modifier = Modifier.testTag("reservation_tab").weight(1f)
+            modifier = Modifier
+                .testTag("reservation_tab_active")
+                .weight(1f)
         )
 
         ReservationTab(
@@ -211,7 +231,9 @@ private fun ReservationFilterTabs(
             onClick = {
                 onFilterSelected(ReservationFilter.PAST)
             },
-            modifier = Modifier.testTag("reservation_tab").weight(1f)
+            modifier = Modifier
+                .testTag("reservation_tab_past")
+                .weight(1f)
         )
 
         ReservationTab(
@@ -220,7 +242,9 @@ private fun ReservationFilterTabs(
             onClick = {
                 onFilterSelected(ReservationFilter.CANCELLED)
             },
-            modifier = Modifier.testTag("reservation_tab").weight(1f)
+            modifier = Modifier
+                .testTag("reservation_tab_cancelled")
+                .weight(1f)
         )
     }
 }
@@ -239,14 +263,14 @@ private fun ReservationTab(
     ) {
         Box(
             modifier = Modifier.padding(
-                horizontal = 4.dp,
+                horizontal = 2.dp,
                 vertical = 9.dp
             ),
             contentAlignment = Alignment.Center
         ) {
             Text(
                 text = label,
-                fontSize = 12.sp,
+                fontSize = 11.sp,
                 color = if (selected) Color.White else Color.DarkGray,
                 fontWeight = if (selected) FontWeight.SemiBold
                 else FontWeight.Normal
@@ -265,8 +289,13 @@ private fun ReservationList(
     fileDownloadWriter: FileDownloadWriter = NoFileDownloadWriter(),
     modifier: Modifier = Modifier
 ) {
+    // Show a category-specific empty state instead of an error when there
+    // are currently no reservations matching the selected filter.
     if (reservations.isEmpty()) {
         val message = when (filter) {
+            ReservationFilter.PENDING ->
+                "No pending reservations found."
+
             ReservationFilter.ACTIVE ->
                 "No active reservations found."
 
@@ -299,13 +328,26 @@ private fun ReservationList(
         return
     }
 
+    // Display each reservation in its own card.
     LazyColumn(
         modifier = modifier,
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        items(reservations) { reservation ->
-            val campsite = campsitesById[reservation.campsiteId]?.firstOrNull()
-            val csvAllowed = csvPreferences.notificationSettingsFor(currentUserId).contains(NotificationSettings.CSV)
+        items(
+            items = reservations,
+            key = { it.lotteryEntryId }
+        ) { reservation ->
+
+            // Find the campsite associated with this reservation.
+            // This is used for the campsite name and CSV receipt information.
+            val campsite =
+                campsitesById[reservation.campsiteId]?.firstOrNull()
+
+            // CSV export is shown only when the signed-in user has enabled
+            // the CSV notification/export preference.
+            val csvAllowed = csvPreferences
+                .notificationSettingsFor(currentUserId)
+                .contains(NotificationSettings.CSV)
 
             ReservationCard(
                 reservation = reservation,
@@ -336,6 +378,13 @@ private fun ReservationCard(
             modifier = Modifier.padding(12.dp),
             verticalArrangement = Arrangement.spacedBy(5.dp)
         ) {
+            // Display the campsite name when its record is available.
+            Text(
+                text = campsite?.campName ?: "Campsite reservation",
+                fontSize = 16.sp,
+                fontWeight = FontWeight.SemiBold
+            )
+
             Text(
                 text = "Entrant ID: ${reservation.entrantId}",
                 fontSize = 11.sp,
@@ -364,9 +413,10 @@ private fun ReservationCard(
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Text(
-                    text = reservation.startDate,
+                    text = "From: ${reservation.startDate}",
                     fontSize = 11.sp
                 )
+
                 Text(
                     text = "Status: ${reservation.status}",
                     fontSize = 11.sp
@@ -380,6 +430,7 @@ private fun ReservationCard(
 
             Spacer(Modifier.height(3.dp))
 
+            // The lottery entry ID identifies the reservation's originating entry.
             Text(
                 text = "Reservation ID: ${reservation.lotteryEntryId}",
                 fontSize = 10.sp
@@ -398,6 +449,8 @@ private fun ReservationCard(
                 fontSize = 10.sp
             )
 
+            // CSV download is optional and depends on the user's preferences.
+            // The file writer handles the actual file creation/download.
             if (csvAllowed) {
                 Surface(
                     modifier = Modifier
@@ -426,7 +479,10 @@ private fun ReservationCard(
                         text = "Download CSV",
                         color = Color.White,
                         fontSize = 12.sp,
-                        modifier = Modifier.padding(vertical = 8.dp, horizontal = 12.dp)
+                        modifier = Modifier.padding(
+                            vertical = 8.dp,
+                            horizontal = 12.dp
+                        )
                     )
                 }
             }

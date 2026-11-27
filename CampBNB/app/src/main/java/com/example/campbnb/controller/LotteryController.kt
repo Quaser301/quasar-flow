@@ -13,6 +13,7 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import java.util.TimeZone
+import com.example.campbnb.models.LotteryEntryStatus
 
 private val DAY_MILLIS = 24L * 60L * 60L * 1000L
 
@@ -90,6 +91,26 @@ class LotteryController(
             )
         }, onFailure = onFailure)
     }
+
+
+    /**
+     * Loads a lottery by its ID.
+     *
+     * Used by ReservationController to validate the booking window
+     * and maximum number of consecutive booking days.
+     */
+    fun getLottery(
+        lotteryId: String,
+        onSuccess: (Lottery?) -> Unit,
+        onFailure: (Exception) -> Unit
+    ) {
+        lotteries.getById(
+            lotteryId,
+            onSuccess = onSuccess,
+            onFailure = onFailure
+        )
+    }
+
 
     /** Finds the open lottery for a campsite and whether the user is on its waiting list (US 01.01.06). */
     fun loadEntrantStatus(campsiteId: String, userId: String) {
@@ -373,6 +394,7 @@ class LotteryController(
      *     knows the lotteried campsites.
      * @param onDone Called with whether the closed lottery was stored.
      */
+
     fun forceCloseLottery(
         lottery: Lottery,
         nameOfCampsite: (String) -> String = { id -> id },
@@ -385,54 +407,123 @@ class LotteryController(
                 val winners = entrants.shuffled().take(lottery.numberOfWinners)
                 val losers = entrants.filterNot { it in winners }
                 val now = clock()
+
                 val closed = lottery.copy(
                     drawn = true,
                     winnerIds = winners,
-                    // a window that has not started yet is pulled to now too, so the
-                    // force-closed lottery always reads BOOKING at its own clock
                     registrationStart = if (lottery.registrationStart > now) now
-                        else lottery.registrationStart,
+                    else lottery.registrationStart,
                     registrationEnd = now,
-                    // the booking period the owner chose is kept; only a window that
-                    // has not opened yet is pulled to now, and a period that already
-                    // passed is held open for the rest of today
                     bookingStart = if (lottery.bookingStart > now) now
-                        else lottery.bookingStart,
-                    bookingEnd = if (lottery.bookingEnd < now) startOfTodayUtc() + DAY_MILLIS - 1
-                        else lottery.bookingEnd
+                    else lottery.bookingStart,
+                    bookingEnd = if (lottery.bookingEnd < now)
+                        startOfTodayUtc() + DAY_MILLIS - 1
+                    else lottery.bookingEnd
                 ).also {
-                    // the draw edits the SAME record: copy() does not carry the id
-                    // inherited from Identifiable, and a fresh id would save a second
-                    // copy of this lottery
+                    // Preserve the existing Firestore document ID.
                     it.id = lottery.id
                 }
+
+                // Save the drawn lottery before updating individual entry statuses.
                 repo.save(
                     closed,
                     onSuccess = {
-                        notifications.notify(
-                            NotificationIntent.LotteryDrawn(
-                                lotteryId = closed.id,
-                                campsiteName =
-                                    closed.campsiteIds.map(nameOfCampsite).joinToString(", "),
-                                winnerIds = winners,
-                                loserIds = losers
-                            )
+                        updateDrawnEntryStatuses(
+                            entries = entries,
+                            winnerIds = winners,
+                            index = 0,
+                            onComplete = { success, error ->
+                                if (!success) {
+                                    model.setStatusMessage(
+                                        "Lottery was drawn, but some entrant statuses could not be updated: " +
+                                                (error?.message ?: "Unknown error")
+                                    )
+                                    onDone(false)
+                                } else {
+                                    notifications.notify(
+                                        NotificationIntent.LotteryDrawn(
+                                            lotteryId = closed.id,
+                                            campsiteName = closed.campsiteIds
+                                                .map(nameOfCampsite)
+                                                .joinToString(", "),
+                                            winnerIds = winners,
+                                            loserIds = losers
+                                        )
+                                    )
+
+                                    model.setStatusMessage(
+                                        "The lottery was closed and drawn"
+                                    )
+                                    onDone(true)
+                                }
+                            }
                         )
-                        model.setStatusMessage("The lottery was closed and drawn")
-                        onDone(true)
                     },
                     onFailure = { error ->
-                        model.setStatusMessage("Could not force-close the lottery: " + error.message)
+                        model.setStatusMessage(
+                            "Could not force-close the lottery: " + error.message
+                        )
                         onDone(false)
                     }
                 )
             },
             onFailure = { error ->
-                model.setStatusMessage("Could not read the waiting list: " + error.message)
+                model.setStatusMessage(
+                    "Could not read the waiting list: " + error.message
+                )
                 onDone(false)
             }
         )
     }
+
+
+    private fun updateDrawnEntryStatuses(
+        entries: List<WaitingListEntry>,
+        winnerIds: List<String>,
+        index: Int = 0,
+        onComplete: (Boolean, Exception?) -> Unit
+    ) {
+        // All entries have been updated successfully.
+        if (index >= entries.size) {
+            onComplete(true, null)
+            return
+        }
+
+        val entry = entries[index]
+
+        val newStatus = if (entry.userId in winnerIds) {
+            LotteryEntryStatus.WON_AWAITING_RESPONSE
+        } else {
+            LotteryEntryStatus.NOT_SELECTED
+        }
+
+        // Create an updated entry while preserving its deterministic ID.
+        val updatedEntry = WaitingListEntry(
+            lotteryId = entry.lotteryId,
+            userId = entry.userId,
+            joinedAt = entry.joinedAt,
+            status = newStatus
+        )
+
+        repo.updateEntry(updatedEntry) { result ->
+            if (result.isSuccess) {
+                // Continue only after this entry has been saved.
+                updateDrawnEntryStatuses(
+                    entries = entries,
+                    winnerIds = winnerIds,
+                    index = index + 1,
+                    onComplete = onComplete
+                )
+            } else {
+                onComplete(
+                    false,
+                    (result.exceptionOrNull()
+                        ?: Exception("Could not update waiting-list entry")) as Exception?
+                )
+            }
+        }
+    }
+
 
     /**
      * The first millisecond of today on the UTC basis — the basis every lottery date the
@@ -464,6 +555,177 @@ class LotteryController(
             join(lottery, userId)
         }
     }
+
+
+    /**
+     * Loads every waiting-list entry belonging to an entrant.
+     * Used by the My Bookings screen to show lottery outcomes.
+     */
+    fun loadEntrantEntries(
+        userId: String,
+        onSuccess: (List<WaitingListEntry>) -> Unit,
+        onFailure: (Exception) -> Unit
+    ) {
+        if (userId.isBlank()) {
+            onFailure(IllegalArgumentException("A valid user ID is required"))
+            return
+        }
+
+        repo.getEntriesByUser(
+            userId = userId,
+            onSuccess = onSuccess,
+            onFailure = onFailure
+        )
+    }
+
+
+    /**
+     * Checks whether this entrant has accepted their win for this lottery.
+     */
+    fun checkEntrantAccepted(
+        lotteryId: String,
+        userId: String,
+        onSuccess: (Boolean) -> Unit,
+        onFailure: (Exception) -> Unit
+    ) {
+        repo.getEntriesByUser(
+            userId = userId,
+            onSuccess = { entries ->
+                val entry = entries.firstOrNull {
+                    it.lotteryId == lotteryId
+                }
+
+                onSuccess(
+                    entry != null &&
+                            entry.id == WaitingListEntry.makeId(lotteryId, userId) &&
+                            entry.status == LotteryEntryStatus.ACCEPTED
+                )
+            },
+            onFailure = onFailure
+        )
+    }
+
+
+    /**
+     * Accepts a lottery win.
+     *
+     * The entrant must have a WON_AWAITING_RESPONSE entry, and the
+     * lottery booking window must currently be open.
+     *
+     * This does not create a reservation. The entrant still needs
+     * to select dates and complete the reservation process.
+     */
+    fun acceptLotteryWin(
+        lotteryId: String,
+        userId: String,
+        onSuccess: () -> Unit,
+        onFailure: (Exception) -> Unit
+    ) {
+        if (lotteryId.isBlank() || userId.isBlank()) {
+            onFailure(IllegalArgumentException("Invalid lottery or user ID"))
+            return
+        }
+
+        isBookingOpen(
+            lotteryId = lotteryId,
+            onSuccess = { isOpen ->
+                if (!isOpen) {
+                    onFailure(
+                        IllegalStateException("The booking window is not open")
+                    )
+                } else {
+                    updateEntrantWinStatus(
+                        lotteryId = lotteryId,
+                        userId = userId,
+                        newStatus = LotteryEntryStatus.ACCEPTED,
+                        onSuccess = onSuccess,
+                        onFailure = onFailure
+                    )
+                }
+            },
+            onFailure = onFailure
+        )
+    }
+
+    /**
+     * Declines a lottery win without creating a reservation.
+     */
+    fun declineLotteryWin(
+        lotteryId: String,
+        userId: String,
+        onSuccess: () -> Unit,
+        onFailure: (Exception) -> Unit
+    ) {
+        if (lotteryId.isBlank() || userId.isBlank()) {
+            onFailure(IllegalArgumentException("Invalid lottery or user ID"))
+            return
+        }
+
+        updateEntrantWinStatus(
+            lotteryId = lotteryId,
+            userId = userId,
+            newStatus = LotteryEntryStatus.DECLINED,
+            onSuccess = onSuccess,
+            onFailure = onFailure
+        )
+    }
+
+    /**
+     * Updates an entrant's status only if their current entry is
+     * WON_AWAITING_RESPONSE.
+     */
+    private fun updateEntrantWinStatus(
+        lotteryId: String,
+        userId: String,
+        newStatus: LotteryEntryStatus,
+        onSuccess: () -> Unit,
+        onFailure: (Exception) -> Unit
+    ) {
+        repo.getEntriesByUser(
+            userId = userId,
+            onSuccess = { entries ->
+                val entry = entries.firstOrNull {
+                    it.lotteryId == lotteryId
+                }
+
+                if (entry == null) {
+                    onFailure(
+                        IllegalStateException("Your lottery entry could not be found")
+                    )
+                    return@getEntriesByUser
+                }
+
+                if (entry.status != LotteryEntryStatus.WON_AWAITING_RESPONSE) {
+                    onFailure(
+                        IllegalStateException(
+                            "This lottery entry is no longer awaiting a response"
+                        )
+                    )
+                    return@getEntriesByUser
+                }
+
+                val updatedEntry = WaitingListEntry(
+                    lotteryId = entry.lotteryId,
+                    userId = entry.userId,
+                    joinedAt = entry.joinedAt,
+                    status = newStatus
+                )
+
+                repo.updateEntry(updatedEntry) { result ->
+                    if (result.isSuccess) {
+                        onSuccess()
+                    } else {
+                        onFailure(
+                            result.exceptionOrNull() as? Exception
+                                ?: Exception("Could not update your lottery entry")
+                        )
+                    }
+                }
+            },
+            onFailure = onFailure
+        )
+    }
+
 
     fun loadWaitlistEntries(lotteryId: String, onResult: (List<WaitingListEntry>) -> Unit) {
         repo.getEntries(

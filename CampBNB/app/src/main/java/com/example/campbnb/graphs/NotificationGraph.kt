@@ -1,8 +1,11 @@
 package com.example.campbnb.graphs
 
+import android.os.Build
 import android.widget.Toast
+import androidx.annotation.RequiresApi
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -27,8 +30,38 @@ import com.example.campbnb.ui.inbox.CorrespondenceTabs
 import com.example.campbnb.ui.screens.BookingTab
 import com.example.campbnb.ui.screens.BookingsScreen
 import com.example.campbnb.ui.screens.CampsiteCardData
+import com.example.campbnb.data.LotteryRepository
+import com.example.campbnb.database.Database
+import com.example.campbnb.models.Lottery
+import com.example.campbnb.models.LotteryEntryStatus
+import com.example.campbnb.models.WaitingListEntry
+import com.example.campbnb.controller.LotteryController
+import com.example.campbnb.controller.ReservationController
+import com.example.campbnb.models.LotteryModel
+import com.example.campbnb.models.Availability
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.AlertDialog
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.KeyboardType
+import com.example.campbnb.ui.lottery.DateRangePickerModal
+import com.example.campbnb.ui.lottery.fromPickerMillis
+import java.time.LocalDate
+import androidx.compose.material3.Text
 
 
+@RequiresApi(Build.VERSION_CODES.O)
 fun NavGraphBuilder.CorrespondenceGraph(
     currentUserIsOwner: Boolean,
     userId: String,
@@ -71,11 +104,89 @@ fun NavGraphBuilder.CorrespondenceGraph(
         }
 
         composable<Screen.Bookings> {
+            val lotteryRepo = remember { LotteryRepository() }
 
-            var campsiteCards by remember {
-                mutableStateOf<List<CampsiteCardData>>(emptyList())
+            val lotteryModel = remember { LotteryModel() }
+
+            val lotteryController = remember {
+                LotteryController(
+                    lotteryModel,
+                    lotteryRepo,
+                    Database.Lotteries.readEngine(),
+                    notifControl
+                )
             }
-            var pendingBookings by remember {
+
+            val availability = remember {
+                Availability(Database.Campsites.readEngine())
+            }
+
+            var bookingsRefreshKey by remember(userId) {
+                mutableIntStateOf(0)
+            }
+
+            val reservationController = remember {
+                ReservationController(
+                    lotteryController,
+                    availability,
+                    reservationRepo,
+                    notifControl
+                )
+            }
+
+            var showBookingDatePicker by remember(userId) {
+                mutableStateOf(false)
+            }
+
+            var selectedDateRangeText by remember(userId) {
+                mutableStateOf("")
+            }
+
+            var selectedBookingForDates by remember(userId) {
+                mutableStateOf<BookingCardData?>(null)
+            }
+
+            var availableBookingDates by remember(userId) {
+                mutableStateOf<Set<String>>(emptySet())
+            }
+
+            var selectedBookingDates by remember(userId) {
+                mutableStateOf<Set<String>>(emptySet())
+            }
+
+            var selectedBookingOwnerId by remember(userId) {
+                mutableStateOf("")
+            }
+
+            var bookingGuestCount by remember(userId) {
+                mutableStateOf("1")
+            }
+
+            var bookingPoliciesAccepted by remember(userId) {
+                mutableStateOf(false)
+            }
+
+            var bookingRulesAccepted by remember(userId) {
+                mutableStateOf(false)
+            }
+
+            var dateSelectionError by remember(userId) {
+                mutableStateOf<String?>(null)
+            }
+
+            var isLoadingAvailableDates by remember(userId) {
+                mutableStateOf(false)
+            }
+
+            var lotteriesForBookings by remember(userId) {
+                mutableStateOf<List<Lottery>>(emptyList())
+            }
+
+            var isCreatingReservation by remember(userId) {
+                mutableStateOf(false)
+            }
+
+            var pendingBookings by remember(userId) {
                 mutableStateOf<List<BookingCardData>>(emptyList())
             }
 
@@ -87,26 +198,39 @@ fun NavGraphBuilder.CorrespondenceGraph(
                 mutableStateOf(BookingTab.CONFIRMED)
             }
 
-            LaunchedEffect(userId) {
+            LaunchedEffect(userId, bookingsRefreshKey) {
+                if (userId.isBlank()) {
+                    toastGen("Unable to load bookings: user ID is missing.", Toast.LENGTH_LONG)
+                    return@LaunchedEffect
+                }
+
+                // Load the entrant's reservations first.
                 reservationRepo.getForEntrant(
                     entrantId = userId,
                     onSuccess = { reservations ->
 
-                        val activeReservations = reservations.filter {
-                            it.status == ReservationStatus.ACTIVE
+                        // PENDING reservations are newly created reservations.
+                        // ACTIVE reservations are reservations that have started.
+                        val confirmedReservations = reservations.filter {
+                            it.status == ReservationStatus.PENDING ||
+                                    it.status == ReservationStatus.ACTIVE
                         }
 
                         campsiteRepo.getAll(
                             onSuccess = { allCampsites ->
 
-                                confirmedBookings = activeReservations.map { reservation ->
+                                confirmedBookings = confirmedReservations.map { reservation ->
                                     val campsiteName = allCampsites
-                                        .firstOrNull { it.id == reservation.campsiteId }
+                                        .firstOrNull {
+                                            it.id == reservation.campsiteId
+                                        }
                                         ?.campName ?: "Campsite"
 
                                     BookingCardData(
                                         id = reservation.lotteryEntryId,
                                         lotteryId = "",
+                                        lotteryEntryId = reservation.lotteryEntryId,
+                                        campsiteId = reservation.campsiteId,
                                         campsiteNames = listOf(campsiteName),
                                         status = "Confirmed",
                                         startDate = reservation.startDate,
@@ -114,6 +238,136 @@ fun NavGraphBuilder.CorrespondenceGraph(
                                         guests = reservation.guests
                                     )
                                 }
+
+                                // Load lottery information so each waiting-list entry
+                                // can be displayed with its campsite name.
+                                lotteryRepo.getAllLotteries(
+                                    onSuccess = { allLotteries ->
+                                        lotteriesForBookings = allLotteries
+                                        lotteryRepo.getEntriesByUser(
+                                            userId = userId,
+                                            onSuccess = { entries ->
+
+                                                val relevantEntries = entries.filter {
+                                                    it.status == LotteryEntryStatus.WAITING_FOR_DRAW ||
+                                                            it.status == LotteryEntryStatus.WON_AWAITING_RESPONSE ||
+                                                            it.status == LotteryEntryStatus.ACCEPTED
+                                                }
+
+                                                val pendingCards =
+                                                    mutableListOf<BookingCardData>()
+
+                                                var completedEntries = 0
+
+                                                fun finishEntry(card: BookingCardData?) {
+                                                    if (card != null) {
+                                                        pendingCards.add(card)
+                                                    }
+
+                                                    completedEntries++
+
+                                                    if (completedEntries == relevantEntries.size) {
+                                                        pendingBookings = pendingCards.toList()
+                                                    }
+                                                }
+
+                                                if (relevantEntries.isEmpty()) {
+                                                    pendingBookings = emptyList()
+                                                    return@getEntriesByUser
+                                                }
+
+                                                relevantEntries.forEach { entry ->
+
+                                                    val lottery = allLotteries.firstOrNull {
+                                                        it.id == entry.lotteryId
+                                                    }
+
+                                                    if (lottery == null) {
+                                                        finishEntry(null)
+                                                        return@forEach
+                                                    }
+
+                                                    val campsiteNames = lottery.campsiteIds
+                                                        .mapNotNull { campsiteId ->
+                                                            allCampsites.firstOrNull {
+                                                                it.id == campsiteId
+                                                            }?.campName
+                                                        }
+                                                        .ifEmpty {
+                                                            listOf("Campsite")
+                                                        }
+
+                                                    val cardStatus = when (entry.status) {
+                                                        LotteryEntryStatus.WAITING_FOR_DRAW ->
+                                                            "Waiting for draw"
+
+                                                        LotteryEntryStatus.WON_AWAITING_RESPONSE ->
+                                                            "Won — response needed"
+
+                                                        LotteryEntryStatus.ACCEPTED ->
+                                                            "Select dates"
+
+                                                        else -> null
+                                                    }
+
+                                                    if (cardStatus == null) {
+                                                        finishEntry(null)
+                                                        return@forEach
+                                                    }
+
+                                                    val card = BookingCardData(
+                                                        id = entry.id,
+                                                        lotteryId = entry.lotteryId,
+                                                        lotteryEntryId = entry.id,
+                                                        campsiteId = lottery.campsiteIds.firstOrNull()
+                                                            .orEmpty(),
+                                                        campsiteNames = campsiteNames,
+                                                        status = cardStatus,
+                                                        canSelectDates =
+                                                            entry.status == LotteryEntryStatus.ACCEPTED,
+                                                        maxBookingDays = lottery.maxBookingDays
+                                                    )
+
+                                                    if (entry.status == LotteryEntryStatus.ACCEPTED) {
+                                                        // An accepted win should remain in Pending
+                                                        // only until a reservation has been created.
+                                                        reservationRepo.getByLotteryEntry(
+                                                            lotteryEntryId = entry.id,
+                                                            onSuccess = { reservation ->
+                                                                if (reservation == null) {
+                                                                    finishEntry(card)
+                                                                } else {
+                                                                    finishEntry(null)
+                                                                }
+                                                            },
+                                                            onFailure = { error ->
+                                                                toastGen(
+                                                                    "Could not check an existing reservation: ${error.message}",
+                                                                    Toast.LENGTH_LONG
+                                                                )
+                                                                finishEntry(null)
+                                                            }
+                                                        )
+                                                    } else {
+                                                        finishEntry(card)
+                                                    }
+                                                }
+                                            },
+                                            onFailure = { error ->
+                                                toastGen(
+                                                    "Could not load your lottery entries: ${error.message}",
+                                                    Toast.LENGTH_LONG
+                                                )
+                                            }
+                                        )
+                                    },
+                                    onFailure = { error ->
+                                        toastGen(
+                                            "Could not load lotteries: ${error.message}",
+                                            Toast.LENGTH_LONG
+                                        )
+                                    }
+                                )
                             },
                             onFailure = { error ->
                                 toastGen(
@@ -132,37 +386,16 @@ fun NavGraphBuilder.CorrespondenceGraph(
                 )
             }
 
-            LaunchedEffect(Unit) {
-                campsiteRepo.getAll(
-                    onSuccess = { campsites ->
-                        campsiteCards = campsites.map { campsite ->
-                            CampsiteCardData(
-                                id = campsite.id,
-                                name = campsite.campName,
-                                location = campsite.campLoc,
-                                maxOccupancy = campsite.maxOccupancy
-                            )
-                        }
-                    },
-                    onFailure = { error ->
-                        toastGen(
-                            "Could not load campsites: ${error.message}",
-                            Toast.LENGTH_LONG
-                        )
-                    }
-                )
-            }
-
             BookingsScreen(
                 confirmedBookings = confirmedBookings,
                 pendingBookings = pendingBookings,
                 selectedTab = selectedBookingTab,
                 onTabSelected = { selectedBookingTab = it },
-                onBookingClick = { _ ->
-                    // Booking details navigation can be added here later.
+
+                onBookingClick = { booking ->
+                    // Keep your existing booking-click behavior here.
                 },
 
-                // opens the conversation associated with the selected booking
                 onMessageOwnerClick = { booking ->
                     if (booking.id.isNotBlank()) {
                         navToNotif(
@@ -176,8 +409,352 @@ fun NavGraphBuilder.CorrespondenceGraph(
                             Toast.LENGTH_SHORT
                         )
                     }
+                },
+
+                onAcceptWin = { booking ->
+                    lotteryController.acceptLotteryWin(
+                        lotteryId = booking.lotteryId,
+                        userId = userId,
+                        onSuccess = {
+                            toastGen(
+                                "Lottery win accepted! You can now select your dates.",
+                                Toast.LENGTH_LONG
+                            )
+                            bookingsRefreshKey++
+                        },
+                        onFailure = { error ->
+                            toastGen(
+                                "Could not accept lottery win: ${error.message}",
+                                Toast.LENGTH_LONG
+                            )
+                        }
+                    )
+                },
+
+                onDeclineWin = { booking ->
+                    lotteryController.declineLotteryWin(
+                        lotteryId = booking.lotteryId,
+                        userId = userId,
+                        onSuccess = {
+                            toastGen("Lottery win declined.", Toast.LENGTH_SHORT)
+                            bookingsRefreshKey++
+                        },
+                        onFailure = { error ->
+                            toastGen(
+                                "Could not decline lottery win: ${error.message}",
+                                Toast.LENGTH_LONG
+                            )
+                        }
+                    )
+                },
+
+                onSelectDates = { booking ->
+
+                    val lottery = lotteriesForBookings.firstOrNull {
+                        it.id == booking.lotteryId
+                    }
+
+                    if (lottery == null) {
+                        toastGen(
+                            "Could not find the lottery for this booking.",
+                            Toast.LENGTH_LONG
+                        )
+                    } else {
+                        selectedBookingForDates = booking
+                        selectedBookingOwnerId = lottery.ownerId
+
+                        availableBookingDates = emptySet()
+                        selectedBookingDates = emptySet()
+                        selectedDateRangeText = ""
+                        bookingGuestCount = "1"
+                        bookingPoliciesAccepted = false
+                        bookingRulesAccepted = false
+                        dateSelectionError = null
+
+                        isLoadingAvailableDates = true
+
+                        reservationController.getAvailableDates(
+                            lotteryId = booking.lotteryId,
+                            lotteryEntryId = booking.lotteryEntryId,
+                            entrantId = userId,
+                            campsiteId = booking.campsiteId,
+
+                            onSuccess = { dates ->
+                                isLoadingAvailableDates = false
+                                availableBookingDates = dates
+
+                                if (dates.isEmpty()) {
+                                    dateSelectionError =
+                                        "There are currently no available dates for this campsite."
+                                }
+                            },
+
+                            onFailure = { error ->
+                                isLoadingAvailableDates = false
+                                dateSelectionError =
+                                    "Could not load available dates: ${error.message}"
+                            }
+                        )
+                    }
                 }
             )
+
+            val booking = selectedBookingForDates
+
+            if (booking != null) {
+
+                AlertDialog(
+                    onDismissRequest = {
+                        if (!isCreatingReservation) {
+                            selectedBookingForDates = null
+                        }
+                    },
+                    title = {
+                        Text("Select Reservation Dates")
+                    },
+                    text = {
+                        Column(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            Text(
+                                "Choose up to ${booking.maxBookingDays} consecutive days."
+                            )
+
+                            if (isLoadingAvailableDates) {
+                                Text("Loading available dates...")
+                            } else {
+                                Text(
+                                    "Available dates: ${availableBookingDates.size}"
+                                )
+
+                                OutlinedTextField(
+                                    value = selectedDateRangeText,
+                                    onValueChange = {},
+                                    readOnly = true,
+                                    label = {
+                                        Text("Reservation period")
+                                    },
+                                    placeholder = {
+                                        Text("Select your dates")
+                                    },
+                                    trailingIcon = {
+                                        TextButton(
+                                            enabled = availableBookingDates.isNotEmpty(),
+                                            onClick = {
+                                                showBookingDatePicker = true
+                                            }
+                                        ) {
+                                            Text("Choose")
+                                        }
+                                    },
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                            }
+
+                            OutlinedTextField(
+                                value = bookingGuestCount,
+                                onValueChange = { value ->
+                                    if (value.all { it.isDigit() }) {
+                                        bookingGuestCount = value
+                                        dateSelectionError = null
+                                    }
+                                },
+                                label = {
+                                    Text("Number of guests")
+                                },
+                                keyboardOptions = KeyboardOptions(
+                                    keyboardType = KeyboardType.Number
+                                ),
+                                singleLine = true,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Checkbox(
+                                    checked = bookingPoliciesAccepted,
+                                    onCheckedChange = {
+                                        bookingPoliciesAccepted = it
+                                    }
+                                )
+
+                                Text("I acknowledge the reservation and refund policies.")
+                            }
+
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Checkbox(
+                                    checked = bookingRulesAccepted,
+                                    onCheckedChange = {
+                                        bookingRulesAccepted = it
+                                    }
+                                )
+
+                                Text("I agree to the campsite rules.")
+                            }
+
+                            if (dateSelectionError != null) {
+                                Text(
+                                    text = dateSelectionError!!,
+                                    color = MaterialTheme.colorScheme.error
+                                )
+                            }
+                        }
+                    },
+                    confirmButton = {
+                        TextButton(
+                            enabled = !isLoadingAvailableDates &&
+                                    !isCreatingReservation &&
+                                    selectedBookingDates.isNotEmpty() &&
+                                    bookingGuestCount.toIntOrNull() != null &&
+                                    bookingGuestCount.toIntOrNull()!! > 0 &&
+                                    bookingPoliciesAccepted &&
+                                    bookingRulesAccepted,
+                            onClick = {
+                                val guests = bookingGuestCount.toIntOrNull()
+
+                                if (guests == null || guests < 1) {
+                                    dateSelectionError = "Enter a valid guest count."
+                                    return@TextButton
+                                }
+
+                                if (selectedBookingOwnerId.isBlank()) {
+                                    dateSelectionError = "Campsite owner information is missing."
+                                    return@TextButton
+                                }
+
+                                if (selectedBookingDates.size > booking.maxBookingDays) {
+                                    dateSelectionError =
+                                        "You can select at most ${booking.maxBookingDays} days."
+                                    return@TextButton
+                                }
+
+                                reservationController.confirmPolicies(
+                                    booking.lotteryEntryId
+                                )
+
+                                isCreatingReservation = true
+
+                                reservationController.createReservation(
+                                    lotteryId = booking.lotteryId,
+                                    lotteryEntryId = booking.lotteryEntryId,
+                                    entrantId = userId,
+                                    ownerId = selectedBookingOwnerId,
+                                    campsiteId = booking.campsiteId,
+                                    dates = selectedBookingDates,
+                                    onSuccess = {
+                                        isCreatingReservation = false
+
+                                        toastGen(
+                                            "Your reservation has been created!",
+                                            Toast.LENGTH_LONG
+                                        )
+
+                                        selectedBookingForDates = null
+                                        showBookingDatePicker = false
+                                        bookingsRefreshKey++
+                                    },
+                                    onFailure = { error ->
+                                        isCreatingReservation = false
+
+                                        dateSelectionError = error.message
+                                            ?: "Could not create your reservation."
+
+                                        toastGen(
+                                            "Could not create reservation: ${error.message}",
+                                            Toast.LENGTH_LONG
+                                        )
+                                    },
+                                    guests = guests,
+                                    refundRecorded = bookingPoliciesAccepted,
+                                    rules = bookingRulesAccepted
+                                )
+                            }
+                        ) {
+                            Text(
+                                if (isCreatingReservation) {
+                                    "Creating..."
+                                } else {
+                                    "Confirm Reservation"
+                                }
+                            )
+                        }
+                    },
+                    dismissButton = {
+                        TextButton(
+                            enabled = !isCreatingReservation,
+                            onClick = {
+                                selectedBookingForDates = null
+                                showBookingDatePicker = false
+                            }
+                        ) {
+                            Text("Cancel")
+                        }
+                    }
+                )
+            }
+
+            if (showBookingDatePicker) {
+                DateRangePickerModal(
+                    onDateRangeSelected = { (startMillis, endMillis) ->
+
+                        if (startMillis == null || endMillis == null) {
+                            dateSelectionError = "Please select both a start and end date."
+                        } else {
+                            try {
+                                val startDate = LocalDate.parse(
+                                    fromPickerMillis(startMillis)
+                                )
+
+                                val endDate = LocalDate.parse(
+                                    fromPickerMillis(endMillis)
+                                )
+
+                                val numberOfDays =
+                                    java.time.temporal.ChronoUnit.DAYS
+                                        .between(startDate, endDate) + 1
+
+                                if (booking != null) {
+                                    if (numberOfDays > booking.maxBookingDays) {
+                                        dateSelectionError =
+                                            "You can select at most ${booking.maxBookingDays} days."
+                                    } else {
+                                        val requestedDates = mutableSetOf<String>()
+                                        var currentDate = startDate
+
+                                        while (!currentDate.isAfter(endDate)) {
+                                            requestedDates.add(currentDate.toString())
+                                            currentDate = currentDate.plusDays(1)
+                                        }
+
+                                        val unavailableDates =
+                                            requestedDates - availableBookingDates
+
+                                        if (unavailableDates.isNotEmpty()) {
+                                            dateSelectionError =
+                                                "Some dates in that range are unavailable. Please choose another range."
+                                        } else {
+                                            selectedBookingDates = requestedDates
+                                            selectedDateRangeText =
+                                                "$startDate to $endDate"
+                                            dateSelectionError = null
+                                        }
+                                    }
+                                }
+                            } catch (error: Exception) {
+                                dateSelectionError =
+                                    "Could not read the selected dates."
+                            }
+                        }
+                    },
+                    onDismiss = {
+                        showBookingDatePicker = false
+                    }
+                )
+            }
         }
 
         composable<Screen.Messages> {
