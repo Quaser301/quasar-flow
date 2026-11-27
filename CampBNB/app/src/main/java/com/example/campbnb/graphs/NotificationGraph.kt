@@ -25,16 +25,19 @@ import com.example.campbnb.models.BookingCardData
 import com.example.campbnb.models.ReservationStatus
 import com.example.campbnb.models.UserModel
 import com.example.campbnb.ui.inbox.CorrespondenceTabs
+import com.example.campbnb.ui.components.unresolvableProfileLabel
 import com.example.campbnb.ui.screens.BookingTab
 import com.example.campbnb.ui.screens.BookingsScreen
 import com.example.campbnb.ui.screens.CampsiteCardData
 
 
 fun NavGraphBuilder.CorrespondenceGraph(
-    // Asked again each time a screen draws, rather than read once when this graph is
-    // built: the sign-in runs after the app's graph exists, so a value taken here would
-    // name the wrong correspondence shape for every user who signs in later.
-    currentUserIsOwner: () -> Boolean,
+    // Whether the view the app is currently in acts as an owner: asked again each time a
+    // screen draws, because the live view setting changes while the app is running and
+    // decides the tabs a viewer reaches. The signed-in role does not: an entrant never
+    // reaches the sent notices, and an owner who is being viewed as an entrant does not
+    // either.
+    ownerViewActive: () -> Boolean,
     userId: String,
 
     userRepo: UserRepository,
@@ -61,10 +64,16 @@ fun NavGraphBuilder.CorrespondenceGraph(
 
     toastGen: (String, Int) -> Unit,
 
+    // How a profile reference the sent listing cannot look up is drawn. Only a viewer
+    // whose view may read raw database keys gets the key, and that is the caller's to
+    // say, since only it knows the view the app is in.
+    unresolvedProfileText: (String) -> String = unresolvableProfileLabel,
 ) {
     // Removing one of their own notices: the record is gone rather than marked, so neither
     // the inbox nor a log lists it again. A viewer who cannot reach the store is told.
-    val removeNotice: (String) -> Unit = { id ->
+    // The removal answers with whether the store confirmed it, which is what lets a log
+    // re-read itself once the entry really is gone.
+    val removeNotice: (String, (removed: Boolean) -> Unit) -> Unit = { id, onRemoved ->
         notifRepo.run(
             NotificationCommand.Delete(
                 notificationId = id,
@@ -75,6 +84,9 @@ fun NavGraphBuilder.CorrespondenceGraph(
                             "Could not remove that notice: $reason",
                             Toast.LENGTH_SHORT
                         )
+                        onRemoved(false)
+                    } else {
+                        onRemoved(true)
                     }
                 }
             )
@@ -87,15 +99,16 @@ fun NavGraphBuilder.CorrespondenceGraph(
             // viewer received: an owner's own list is the sent one, so their received notices
             // live under the Received tab, while every other viewer has a single notices tab.
             CorrespondenceDestination(
-                openTab = if (currentUserIsOwner()) CorrespondenceTabs.RECEIVED_TAB else CorrespondenceTabs.NOTIFICATIONS_TAB,
+                openTab = if (ownerViewActive()) CorrespondenceTabs.RECEIVED_TAB else CorrespondenceTabs.NOTIFICATIONS_TAB,
                 onNavBack = onNavBack,
-                currentUserIsOwner = currentUserIsOwner,
+                ownerViewActive = ownerViewActive,
                 userId = userId,
                 repo = notifRepo,
                 notifController = notifControl,
                 msgController = msgControl,
                 onNavToNotif = navToNotif,
-                deleteNotice = removeNotice
+                deleteNotice = removeNotice,
+                unresolvedProfileText = unresolvedProfileText
             )
         }
 
@@ -213,13 +226,14 @@ fun NavGraphBuilder.CorrespondenceGraph(
             CorrespondenceDestination(
                 openTab = CorrespondenceTabs.MESSAGES_TAB,
                 onNavBack = onNavBack,
-                currentUserIsOwner = currentUserIsOwner,
+                ownerViewActive = ownerViewActive,
                 userId = userId,
                 repo = notifRepo,
                 notifController = notifControl,
                 msgController = msgControl,
                 onNavToNotif = navToNotif,
-                deleteNotice = removeNotice
+                deleteNotice = removeNotice,
+                unresolvedProfileText = unresolvedProfileText
             )
         }
 
@@ -227,13 +241,14 @@ fun NavGraphBuilder.CorrespondenceGraph(
             CorrespondenceDestination(
                 openTab = CorrespondenceTabs.NOTIFICATIONS_TAB,
                 onNavBack = onNavBack,
-                currentUserIsOwner = currentUserIsOwner,
+                ownerViewActive = ownerViewActive,
                 userId = userId,
                 repo = notifRepo,
                 notifController = notifControl,
                 msgController = msgControl,
                 onNavToNotif = navToNotif,
-                deleteNotice = removeNotice
+                deleteNotice = removeNotice,
+                unresolvedProfileText = unresolvedProfileText
             )
         }
 
@@ -279,14 +294,15 @@ fun NavGraphBuilder.CorrespondenceGraph(
             CorrespondenceDestination(
                 openTab = CorrespondenceTabs.MESSAGES_TAB,
                 onNavBack = onNavBack,
-                currentUserIsOwner = currentUserIsOwner,
+                ownerViewActive = ownerViewActive,
                 userId = userId,
                 repo = notifRepo,
                 notifController = notifControl,
                 msgController = msgControl,
                 onNavToNotif = navToNotif,
                 openReservationId = reservationID,
-                deleteNotice = removeNotice
+                deleteNotice = removeNotice,
+                unresolvedProfileText = unresolvedProfileText
             )
         }
     }

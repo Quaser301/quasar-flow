@@ -32,12 +32,16 @@ fun NavGraphBuilder.DebugGraph(
     // screen itself is the start, the way the settings and profile tabs already are.
     // The admin's debug tool can remove any entry it lists: the record is gone, so it
     // stops appearing in every listing. A failed removal leaves the entry and the admin
-    // taps again, so nothing here reports it.
-    val removeNotice: (String) -> Unit = { id ->
+    // taps again, so nothing here reports it. The removal answers with whether the store
+    // confirmed it, which is what lets the log re-read itself and drop the entry without
+    // the admin tapping Refresh.
+    val removeNotice: (String, (removed: Boolean) -> Unit) -> Unit = { id, onRemoved ->
         notificationRepository.run(
             NotificationCommand.Delete(
                 notificationId = id,
-                onDone = {}
+                onDone = { result ->
+                    onRemoved(result.isSuccess)
+                }
             )
         )
     }

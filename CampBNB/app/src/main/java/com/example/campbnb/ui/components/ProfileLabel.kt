@@ -33,3 +33,9 @@ fun profileLabelOf(userId: String, users: List<User>): String {
 
 /** Stable resolver for a listing that has no saved users to look up. */
 val unresolvableProfileLabel: (String) -> String = { userId -> profileLabelOf(userId, emptyList()) }
+
+/**
+ * The label an unresolvable profile reference takes for a reader who may NOT read the
+ * database key it stands for: the bare word, with no key they could not look up.
+ */
+val anonymousProfileLabel: (String) -> String = { _ -> "unknown" }

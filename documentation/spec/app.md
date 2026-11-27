@@ -76,6 +76,8 @@ file's ctor exactly — these calls are the authoritative seam record):
   `currentUserId` starts `DEMO_ENTRANT` but `init` overwrites (marked temporary in-source).
 - `currentUserIsOwner get() = userModel.currentUser?.roles?.contains(Role.OWNER) ?: false` —
   profile-role based, so an owner reaches it however they signed in, not only as a demo user.
+  Nothing reads it any more: the correspondence shape moved to the live `AppView` setting
+  (tab wiring below), which is a different question from what the signed-in profile holds.
 - `pendingScreen: Screen? by mutableStateOf(null)`;
   `onPendingRouteHandled: () -> Unit = { pendingScreen = null }`.
 
@@ -375,7 +377,9 @@ line each; `nav` is the app controller, `homeNav` the nested one, all calls as s
     userModel.allUsers) }, deleteNotice = …)` (the debug log resolves profile references via ui.md's
     `profileLabelOf`, against the saved users loaded above; it is the ONLY view that keeps the
     raw `DB ID` segment, and its own `deleteNotice` runs the same `NotificationCommand.Delete`
-    with no toast channel of its own — the admin reading raw fields removes an entry outright). `DebugGraph`'s screens are
+    with no toast channel of its own — the admin reading raw fields removes an entry outright,
+    and reports whether the store confirmed it, which is what lets the debug log re-read
+    itself so a removed entry stops showing without the admin tapping Refresh). `DebugGraph`'s screens are
     only ever reachable through the bar — its app-mount copy stays registered and
     unreachable.
   (Screens with no entry at the mount that registers them — the APP mount's tab nodes
@@ -550,12 +554,17 @@ a local first; when non-null it runs `nav.navigate(pending)` on the APP graph th
   resolves to it — LOSE, OWNER_NOTICE, CONFIRMATION, CANCELLATION, REJECTION): invisible
   typed frame; its `LaunchedEffect` runs the graph's `popNoticeFrame()` — the bridge POPS
   ITS OWN FRAME before any push, and the pop is asked of the SAME navigation the pending
-  frame was pushed onto (`navToNotif`'s), NOT of `onNavBack`: under the home bar the back
-  CONTROLS move on the bar's own graph while the bridge's frame sits on the app's, and
-  popping on the bar's graph left the typed frame on the app's stack between Home and the
-  reservations view — the reported back-button extra press. `popNoticeFrame` defaults to
-  `onNavBack` (the standalone mount's `onNavBack` already IS the app nav); the Home mount
-  passes `{ nav.navigateUp() }` while its `onNavBack` stays `homeNav.navigateUp()`. A
+  frame was pushed onto (`navToNotif`'s), NOT of `onNavBack`. Under the home bar the WHOLE
+  notice path now runs on the bar's own navigation — `navToNotif`, `popNoticeFrame`,
+  `navToReservations` and `goToReservations` are all `homeNav` there — so the frame a tap
+  pushes, the pop that clears it and the reservations view it then opens sit on the same
+  stack the bar's back controls pop, and ONE back press returns the viewer to the tab they
+  tapped from. Splitting the path across the app's navigation is what left frames on a stack
+  the bar never popped — the reported back-button extra press, which the earlier fix of the
+  POP alone did not settle. `popNoticeFrame` defaults to `onNavBack` (the standalone mount's
+  `onNavBack` already IS the app nav). The one jump that cannot move is `navToLotteryMon`:
+  the lottery monitor is not a bottom bar tab, so the bar's graph does not register it and
+  that jump still goes on the app's navigation. A
   frame left on the stack — even this invisible typed one — would otherwise keep it under
   the reservations screen, and the first back press would land on it instead of the view
   the notice was tapped from; naming the live Home frame with a typed `popUpTo` could
@@ -605,13 +614,18 @@ a local first; when non-null it runs `nav.navigate(pending)` on the APP graph th
   applies.
 
 Correspondence/message tab wiring (`CorrespondenceDestination` in destinations/ owns WHERE
-each list comes from — the screens themselves only draw what they are handed, ui.md): owner
-gets THREE tabs (`CorrespondenceTabs.NOTIFICATIONS_TAB` = `SentNoticesTab(userId, repo)`
-from tabs/, drawing `NotificationLogScreen(title = "Sent Notifications")` over
+each list comes from — the screens themselves only draw what they are handed, ui.md): a
+viewer whose VIEW acts as an owner gets THREE tabs (`CorrespondenceTabs.NOTIFICATIONS_TAB`
+= `SentNoticesTab(userId, repo, deleteNotice, unresolvedProfileText)` from tabs/, drawing
+`NotificationLogScreen(title = "Sent Notifications")` over
 `SentNotificationsRepository(deps.notificationRepository, userId)` (data.md — a scoped
-wrapper); RECEIVED = `ReceivedNoticesTab(userId, notificationController, onNavToNotif)`;
-MESSAGES = `MessagesTab(openReservationId, userId, controller)`), every other viewer gets
-TWO (NOTIFICATIONS = the received notices). `ReceivedNoticesTab` = `viewModel(key =
+wrapper); RECEIVED = `ReceivedNoticesTab(userId, notificationController, onNavToNotif,
+deleteNotice)`; MESSAGES = `MessagesTab(openReservationId, userId, controller)`), every
+other viewer gets TWO (NOTIFICATIONS = the received notices). The VIEW decides this, not
+the signed-in role — both mounts pass `ownerViewActive = { currentRole() ==
+UserRole.OWNER || currentRole() == UserRole.ADMIN }`, where `currentRole()` is the app
+root's derivation from the live `AppView` setting — so switching views moves the tabs and
+an entrant never reaches the sent notices. `ReceivedNoticesTab` = `viewModel(key =
 "notification-inbox-$userId", factory = simpleViewModelFactory {
 NotificationViewModel(notificationController, userId) })` → `NotificationInboxScreen(navToNotification
 = { notification -> onNavToNotif(NotificationRoutes.screenFor(notification)) })` — `viewModel()`
@@ -629,18 +643,22 @@ one wiring; every return/exit affordance is passed IN — the mount or root that
 destination owns where back and outward jumps go. Signatures (as declared):
 
 - `destinations/CorrespondenceDest.kt` — `CorrespondenceDestination(openTab, openReservationId =
-  null, onNavBack = {}, currentUserIsOwner, userId, repo, notifController, msgController,
-  onNavToNotif: (screen: Screen) -> Unit)`: ui's `CorrespondenceScreen` with the tabs this
-  viewer has (tab wiring above); `openTab` names which one opens (`CorrespondenceTabs`,
-  ui.md); a non-null `openReservationId` opens the Messages tab straight into that
-  reservation's chat. Every branch is handed a `deleteNotice: (String) -> Unit`: the graph
-  builds one that runs data.md's `NotificationCommand.Delete` over the entry the viewer was
-  shown and toasts `"Removed the notice."`/`"Could not remove the notice."` on failure, so
-  each viewer can remove their OWN notices from either half — the sent list is scoped to the
-  viewer, the received list is theirs by recipient, and either way the entry stops existing
-  rather than being marked read. The sent half also draws its bars with `rawIdsAllowed = false`:
-  a person reading the notices they caused is not reading database keys, and only the admin's
-  own debug view leaves that default true.
+  null, onNavBack = {}, ownerViewActive, userId, repo, notifController, msgController,
+  onNavToNotif: (screen: Screen) -> Unit, deleteNotice: (String, (removed: Boolean) ->
+  Unit) -> Unit = { _, _ -> }, unresolvedProfileText: (String) -> String =
+  unresolvableProfileLabel)`: ui's `CorrespondenceScreen` with the tabs this viewer has (tab
+  wiring above); `openTab` names which one opens (`CorrespondenceTabs`, ui.md); a non-null
+  `openReservationId` opens the Messages tab straight into that reservation's chat. Every
+  branch is handed a `deleteNotice` that answers with whether the store confirmed the removal:
+  the graph builds one that runs data.md's `NotificationCommand.Delete` over the entry the
+  viewer was shown, toasts `"Could not remove that notice: <reason>"` on failure, then reports
+  the outcome, so a log re-reads itself
+  once the entry really is gone (see ui.md). `unresolvedProfileText` is what a profile
+  reference the sent listing cannot look up draws — the app root hands both mounts a resolver
+  that shows the raw key only while the admin view is the live one, and the bare `"unknown"`
+  otherwise. The sent half also draws its bars with `rawIdsAllowed = false`: a person reading
+  the notices they caused is not reading database keys, and only the admin's own debug view
+  leaves that default true.
 - `destinations/InvitationDest.kt` — `InvitationDestination(viewerId, notificationController,
   navToLotteryMon, navToReservations, goToReservations, lotteryId = null)`: one lottery's
   invitation panel (bridge section above; the accept runs through a fresh
@@ -649,7 +667,11 @@ destination owns where back and outward jumps go. Signatures (as declared):
   onOpenReservations)`: the owner's tab screen, naming the three links it offers (copy
   `My Campsites`/`My Lotteries`/`Reservations`).
 - `tabs/NoticeTabs.kt` — `ReceivedNoticesTab(userId, notificationController, onNavToNotif:
-  (Screen) -> Unit)` and `SentNoticesTab(userId, repo)`: the notice tabs (wiring above).
+  (Screen) -> Unit, deleteNotice: (String, (removed: Boolean) -> Unit) -> Unit = { _, _ -> })`
+  and `SentNoticesTab(userId, repo, deleteNotice = { _, _ -> }, unresolvedProfileText =
+  unresolvableProfileLabel)`: the notice tabs (wiring above). The sent tab passes its
+  `unresolvedProfileText` on as the log's `profileText`, so the view that may read raw keys
+  is the caller's to say.
 - `tabs/MessagesTab.kt` — `MessagesTab(openReservationId = null, userId, controller)`:
   chat-tab content (wiring above).
 - `panels/ReservationPanel.kt` — `ReservationsPanel(userId, campsiteRepo, reservationRepo,

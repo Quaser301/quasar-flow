@@ -9,6 +9,7 @@ import com.example.campbnb.notifications.NotificationRoutes
 import com.example.campbnb.Screen
 import com.example.campbnb.ui.inbox.NotificationInboxScreen
 import com.example.campbnb.ui.inbox.NotificationViewModel
+import com.example.campbnb.ui.components.unresolvableProfileLabel
 import com.example.campbnb.ui.notification.NotificationLogScreen
 import com.example.campbnb.viewModels.simpleViewModelFactory
 
@@ -24,7 +25,7 @@ fun ReceivedNoticesTab(
     userId: String,
     notificationController: NotificationController,
     onNavToNotif: (screen: Screen) -> Unit,
-    deleteNotice: (String) -> Unit = {},
+    deleteNotice: (String, (removed: Boolean) -> Unit) -> Unit = { _, _ -> },
 ) {
     val inboxViewModel: NotificationViewModel = viewModel(
         key = "notification-inbox-$userId",
@@ -40,18 +41,22 @@ fun ReceivedNoticesTab(
 /**
  * The "Sent Notifications" of the current viewer: the notices they caused, read through a
  * repository scoped to their own id, drawn by the notification log. A viewer listing their
- * own correspondence is not shown the raw database keys an admin looks entries up by.
+ * own correspondence is not shown the raw database keys an admin looks entries up by, and
+ * the profile references they cannot look up draw the bare word rather than a key — both
+ * are the caller's to say, since only it knows the view the app is in.
  */
 @Composable
 fun SentNoticesTab(
     userId: String,
     repo: NotificationRepository,
-    deleteNotice: (String) -> Unit = {},
+    deleteNotice: (String, (removed: Boolean) -> Unit) -> Unit = { _, _ -> },
+    unresolvedProfileText: (String) -> String = unresolvableProfileLabel,
 ) {
     NotificationLogScreen(
         title = "Sent Notifications",
         notificationSource = SentNotificationsRepository(repo, userId),
         rawIdsAllowed = false,
+        profileText = unresolvedProfileText,
         deleteNotice = deleteNotice
     )
 }

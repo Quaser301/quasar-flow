@@ -44,6 +44,11 @@ also holds the shared widgets (`GradientButton`, `BackArrow`, `TextField`…, dr
 - `val unresolvableProfileLabel: (String) -> String = { userId -> profileLabelOf(userId, emptyList()) }` —
   the stable resolver when there are no saved users (empty users list ⇒ every non-empty
   id draws `"unknown (<id>)"`).
+- `val anonymousProfileLabel: (String) -> String = { _ -> "unknown" }` — the label an
+  unresolvable profile reference takes for a reader who may NOT read the raw database key
+  it stands for: the bare word, with no key they could not look up. Which of the two a
+  listing draws is the caller's decision, keyed on the live `AppView` setting (app.md):
+  only a viewer whose view is the admin's gets the key.
 Both PURE, directly unit-reachable (build `User`s per models.md).
 
 ### ui.shared — role maps (second spelling) and small providers
@@ -412,20 +417,30 @@ makes late-loaded profiles re-resolve profile references — bar senders and rec
 alike; the default is a private model that is never
 notified), `rawIdsAllowed` (default true — a viewer who may NOT read a raw database key
 passes false and every bar ends where the notice opens; only the admin's own debug view
-leaves it true), `deleteNotice` (optional `(String) -> Unit` — when the caller can remove
-one saved notice, it hands the action and each bar grows a `log_delete` control that passes
-that bar's entry id, resolved through the view model's `entryIdFor`; with no action there is
-no control). Reads the log through the
+leaves it true), `deleteNotice` (optional `(String, (removed: Boolean) -> Unit) -> Unit` —
+when the caller can remove one saved notice, it hands the action and each bar grows a
+`log_delete` control that passes that bar's entry id, resolved through the view model's
+`entryIdFor`, and a continuation for the caller to run once the store confirms the removal.
+A confirmed removal re-reads the log through the view model's `readLog()`, so the entry
+stops showing without the viewer tapping Refresh; the re-read happens ONLY in that
+continuation, because the store answers asynchronously and a re-read asked for beside the
+removal would race it and could still list the entry. With no action there is no control).
+Reads the log through the
 data.md `NotificationCommand.Read` contract and draws the group/line output per models.md's
 `notificationLogGroupsFor`/`notificationLogLinesFor`. Nothing testable beyond the lower
 packages' contracts; the debug-log title strings (`"Notification Debugging"`, `"Sent
 Notifications"`) are app.md integration copy.
 
-`ui/inbox/NotificationActivity.kt` (`NotificationInboxScreen`, `NotificationRow`) and
+`ui/inbox/NotificationActivity.kt` (`NotificationInboxScreen`, private `NotificationRow`) and
 `ui/notification/tabs/NoticeTabs.kt` (`SentNoticesTab`, `ReceivedNoticesTab`) take the same
-optional `deleteNotice`: a row of one notice carries a `notification_delete` control, and the
-sent tab passes `rawIdsAllowed = false` — a person reading the notices they caused is not
-reading database keys.
+optional `deleteNotice`, now `(String, (removed: Boolean) -> Unit) -> Unit` (the received
+rows pass the continuation as empty — that listing is followed live, so the store answering
+that a notice is gone needs nothing here): a row of one notice carries a
+`notification_delete` control. `SentNoticesTab` also takes `unresolvedProfileText: (String)
+-> String` and passes it to the log as its `profileText`, so which of ui.components' two
+labels an unresolvable reference draws is the caller's decision, keyed on the live view
+(app.md). The sent tab still passes `rawIdsAllowed = false` — a person reading the notices
+they caused is not reading database keys.
 
 ### ui.theme, ui.profile, ui.booking — no test surface
 

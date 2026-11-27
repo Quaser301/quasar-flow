@@ -42,8 +42,10 @@ fun NotificationInboxScreen(
     viewModel: NotificationViewModel,
     navToNotification: (Notification) -> Unit,
     // Asked with the database key of the notice a row shows, when this viewer may remove
-    // their own notices. Passing nothing leaves the rows without a delete control.
-    deleteNotice: ((String) -> Unit)? = null,
+    // their own notices, and with what to run once the store confirms it. This listing is
+    // followed live, so the confirmation needs nothing here. Passing nothing leaves the
+    // rows without a delete control.
+    deleteNotice: ((String, (removed: Boolean) -> Unit) -> Unit)? = null,
 ) {
     val state by viewModel.state.collectAsState()
 
@@ -118,7 +120,7 @@ fun NotificationInboxScreen(
 @Composable
 private fun NotificationRow(
     notification: Notification,
-    deleteNotice: ((String) -> Unit)? = null,
+    deleteNotice: ((String, (removed: Boolean) -> Unit) -> Unit)? = null,
     onClick: () -> Unit
 ) {
     val unread = notification.status == NotificationStatus.UNREAD
@@ -170,11 +172,14 @@ private fun NotificationRow(
             )
 
             // The notice itself is what a viewer removes, so the control sits on the row
-            // rather than behind a menu.
+            // rather than behind a menu. This listing is followed live, so the store
+            // answering that the notice is gone needs nothing here.
             val remove = deleteNotice
             if (remove != null) {
                 TextButton(
-                    onClick = { remove(notification.id) },
+                    onClick = {
+                        remove(notification.id) { }
+                    },
                     modifier = Modifier
                         .testTag("notification_delete")
                         .padding(start = 12.dp)

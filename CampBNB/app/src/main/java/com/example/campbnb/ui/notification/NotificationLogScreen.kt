@@ -77,7 +77,9 @@ import com.example.campbnb.ui.theme.AdminInteractionColor
  *     up by. Only the admin's own debug view may; a viewer listing their own correspondence
  *     gets bars that end at where the notice opens.
  * @param deleteNotice Asked with the database key of the entry a bar names, when this viewer
- *     may remove their own notices. Passing nothing leaves the entries without a delete control.
+ *     may remove their own notices, and with what to run once the store confirms the removal.
+ *     A confirmed removal re-reads the log, so the entry stops showing without the viewer
+ *     tapping Refresh. Passing nothing leaves the entries without a delete control.
  */
 @Composable
 fun NotificationLogScreen(
@@ -90,8 +92,8 @@ fun NotificationLogScreen(
     // up by; a viewer listing their own correspondence may not.
     rawIdsAllowed: Boolean = true,
     // Asked with the database key of the entry a bar names, when this viewer may remove
-    // their own notices. Passing nothing leaves the entries without a delete control.
-    deleteNotice: ((String) -> Unit)? = null,
+    // their own notices. The action reports back whether the store confirmed the removal.
+    deleteNotice: ((String, (removed: Boolean) -> Unit) -> Unit)? = null,
 ) {
     val display = viewModel {
         NotificationLogViewModel(
@@ -180,13 +182,14 @@ fun NotificationLogScreen(
  * @param display The holder of the dropdown expansion state, so a bar can open its entry.
  * @param line The line to draw.
  * @param deleteNotice Asked with the database key of an entry when the viewer may remove
- *     their own notices; nothing passed means the entries have no delete control.
+ *     their own notices, and with what to run once the store confirms it; nothing passed
+ *     means the entries have no delete control.
  */
 @Composable
 private fun NotificationLogLineDisplay(
     display: NotificationLogViewModel,
     line: NotificationLogLine,
-    deleteNotice: ((String) -> Unit)? = null,
+    deleteNotice: ((String, (removed: Boolean) -> Unit) -> Unit)? = null,
 ) {
     when (line.style) {
         LogLineStyle.DROPDOWN -> {
@@ -209,7 +212,15 @@ private fun NotificationLogLineDisplay(
                     onClick = {
                         val entryId = display.entryIdFor(line.logId)
                         if (entryId.isNotEmpty()) {
-                            remove(entryId)
+                            // The store answers asynchronously, so the log is read again
+                            // only in the continuation the removal answers with: a re-read
+                            // asked for here would race the removal and could still list
+                            // the entry that was just taken away.
+                            remove(entryId) { removed ->
+                                if (removed) {
+                                    display.readLog()
+                                }
+                            }
                         }
                     },
                     modifier = Modifier

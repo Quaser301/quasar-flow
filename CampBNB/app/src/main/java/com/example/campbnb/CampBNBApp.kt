@@ -29,6 +29,8 @@ import com.example.campbnb.controller.CampsiteController
 import com.example.campbnb.models.CampsiteModel
 import com.example.campbnb.models.Role
 import com.example.campbnb.ui.components.UserRole
+import com.example.campbnb.ui.components.anonymousProfileLabel
+import com.example.campbnb.ui.components.unresolvableProfileLabel
 import com.example.campbnb.ui.screens.HomeScreen
 import com.example.campbnb.ui.shared.roleFor
 import com.example.campbnb.viewModels.LotterySelectedViewModel
@@ -49,6 +51,18 @@ fun CampBnbApp(
     // The role the app view says the user is in right now. Graph callbacks that run
     // outside one screen's route need it, the same derivation HomeScreen uses.
     fun currentRole(): UserRole = roleFor(deps.appViewSettings.viewSetting.value)
+
+    // How a profile reference a listing cannot look up is drawn. The database key is
+    // shown only while the admin view is the live one: a person listing their own
+    // correspondence is not shown keys they could not look up. Read per call, because
+    // the view changes while the app is running.
+    val unresolvedProfileText: (String) -> String = { userId ->
+        if (currentRole() == UserRole.ADMIN) {
+            unresolvableProfileLabel(userId)
+        } else {
+            anonymousProfileLabel(userId)
+        }
+    }
 
     // The role the signed-in profile actually holds, which is not the same thing: a
     // user may be viewing as another role while still holding this one. The Settings
@@ -297,9 +311,12 @@ fun CampBnbApp(
         // notice resolves to, and these invisible frames open the view the notice
         // points at and pop themselves out of the stack.
         CorrespondenceGraph(
-            // read on each draw, not once when the graph is built (see the graph's own
-            // parameter): the sign-in runs after this graph exists
-            currentUserIsOwner = { deps.currentUserIsOwner },
+            // Whether the live view acts as an owner, not whether the signed-in user may:
+            // switching views moves the tabs, so an entrant never reaches the sent notices.
+            // Read on each draw, since the view changes while the app runs.
+            ownerViewActive = {
+                currentRole() == UserRole.OWNER || currentRole() == UserRole.ADMIN
+            },
             userId = deps.deviceID,
 
             userRepo = deps.userRepository,
@@ -330,6 +347,8 @@ fun CampBnbApp(
             },
 
             toastGen = toast,
+
+            unresolvedProfileText = unresolvedProfileText,
         )
 
         // The reservations view: opened by a notification tap, the owner's My
@@ -497,9 +516,13 @@ fun CampBnbApp(
                 // Messages, Inbox and Bookings tabs: the same destinations, with
                 // a tap of a notice still running the app's own bridges above.
                 CorrespondenceGraph(
-                    // read on each draw, not once when the graph is built (see the graph's own
-                    // parameter): the sign-in runs after this graph exists
-                    currentUserIsOwner = { deps.currentUserIsOwner },
+                    // Whether the live view acts as an owner, not whether the signed-in
+                    // user may: switching views moves the tabs, so an entrant never reaches
+                    // the sent notices. Read on each draw, since the view changes while the
+                    // app runs.
+                    ownerViewActive = {
+                        currentRole() == UserRole.OWNER || currentRole() == UserRole.ADMIN
+                    },
                     userId = deps.deviceID,
 
                     userRepo = deps.userRepository,
@@ -516,26 +539,32 @@ fun CampBnbApp(
                     onNavBack = {
                         homeNav.navigateUp()
                     },
-                    // The notice bridges run on the app's navigation, so their pop does too:
-                    // the pending frame a tap pushes sits on the app's stack even though the
-                    // bar's back controls move on homeNav.
+                    // The whole notice path lives on the bar's own navigation: the frame a
+                    // tap pushes, the pop that clears it, and the reservations view it then
+                    // opens all sit on homeNav, so one back press returns the viewer to the
+                    // tab they tapped from. Splitting the path across the app's navigation
+                    // left frames on a stack the bar's back controls never pop.
                     popNoticeFrame = {
-                        nav.navigateUp()
+                        homeNav.navigateUp()
                     },
                     navToNotif = { screen ->
-                        nav.navigate(screen)
+                        homeNav.navigate(screen)
                     },
                     navToReservations = {
-                        nav.navigate(Screen.Reservations)
+                        homeNav.navigate(Screen.Reservations)
                     },
+                    // The lottery monitor is not a bottom bar tab, so the bar's graph does
+                    // not register it; that one jump still goes on the app's navigation.
                     navToLotteryMon = {
                         nav.navigate(Screen.LotteryMonitor)
                     },
                     goToReservations = {
-                        nav.navigate(Screen.Reservations)
+                        homeNav.navigate(Screen.Reservations)
                     },
 
                     toastGen = toast,
+
+                    unresolvedProfileText = unresolvedProfileText,
                 )
 
                 // The camper's Reservations tab hosts the view itself.
