@@ -88,7 +88,12 @@ fun NavGraphBuilder.exploreGraph(
                 )
             }
 
-            val cards = toCardList(loadedCampsites, campsiteModel)
+            // The cards are built once per list of campsites, not once per frame: the
+            // grid draws them on every draw, and converting the whole list again each
+            // time is what the device profile showed as the screen's whole cost.
+            val cards = remember(loadedCampsites) {
+                toCardList(loadedCampsites, campsiteModel)
+            }
 
             ExploreScreen(
                 recommended = cards,
@@ -116,7 +121,9 @@ fun NavGraphBuilder.exploreGraph(
                 initialQuery = route.query,
                 initialShowFilter = route.openFilter,
                 initialShowHistory = route.openHistory,
-                results = toCardList(searchModel.visibleCampsites, searchModel),
+                results = remember(searchModel.visibleCampsites) {
+                    toCardList(searchModel.visibleCampsites, searchModel)
+                },
                 onSearch = { query, filters ->
                     searchController.search(query, filters)
                 },

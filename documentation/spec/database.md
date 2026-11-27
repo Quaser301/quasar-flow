@@ -112,6 +112,15 @@ Contracts:
 Also in the file: `inline fun <reified T: Identifiable> FirebaseFirestore.readEngineFor(collectionName)` —
 the constructor helper the registry uses; not part of any test surface.
 
+The registry hands out ONE engine per collection, not a new one per call: each object holds
+`private val readEngineCached/writeEngineCached: <Type> by lazy { db.readEngineFor<T>(COLLECTION_NAME) }`
+and `readEngine()`/`writeEngine()` are one-line accessors to it. This is safe because both
+engines are stateless — a `QueryEngine`/`WriteEngine` holds only the shared `db`, the
+collection name, the class instance and a `CollectionReference`, and every call's state lives
+in the call itself — and because building one per call was the profile's hot spot (the same
+document deserialized 653 times behind engines re-allocated on every read). No test references
+`Database.` at all, so this changes no test surface; the accessors keep their exact signatures.
+
 ## WriteEngine.kt — write plumbing
 
 ```kotlin

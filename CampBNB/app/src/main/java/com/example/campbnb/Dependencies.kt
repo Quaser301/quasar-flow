@@ -57,6 +57,16 @@ interface Dependencies {
      */
     var homeTab: Screen?
 
+    /**
+     * Chat a tapped MESSAGE notice opens in the messages tab, or null for the plain list.
+     * Under the home bar a chat is state the tab opens, not a frame the app pushes: a
+     * pushed frame draws the same tab again, so leaving it costs an extra back press.
+     */
+    var openChatReservationId: String?
+
+    /** Opens a chat in the messages tab the notice was tapped in; null closes it. */
+    val openChatHere: (String?) -> Unit
+
     /** Current user id. The production provider still uses temporary demo ids. */
     var currentUserId: String
 

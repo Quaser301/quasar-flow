@@ -419,10 +419,29 @@ Implementations, with their exact differences:
   each `set…` merges, caches, then writes the merged record — write failure answers
   `Result.failure(Exception("Could not save app settings"))`.
 
-## ImageRepository.kt — placeholder
+## ImageRepository.kt — the picture-to-text boundary (US 02.01.02, US 01.08.02)
 
-`class ImageRepository { // A }` — no members. It is an acknowledged placeholder; no
-behavior to test, and tests should not stand it up.
+`open class ImageRepository(private val resolver: ContentResolver)` — turns a picture the
+user picked (a `Uri` from the phone's picker) into the text that is stored INSIDE the
+record that owns it (`Campsite.campImg` or `User.profileImg`); nothing else. Pictures are
+not stored as separate files: Firestore allows about 1 MiB per document, so a stored
+picture has to stay small.
+
+- `open fun encode(uri: Uri, maxEdge: Int): String?` — the one member. Shrinks the
+  picture so its longest side is at most `maxEdge` pixels, turns a sideways photo
+  upright from its EXIF tag, draws transparency on white (a JPEG has none), and
+  re-encodes as JPEG at stepwise lower quality until the bytes are at most
+  `MAX_BYTES`. Answers the Base64 text (no wrap) on success, and `null` when the
+  `Uri` is not a readable image or no quality made it small enough.
+- companion constants: `CAMPSITE_EDGE = 800` (the Explore cards show about 600),
+  `PROFILE_EDGE = 256` (a profile image is only ever shown small), `MAX_BYTES = 400_000`
+  (as Base64 text that keeps a whole document under Firestore's 1 MiB limit).
+
+JVM-reachable: the class is `open`, so a test subclasses it and overrides `encode` with a
+fake that answers a chosen text (or null) — the real member reads device picture
+decoders and is not run in a JVM test. Moving pictures to Firebase Storage later changes
+only this class: `encode` would upload the file and return its link, and the same text
+fields would hold the link.
 
 ## Standing them up in tests
 

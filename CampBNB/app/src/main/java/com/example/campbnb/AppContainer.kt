@@ -187,6 +187,14 @@ object AppContainer: Dependencies {
 
     override var homeTab: Screen? by mutableStateOf(null)
 
+    // The chat a tapped MESSAGE notice opens in the messages tab, or null for the plain
+    // list. Under the home bar a chat is NOT a navigation: a bridge frame that draws the
+    // same tab again is a back press that looks like it did nothing (the reported extra
+    // press), so the tab opens the chat as state instead.
+    override var openChatReservationId: String? by mutableStateOf(null)
+
+    override val openChatHere: (String?) -> Unit = { id -> openChatReservationId = id }
+
     // The app asked the device for its camera at start; the only answer that is
     // carried is a NO, and the scanner screen opens a camera unless it reads one.
     override var cameraRefused by mutableStateOf(false)

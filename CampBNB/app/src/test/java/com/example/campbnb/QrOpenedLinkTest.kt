@@ -18,11 +18,11 @@ class QrOpenedLinkTest {
 
     @Test
     fun test_CodeText_OpenedAsItsOwnLink_StillNamesTheCode() {
-        assertEquals("CAMPBNB:camp-1:2000", codeTextOfOpenedLink("CAMPBNB:camp-1:2000"))
+        assertEquals("CAMPBNB:camp-1", codeTextOfOpenedLink("CAMPBNB:camp-1"))
         assertEquals(
             "the lower-cased scheme names the same code",
-            "CAMPBNB:camp-1:2000",
-            codeTextOfOpenedLink("campbnb:camp-1:2000")
+            "CAMPBNB:camp-1",
+            codeTextOfOpenedLink("campbnb:camp-1")
         )
     }
 
@@ -36,14 +36,14 @@ class QrOpenedLinkTest {
     @Test
     fun test_AnOpenedLink_resolvesToTheSameRouteAScanDoes() {
         assertEquals(
-            "a live code opened as a link opens the campsite it names",
+            "a code opened as a link opens the campsite it names, at every time",
             "qr-link/camp-1",
-            qrRouteOfLinkPayload(codeTextOfOpenedLink("campbnb:camp-1:2000") ?: "", 1000L)
+            qrRouteOfLinkPayload(codeTextOfOpenedLink("campbnb:camp-1") ?: "")
         )
         assertEquals(
-            "a dead code opened as a link still answers the old-code notice",
-            "qr-link-old",
-            qrRouteOfLinkPayload(codeTextOfOpenedLink("campbnb:camp-1:2000") ?: "", 2001L)
+            "text carrying a segment past the campsite is not this app's code text",
+            null,
+            qrRouteOfLinkPayload(codeTextOfOpenedLink("CAMPBNB:camp-1:2000") ?: "")
         )
     }
 }

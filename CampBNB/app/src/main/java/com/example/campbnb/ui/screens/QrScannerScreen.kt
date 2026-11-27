@@ -41,17 +41,19 @@ import com.example.campbnb.ui.theme.FieldGrey
 /**
  * Camera scanner (US 01.12.01). When this device's camera can be opened, the frame
  * area shows what the camera sees, live (US 01.05.02, live scanner); what the camera
- * sees still never comes back here as byte frames, so the code itself arrives
+ * sees is handed back as one picture frame, which the app reads a code out of (the
+ * frame adapter, ui.md's CameraFrameSource seam); what the camera sees still never
+ * answers for a device that gave no camera frame, so the code itself arrives
  * through the typed text or the picture-file paths. Tapping the camera button asks
  * the frame source for one frame, and the app reads a code out of the picture it
  * gets back. A device with no camera, or a camera that cannot be opened, says so and
  * the screen keeps working on what the user typed. Text a scan produced can also be
  * typed into the field, and a picture on this device can be scanned straight from its
- * file. Whichever way a code is read, a working code opens its campsite through
- * [onOpenCampsite]; a code that stopped working, text or an image that is not a
- * CampBNB code, says so here and stays on this screen so the next scan starts from
- * it. Going back from an opened campsite returns to this screen because the navigation
- * stack keeps it under the details page.
+ * file. Whichever way a code is read, a code that names a registered campsite opens
+ * its campsite through [onOpenCampsite]; text that is not a CampBNB code, or names a
+ * campsite that is not registered, says so here and stays on this screen so the next
+ * scan starts from it. Going back from an opened campsite returns to this screen
+ * because the navigation stack keeps it under the details page.
  *
  * @param controller The controller that reads the code and loads the named campsite.
  * @param onOpenCampsite Called with the campsite a working code names; the app opens
@@ -196,9 +198,6 @@ fun QrScannerScreen(
                     onOpened = { campsite ->
                         notice = ""
                         onOpenCampsite(campsite)
-                    },
-                    onExpired = { stopped ->
-                        notice = "That code stopped working. Get a current code."
                     },
                     onUnreadable = { text ->
                         notice = "That text is not a CampBNB code."

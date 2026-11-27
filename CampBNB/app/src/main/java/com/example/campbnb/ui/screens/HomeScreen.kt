@@ -166,7 +166,11 @@ fun RoleBottomBar(
             // names a screen with its class name plus a slash-separated tail, and
             // routePrefixOf below derives that name from the tab's own screen object,
             // so nothing about a screen is spelled out here.
-            val routePrefix = routePrefixOf(tab.destination)
+            // The name a tab answers with is fixed by the tab's own screen object, so it
+            // is derived once per tab rather than on every frame the bar draws.
+            val routePrefix = remember(tab.destination) {
+                routePrefixOf(tab.destination)
+            }
             val isSelected = currentDestination?.hierarchy?.any { dest ->
                 dest.route == routePrefix || dest.route?.startsWith("$routePrefix/") == true
             } == true

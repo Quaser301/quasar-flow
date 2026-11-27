@@ -55,13 +55,19 @@ object Database {
     object Users {
         const val COLLECTION_NAME = "users"
 
-        fun readEngine(): QueryEngine<User> {
-            return db.readEngineFor<User>(COLLECTION_NAME)
-        }
+        // One engine per collection, built the first time it is asked for and kept: an
+        // engine holds only the shared Firestore instance, the collection name and the
+        // schema class, so handing out a fresh one per call rebuilt the same object on
+        // every frame that read the collection (the profile screen and the notice paths
+        // read it per draw).
+        private val readEngineCached: QueryEngine<User> by lazy { db.readEngineFor<User>(COLLECTION_NAME) }
 
-        fun writeEngine(): WriteEngine<User> {
-            return db.writeEngineFor<User>(COLLECTION_NAME)
-        }
+        fun readEngine(): QueryEngine<User> = readEngineCached
+
+        // Kept for the same reason as the read engine above.
+        private val writeEngineCached: WriteEngine<User> by lazy { db.writeEngineFor<User>(COLLECTION_NAME) }
+
+        fun writeEngine(): WriteEngine<User> = writeEngineCached
     }
 
     /**
@@ -70,13 +76,19 @@ object Database {
     object Notifications {
         const val COLLECTION_NAME = "notifications"
 
-        fun readEngine(): QueryEngine<Notification> {
-            return db.readEngineFor<Notification>(COLLECTION_NAME)
-        }
+        // One engine per collection, built the first time it is asked for and kept: an
+        // engine holds only the shared Firestore instance, the collection name and the
+        // schema class, so handing out a fresh one per call rebuilt the same object on
+        // every frame that read the collection (the profile screen and the notice paths
+        // read it per draw).
+        private val readEngineCached: QueryEngine<Notification> by lazy { db.readEngineFor<Notification>(COLLECTION_NAME) }
 
-        fun writeEngine(): WriteEngine<Notification> {
-            return db.writeEngineFor<Notification>(COLLECTION_NAME)
-        }
+        fun readEngine(): QueryEngine<Notification> = readEngineCached
+
+        // Kept for the same reason as the read engine above.
+        private val writeEngineCached: WriteEngine<Notification> by lazy { db.writeEngineFor<Notification>(COLLECTION_NAME) }
+
+        fun writeEngine(): WriteEngine<Notification> = writeEngineCached
     }
 
      /** The transaction engine for this Firestore instance.
@@ -94,37 +106,55 @@ object Database {
     object Ratings {
         const val COLLECTION_NAME = "ratings"
 
-        fun readEngine(): QueryEngine<Rating> {
-            return db.readEngineFor<Rating>(COLLECTION_NAME)
-        }
+        // One engine per collection, built the first time it is asked for and kept: an
+        // engine holds only the shared Firestore instance, the collection name and the
+        // schema class, so handing out a fresh one per call rebuilt the same object on
+        // every frame that read the collection (the profile screen and the notice paths
+        // read it per draw).
+        private val readEngineCached: QueryEngine<Rating> by lazy { db.readEngineFor<Rating>(COLLECTION_NAME) }
 
-        fun writeEngine(): WriteEngine<Rating> {
-            return db.writeEngineFor<Rating>(COLLECTION_NAME)
-        }
+        fun readEngine(): QueryEngine<Rating> = readEngineCached
+
+        // Kept for the same reason as the read engine above.
+        private val writeEngineCached: WriteEngine<Rating> by lazy { db.writeEngineFor<Rating>(COLLECTION_NAME) }
+
+        fun writeEngine(): WriteEngine<Rating> = writeEngineCached
     }
 
     object Lotteries {
         const val COLLECTION_NAME = "lotteries"
 
-        fun readEngine(): QueryEngine<Lottery> {
-            return db.readEngineFor<Lottery>(COLLECTION_NAME)
-        }
+        // One engine per collection, built the first time it is asked for and kept: an
+        // engine holds only the shared Firestore instance, the collection name and the
+        // schema class, so handing out a fresh one per call rebuilt the same object on
+        // every frame that read the collection (the profile screen and the notice paths
+        // read it per draw).
+        private val readEngineCached: QueryEngine<Lottery> by lazy { db.readEngineFor<Lottery>(COLLECTION_NAME) }
 
-        fun writeEngine(): WriteEngine<Lottery> {
-            return db.writeEngineFor<Lottery>(COLLECTION_NAME)
-        }
+        fun readEngine(): QueryEngine<Lottery> = readEngineCached
+
+        // Kept for the same reason as the read engine above.
+        private val writeEngineCached: WriteEngine<Lottery> by lazy { db.writeEngineFor<Lottery>(COLLECTION_NAME) }
+
+        fun writeEngine(): WriteEngine<Lottery> = writeEngineCached
     }
     
     object Reservations {
         const val COLLECTION_NAME = "reservations"
 
-        fun readEngine(): QueryEngine<ReservationModel> {
-            return db.readEngineFor<ReservationModel>(COLLECTION_NAME)
-        }
+        // One engine per collection, built the first time it is asked for and kept: an
+        // engine holds only the shared Firestore instance, the collection name and the
+        // schema class, so handing out a fresh one per call rebuilt the same object on
+        // every frame that read the collection (the profile screen and the notice paths
+        // read it per draw).
+        private val readEngineCached: QueryEngine<ReservationModel> by lazy { db.readEngineFor<ReservationModel>(COLLECTION_NAME) }
 
-        fun writeEngine(): WriteEngine<ReservationModel> {
-            return db.writeEngineFor<ReservationModel>(COLLECTION_NAME)
-        }
+        fun readEngine(): QueryEngine<ReservationModel> = readEngineCached
+
+        // Kept for the same reason as the read engine above.
+        private val writeEngineCached: WriteEngine<ReservationModel> by lazy { db.writeEngineFor<ReservationModel>(COLLECTION_NAME) }
+
+        fun writeEngine(): WriteEngine<ReservationModel> = writeEngineCached
     }
 
     /**
@@ -133,13 +163,19 @@ object Database {
     object NotificationPreferences {
         const val COLLECTION_NAME = "notificationPreferences"
 
-        fun readEngine(): QueryEngine<NotificationPreferenceModel> {
-            return db.readEngineFor<NotificationPreferenceModel>(COLLECTION_NAME)
-        }
+        // One engine per collection, built the first time it is asked for and kept: an
+        // engine holds only the shared Firestore instance, the collection name and the
+        // schema class, so handing out a fresh one per call rebuilt the same object on
+        // every frame that read the collection (the profile screen and the notice paths
+        // read it per draw).
+        private val readEngineCached: QueryEngine<NotificationPreferenceModel> by lazy { db.readEngineFor<NotificationPreferenceModel>(COLLECTION_NAME) }
 
-        fun writeEngine(): WriteEngine<NotificationPreferenceModel> {
-            return db.writeEngineFor<NotificationPreferenceModel>(COLLECTION_NAME)
-        }
+        fun readEngine(): QueryEngine<NotificationPreferenceModel> = readEngineCached
+
+        // Kept for the same reason as the read engine above.
+        private val writeEngineCached: WriteEngine<NotificationPreferenceModel> by lazy { db.writeEngineFor<NotificationPreferenceModel>(COLLECTION_NAME) }
+
+        fun writeEngine(): WriteEngine<NotificationPreferenceModel> = writeEngineCached
     }
 
     /**
@@ -149,33 +185,46 @@ object Database {
     object AppSettings {
         const val COLLECTION_NAME = "appSettings"
 
-        fun readEngine(): QueryEngine<AppSettingsModel> {
-            return db.readEngineFor<AppSettingsModel>(COLLECTION_NAME)
-        }
+        // One engine per collection, built the first time it is asked for and kept: an
+        // engine holds only the shared Firestore instance, the collection name and the
+        // schema class, so handing out a fresh one per call rebuilt the same object on
+        // every frame that read the collection (the profile screen and the notice paths
+        // read it per draw).
+        private val readEngineCached: QueryEngine<AppSettingsModel> by lazy { db.readEngineFor<AppSettingsModel>(COLLECTION_NAME) }
 
-        fun writeEngine(): WriteEngine<AppSettingsModel> {
-            return db.writeEngineFor<AppSettingsModel>(COLLECTION_NAME)
-        }
+        fun readEngine(): QueryEngine<AppSettingsModel> = readEngineCached
+
+        // Kept for the same reason as the read engine above.
+        private val writeEngineCached: WriteEngine<AppSettingsModel> by lazy { db.writeEngineFor<AppSettingsModel>(COLLECTION_NAME) }
+
+        fun writeEngine(): WriteEngine<AppSettingsModel> = writeEngineCached
     }
 
     object BookedDates {
         const val COLLECTION_NAME = "bookedDates"
 
-        fun writeEngine(): WriteEngine<BookedDate> {
-            return db.writeEngineFor<BookedDate>(COLLECTION_NAME)
-        }
+        // Kept for the same reason as the read engine above.
+        private val writeEngineCached: WriteEngine<BookedDate> by lazy { db.writeEngineFor<BookedDate>(COLLECTION_NAME) }
+
+        fun writeEngine(): WriteEngine<BookedDate> = writeEngineCached
     }
 
     object Campsites {
         const val COLLECTION_NAME = "campsites"
 
-        fun readEngine(): QueryEngine<Campsite> {
-            return db.readEngineFor<Campsite>(COLLECTION_NAME)
-        }
+        // One engine per collection, built the first time it is asked for and kept: an
+        // engine holds only the shared Firestore instance, the collection name and the
+        // schema class, so handing out a fresh one per call rebuilt the same object on
+        // every frame that read the collection (the profile screen and the notice paths
+        // read it per draw).
+        private val readEngineCached: QueryEngine<Campsite> by lazy { db.readEngineFor<Campsite>(COLLECTION_NAME) }
 
-        fun writeEngine(): WriteEngine<Campsite> {
-            return db.writeEngineFor<Campsite>(COLLECTION_NAME)
-        }
+        fun readEngine(): QueryEngine<Campsite> = readEngineCached
+
+        // Kept for the same reason as the read engine above.
+        private val writeEngineCached: WriteEngine<Campsite> by lazy { db.writeEngineFor<Campsite>(COLLECTION_NAME) }
+
+        fun writeEngine(): WriteEngine<Campsite> = writeEngineCached
     }
 
     /**
@@ -184,13 +233,19 @@ object Database {
     object WaitingListEntries {
         const val COLLECTION_NAME = "waitingList"
 
-        fun readEngine(): QueryEngine<WaitingListEntry> {
-            return db.readEngineFor<WaitingListEntry>(COLLECTION_NAME)
-        }
+        // One engine per collection, built the first time it is asked for and kept: an
+        // engine holds only the shared Firestore instance, the collection name and the
+        // schema class, so handing out a fresh one per call rebuilt the same object on
+        // every frame that read the collection (the profile screen and the notice paths
+        // read it per draw).
+        private val readEngineCached: QueryEngine<WaitingListEntry> by lazy { db.readEngineFor<WaitingListEntry>(COLLECTION_NAME) }
 
-        fun writeEngine(): WriteEngine<WaitingListEntry> {
-            return db.writeEngineFor<WaitingListEntry>(COLLECTION_NAME)
-        }
+        fun readEngine(): QueryEngine<WaitingListEntry> = readEngineCached
+
+        // Kept for the same reason as the read engine above.
+        private val writeEngineCached: WriteEngine<WaitingListEntry> by lazy { db.writeEngineFor<WaitingListEntry>(COLLECTION_NAME) }
+
+        fun writeEngine(): WriteEngine<WaitingListEntry> = writeEngineCached
     }
 
     /**
@@ -200,12 +255,18 @@ object Database {
     object Messages {
         const val COLLECTION_NAME = "messages"
 
-        fun readEngine(): QueryEngine<Message> {
-            return db.readEngineFor<Message>(COLLECTION_NAME)
-        }
+        // One engine per collection, built the first time it is asked for and kept: an
+        // engine holds only the shared Firestore instance, the collection name and the
+        // schema class, so handing out a fresh one per call rebuilt the same object on
+        // every frame that read the collection (the profile screen and the notice paths
+        // read it per draw).
+        private val readEngineCached: QueryEngine<Message> by lazy { db.readEngineFor<Message>(COLLECTION_NAME) }
 
-        fun writeEngine(): WriteEngine<Message> {
-            return db.writeEngineFor<Message>(COLLECTION_NAME)
-        }
+        fun readEngine(): QueryEngine<Message> = readEngineCached
+
+        // Kept for the same reason as the read engine above.
+        private val writeEngineCached: WriteEngine<Message> by lazy { db.writeEngineFor<Message>(COLLECTION_NAME) }
+
+        fun writeEngine(): WriteEngine<Message> = writeEngineCached
     }
 }

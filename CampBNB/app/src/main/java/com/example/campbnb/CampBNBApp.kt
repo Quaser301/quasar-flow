@@ -128,6 +128,13 @@ fun CampBnbApp(
         }
     }
 
+    // True once sign-in has ended and the first Home has opened. A code's link that the
+    // device's own camera opened at cold start queues a pending screen before any of this
+    // app has run, and opening it there would show a campsite to a user who is not
+    // logged in and has no data loaded — so the pending bridge waits for this, and the
+    // scan lands the user in the app first and only then at the campsite (US 01.05.02).
+    var signedIn by remember { mutableStateOf(false) }
+
     /**
      * Opens Home at the end of sign-in, evicting the sign-in screens from the back
      * stack: the back gesture (the side scroll on the phone) must not walk a signed-in
@@ -141,6 +148,7 @@ fun CampBnbApp(
      */
     fun NavController.goHomeAfterSignIn(role: UserRole) {
         deps.homeTab = null
+        signedIn = true
         navigate(Screen.Home(role = role)) {
             popUpTo<StartupGraph> { inclusive = true }
             launchSingleTop = true
@@ -562,6 +570,12 @@ fun CampBnbApp(
                         homeNav.navigate(Screen.Reservations)
                     },
 
+                    // A chat a notice names opens in the messages tab the notice was
+                    // tapped from, on the bar's own state — not as a frame on the bar's
+                    // stack, which is what made leaving one cost an extra back press.
+                    openChatHere = deps.openChatHere,
+                    chatOpenFor = { deps.openChatReservationId },
+
                     toastGen = toast,
 
                     unresolvedProfileText = unresolvedProfileText,
@@ -644,9 +658,15 @@ fun CampBnbApp(
         )
     }
 
-    LaunchedEffect(deps.pendingScreen) {
+    // The pending bridge (a notification tap, or a code's link the device's own camera
+    // opened). While sign-in still runs there is nothing to bridge to: the app has no
+    // Home and no loaded user, so the pending screen waits for sign-in to finish and
+    // opens once the user is logged in (US 01.05.02: scanning a code logs the user in
+    // and then lands them at the campsite). Re-watching on [signedIn] is what re-runs
+    // this the moment the first Home opens.
+    LaunchedEffect(deps.pendingScreen, signedIn) {
         val pending = deps.pendingScreen
-        if (pending != null) {
+        if (pending != null && signedIn) {
             nav.navigate(pending)
             deps.onPendingRouteHandled()
         }

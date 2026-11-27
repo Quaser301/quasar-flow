@@ -46,10 +46,11 @@ Six members. `StartupGraph` and `MiscGraph` are NOT members (see below).
 The same file also owns the ONE screen→node lookup, `graphNodeFor(screen): Any` — the
 graph node a screen's content is registered under (Explore→`ExploreGraph`, MyCampsites→
 `CampsiteGraph`, Messages/Bookings/Inbox→`CorrespondenceGraph`, Reservations→
-`ReservationGraph`, AdminProfileView/AdminNotificationView→`DebugGraph`, anything else
-— MiscGraph's bare screens — → the screen itself). It lives here rather than in a UI
+`ReservationGraph`, anything else — MiscGraph's bare screens and the admin's debug views
+alike — → the screen itself). It lives here rather than in a UI
 file because it is graph knowledge: which node a mount registers each graph under. `HomeScreen`
-calls it to pick its nested start.
+calls it to pick its nested start. (`DebugGraph` is NOT a `NavGraphNodes` member, so the
+admin's views map to themselves — a dropped upstream mapping line would not compile.)
 
 ## Every graph: file → entry → node route → start → registered screens
 
@@ -62,7 +63,7 @@ calls it to pick its nested start.
 | `NotificationGraph.kt` | `CorrespondenceGraph` (capital) | `NavGraphNodes.CorrespondenceGraph` | `Screen.Notifications` | `Notifications`, `Bookings`, `Messages`, `Inbox`, `NotifReservations`, `BookingEntry`, `ChatReservationEntry` |
 | `ReservationGraph.kt` | `ReservationGraph` (capital) | `NavGraphNodes.ReservationGraph` | `Screen.Reservations` | `Reservations` |
 | `MiscGraph.kt` | `MiscGraph` (capital) | NONE — no `navigation<…>` wrapper | n/a | bare `Profile`, `Reports`, `Flagged`, `QrLinkRoute`, `OldQRCode` at the mount site |
-| `DebuggingGraph.kt` | `DebugGraph` (capital) | `NavGraphNodes.DebugGraph` | `Screen.AdminProfileView` | `AdminProfileView`, `AdminNotificationView` |
+| `DebuggingGraph.kt` | `DebugGraph` (capital) | `NavGraphNodes.DebugGraph` | `Screen.AdminProfileView` | `AdminProfileView`, `AdminNotificationView`, `AdminImages` |
 
 Name traps (file name ≠ member name, in two files):
 

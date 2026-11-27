@@ -171,7 +171,11 @@ fun profileRowText(row: ProfileRow): String =
 @Composable
 fun AdminProfilesScreen(back: () -> Unit, userModel: UserModel, adminController: AdminController) {
     observeModel(userModel)
-    val rows = profileRowsFor(userModel.allUsers)
+    // The rows are derived from the user list once per list, not once per frame: the
+    // sort and the per-profile mapping were the profile screen's whole per-frame cost.
+    val rows = remember(userModel.allUsers) {
+        profileRowsFor(userModel.allUsers)
+    }
     var openRowId by remember { mutableStateOf("") }
     var rowToDelete by remember { mutableStateOf<ProfileRow?>(null) }
     var ownerToRemove by remember { mutableStateOf<ProfileRow?>(null) }

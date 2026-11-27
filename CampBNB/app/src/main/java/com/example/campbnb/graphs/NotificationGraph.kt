@@ -68,6 +68,13 @@ fun NavGraphBuilder.CorrespondenceGraph(
     // whose view may read raw database keys gets the key, and that is the caller's to
     // say, since only it knows the view the app is in.
     unresolvedProfileText: (String) -> String = unresolvableProfileLabel,
+    // Only the home-bar mount passes these. Under the bar a chat is not a place the app
+    // navigates to: a pushed bridge frame draws the messages tab again, so the back press
+    // that clears it reads as a press that did nothing — the reported extra press. The bar
+    // instead opens the chat as state in the tab the notice was tapped from, and closes it
+    // again when the bar enters the tab.
+    openChatHere: ((String?) -> Unit)? = null,
+    chatOpenFor: () -> String? = { null },
 ) {
     // Removing one of their own notices: the record is gone rather than marked, so neither
     // the inbox nor a log lists it again. A viewer who cannot reach the store is told.
@@ -108,7 +115,9 @@ fun NavGraphBuilder.CorrespondenceGraph(
                 msgController = msgControl,
                 onNavToNotif = navToNotif,
                 deleteNotice = removeNotice,
-                unresolvedProfileText = unresolvedProfileText
+                unresolvedProfileText = unresolvedProfileText,
+                openChatHere = openChatHere,
+                chatOpenFor = chatOpenFor
             )
         }
 
@@ -223,6 +232,15 @@ fun NavGraphBuilder.CorrespondenceGraph(
         }
 
         composable<Screen.Messages> {
+            // Entering the tab closes whatever chat the last tap left open, so a fresh
+            // visit shows the list and not a chat left over from before. This runs once
+            // per time the frame opens, not on every draw, so a chat a tap opens while
+            // the frame is up stays open.
+            if (openChatHere != null) {
+                LaunchedEffect(Unit) {
+                    openChatHere(null)
+                }
+            }
             CorrespondenceDestination(
                 openTab = CorrespondenceTabs.MESSAGES_TAB,
                 onNavBack = onNavBack,
@@ -233,7 +251,9 @@ fun NavGraphBuilder.CorrespondenceGraph(
                 msgController = msgControl,
                 onNavToNotif = navToNotif,
                 deleteNotice = removeNotice,
-                unresolvedProfileText = unresolvedProfileText
+                unresolvedProfileText = unresolvedProfileText,
+                openChatHere = openChatHere,
+                chatOpenFor = chatOpenFor
             )
         }
 
@@ -248,7 +268,9 @@ fun NavGraphBuilder.CorrespondenceGraph(
                 msgController = msgControl,
                 onNavToNotif = navToNotif,
                 deleteNotice = removeNotice,
-                unresolvedProfileText = unresolvedProfileText
+                unresolvedProfileText = unresolvedProfileText,
+                openChatHere = openChatHere,
+                chatOpenFor = chatOpenFor
             )
         }
 

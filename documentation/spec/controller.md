@@ -177,6 +177,8 @@ fun removeCampsite(campsite, reason: PolicyReason, actorUserId, onDone: (Boolean
 fun removeTag(campsite, tag: String, reason: PolicyReason, actorUserId, onDone: (Boolean) -> Unit = {})
 fun deleteProfile(userId, reason: RemovalReason?, onDone: (Boolean, String) -> Unit)
 fun deleteCampsite(campsiteId, reason: RemovalReason?, onDone: (Boolean, String) -> Unit)
+fun removeImage(kind: ImageKind, sourceId: String, reason: RemovalReason?, onDone: (Boolean, String) -> Unit)
+fun removeOwner(userId, reason: RemovalReason?, onDone: (Boolean, String) -> Unit)
 ```
 
 One class carries both kinds of admin action. The policy actions (`removeCampsite`,
@@ -220,6 +222,42 @@ and answers through `onDone` with a message the screen can show.
   tells nobody. Owner's notice: `Your campsite was removed`, body `An admin removed your
   campsite "<name>" for violating the app policy.` plus the reason as above. Then
   `onDone(true, "Campsite deleted")`.
+- `removeImage` (US 03.03.01): refused (`onDone(false, …)`, nothing written) when `!isAdmin()`
+  (`Only an admin can remove images`), `sourceId` blank (`No image selected`), the owning
+  record is gone (`That campsite no longer exists` / `That profile no longer exists`), or its
+  picture is already blank (`That image was already removed`). The owner is read FRESH —
+  a campsite through `getById` (which is also where the uploader comes from), a profile
+  through `findByDeviceId`. Otherwise only the picture field is cleared (`saveCampsiteImage`
+  / `saveProfileImage` with `""` — nothing else on the record is touched), and on success the
+  UPLOADER is notified: `Your campsite image was removed` / `Your profile picture was removed`,
+  body from `imageRemovalText`: `An admin removed the image of your campsite "<name>"` /
+  `An admin removed your profile picture` + ` for violating the app policy.` plus
+  ` Reason: <label>.` when a reason was given. A profile removal then `loadAllUsers()` so the
+  admin's list refreshes. Success → `onDone(true, "Image removed")`; a store failure →
+  `Could not remove the image`.
+- `removeOwner` (US 03.03.01, the owner cascade): refused (`onDone(false, …)`, nothing
+  written) when `!isAdmin()` (`Only an admin can remove campsite owners`), `userId` blank
+  (`No profile selected`), `userId` is the signed-in user (`You cannot delete your own
+  profile here`), NO reason was given (`Pick the app policy that was violated first` — a
+  reason is REQUIRED here, unlike `deleteProfile`), the profile is gone (`That profile no
+  longer exists`), it holds `Role.ADMIN` (`Admin profiles cannot be deleted`), or it is not
+  an owner (`That profile is not a campsite owner`) — read fresh with `findByDeviceId`.
+  Otherwise the owner's WHOLE footprint is removed, in this order: first every lottery the
+  owner owns (each with its waiting list; every entry holder AND every already-drawn winner,
+  each once, is queued a `Your lottery entry was removed` notice — body `The lottery for
+  <names> was cancelled because the campsite owner was removed. Your entry or selection in
+  it no longer applies.`; `<names>` joins the lottery's known campsite names, or `a campsite`
+  when none are known here), then each of the owner's campsites through the same stepped
+  deletion `deleteCampsite` runs (ratings → reservations → lotteries → the campsite), then
+  the profile's own entrant data (ratings by user → waiting-list entries → active
+  reservations cancelled), then the profile itself. Any step failing stops the whole thing
+  (`Could not remove this owner's campsites and lotteries, so the profile was not deleted`
+  / `Could not remove this profile's data, so it was not deleted`) and the profile stays.
+  Success → ONE notice to the removed owner (`Your profile was removed`, body from
+  `removalText`: the profile text PLUS ` Your campsites and lotteries were removed too.`
+  plus the reason when given — the owner is told once, so their campsites' own notices are
+  suppressed, `notifyOwner = false`), then `loadAllUsers()`, then `onDone(true,
+  "Profile deleted")`.
 
 ## CampsiteController — browse, details, ratings, registering, QR codes
 
@@ -268,21 +306,17 @@ except where stated. All model writes go through the setters specified in `viewM
   true / `Failed to update campsite` false.
 - `loadOwnerCampsites(ownerId)`: `getByOwner` → `setOwnedCampsites`; failure prefix
   `Could not load your campsites: `.
-- `makeQrCode(campsiteId, stopsAtMillis = 0, onPayload: (String) -> Unit = {})`: blank id →
+- `makeQrCode(campsiteId, onPayload: (String) -> Unit = {})`: blank id →
   `Please pick a campsite to make a code for`; the store must contain that id (only
   registered campsites get codes): missing → `That campsite is not registered yet`; present →
-  `QR code made for that campsite` and `onPayload(QRCode(campsiteId, stopsAtMillis).payload())`
+  `QR code made for that campsite` and `onPayload(QRCode(campsiteId).payload())`
   (text from `models.md`'s QRCode contract); failure prefix `Could not make the QR code: `.
-- `scanQr(payload, onOpened: (Campsite), onExpired: (QRCode), onUnreadable: (String),
-  clock: () -> Long = { System.currentTimeMillis() })` — `clock` is an injected time
-  seam: tests pass a fixed moment.
+- `scanQr(payload, onOpened: (Campsite), onUnreadable: (String))` — there is no clock and
+  no expired arm: a code carries no expiry, so it works at every time (models.md).
   - undecodable text → `That text is not CampBNB code text` + `onUnreadable(payload)`;
-  - decoded but `!code.isValidAt(clock())` → `That code stopped working` + `onExpired(code)`
-    (expired-but-real codes reach this arm, NOT the unreadable one; a code carrying no expiry
-    at all reaches it too — the reserved 0 makes such a code old, never working (models.md));
   - otherwise `getAll`: no campsite named by `code.campsiteId` → `No campsite matches that
     code` + `onUnreadable(payload)`; found → model setCampsites + select it and `onOpened(named.first())`.
-  Exactly one of the three callbacks runs — except when the store read fails, where only
+  Exactly one of the two callbacks runs — except when the store read fails, where only
   the status message says `Could not open that campsite: <msg>`.
 
 ## LotteryController — entries, waitlists, invitations
@@ -533,8 +567,9 @@ Rules:
 - Repository fakes record their arguments in plain mutable fields and assert through them
   (`deletedIds`, `savedListings`, `saved`).
 - Callback continuation values flow back into local `var done` style flags and are asserted.
-- Time-dependent members (`LotteryController` via its constructor `clock`, `CampsiteController.scanQr`
-  via its `clock` parameter) take an injected fixed moment — never read real time in a test.
+- Time-dependent members (`LotteryController` via its constructor `clock`) take an injected
+  fixed moment — never read real time in a test. `scanQr` is no longer time-dependent: a code
+  carries no expiry, so it takes no clock.
 - Observed state (models) is asserted directly off the constructed model, and a
   `ViewObserver` in-file fake can witness the notify contract (`models.md`).
 - Members that cannot avoid a real engine (`ReservationRepository`, `Availability`) stay

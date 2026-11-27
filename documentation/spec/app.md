@@ -143,12 +143,14 @@ first (models.md owns THAT: text that is already code text answers as itself, a 
 is this app's name answers as that scheme's prefix plus the path it names — a URI's scheme
 carries no case of its own, so the prefix is this app's, not the arrived spelling; text naming
 no link of this app names no code and queues nothing). That code text then resolves
-`models.qrScreenOfLinkPayload` at the opened moment — it resolves THROUGH the tested text
+`models.qrScreenOfLinkPayload` — there is no opened moment to pass, a code carries no
+expiry (models.md): it resolves THROUGH the tested text
 decision `models.qrRouteOfLinkPayload` (models.md owns THAT) and decodes the answer into a
-typed screen: a live code names `Screen.QrLinkRoute(campsiteId)`, a dead/expired one
-`Screen.OldQRCode`, a payload that is not a code names nothing — and ONLY a non-null
+typed screen: ANY code text names `Screen.QrLinkRoute(campsiteId)` — there is no dead/expired
+arm any more, so `Screen.OldQRCode` is never queued from a code — and ONLY a non-null
 screen is set on `pendingScreen` (a link that resolves nothing never overwrites an already-queued
-notification screen). Sign-in (item 3 above) ran before any
+notification screen). The graph then holds that screen until sign-in has ended and opens it
+once the user is logged in (app.md's pending bridge, `signedIn`): MainActivity runs before any
 render, so an opened link's user data populates when the graph opens.
 `onDestroy`: `watcher.stop()` before `super.onDestroy()`.
 `watcher` is the lazy `NotificationWatcher(AppContainer.notificationController,
@@ -182,13 +184,15 @@ the graph below opens `CampsiteDetailsScreen` instead — see graph section),
 `CampsiteMonitor(role: UserRole)`, `CampsiteDetailsScreen(role: UserRole, campsiteId: String)`,
 plus the Home bottom-bar tab routes as data objects: `Explore`, `Messages`, `Bookings`,
 `Inbox`, `Profile`, `MyCampsites`, `Reports`, `Flagged`, `AdminProfileView`,
-`AdminNotificationView`, plus the notices/bridge entry routes: `Notifications` (the
+`AdminNotificationView`, `AdminImages` (the admin's browser of every uploaded picture, US 03.06.01),
+plus the notices/bridge entry routes: `Notifications` (the
 notices view itself), `NotifReservations` (the invisible bridge a tapped reservation-type
 notice names — the typed twin of notifications.md's `"reservations"` text),
 `BookingEntry(lotteryID)` (the bridge tapped WIN/INVITE notices name),
 `ChatReservationEntry(reservationID)` (the bridge a tapped MESSAGE notice names),
 `QrLinkRoute(campsiteID)` (what MainActivity queues when the phone's own camera opens a
-live code's link), `OldQRCode` (the dead-code notice) — the graph below registers
+code's link — any code, none of them dead any more), `OldQRCode` (the dead-code notice, registered
+but reachable from nothing) — the graph below registers
 content and bridge frames for every one of these.
 `UserRole` is the UI role (ui/components — ui.md); data-class payloads ARE the route
 arguments (`toRoute<T>()` reads them back). A route argument can only hold a
@@ -371,7 +375,11 @@ line each; `nav` is the app controller, `homeNav` the nested one, all calls as s
     would hide the app-view switch, which is what locked an admin out of their admin abilities
     for good after they switched views and closed the app.
   - ADMIN_PROFILE_VIEW→`DebugGraph`'s start node: `loadAllUsers()` then
-    `AdminProfilesScreen(onNavBack, userModel)`; ADMIN_NOTIFICATION_VIEW→
+    `AdminProfilesScreen(onNavBack, userModel, adminController)` (the shared controller carries
+    out the removals an admin confirms from the list); ADMIN_IMAGES→
+    `AdminImagesScreen(back = onNavBack, adminController)` (US 03.06.01: the admin's browser of
+    every uploaded picture, reading the users and campsites through the controller and drawing
+    `uploadedImagesFor`, each row offering the shared `AdminImageRemoval` panel); ADMIN_NOTIFICATION_VIEW→
     `NotificationLogScreen(title = "Notification Debugging", notificationSource =
     deps.notificationRepository, profileText = { userId -> profileLabelOf(userId,
     userModel.allUsers) }, deleteNotice = …)` (the debug log resolves profile references via ui.md's
@@ -385,7 +393,7 @@ line each; `nav` is the app controller, `homeNav` the nested one, all calls as s
   (Screens with no entry at the mount that registers them — the APP mount's tab nodes
   (`Screen.Explore`, `Screen.MyCampsites`, Messages/Inbox/Bookings) and the HOME mount's
   bridge nodes (`NotifReservations`, `BookingEntry`, `ChatReservationEntry`,
-  `QrLinkRoute`, `OldQRCode`), its `Settings`, and its `DebugGraph` copies — stay
+  `QrLinkRoute`, `OldQRCode` — the last reachable from nothing now a code carries no expiry), its `Settings`, and its `DebugGraph` copies — stay
   registered where nothing navigates. These are NOT dead windows as in the earlier
   half-finished restructure: the SAME graph is live at the mount whose callbacks point
   there, and the root passes shared models into both mounts, so the two copies read one
@@ -415,7 +423,14 @@ line each; `nav` is the app controller, `homeNav` the nested one, all calls as s
   after a successful `removeTag`, so the page re-reads the SAVED record and the tag that was
   taken out is gone from the drawn chips — the page drew its tags when it opened, and the
   removal edited the record, not that copy. The reload re-runs the same `getAll` + ratings
-  read, so a failed reload keeps the last good view and its own error strings. DIVERGENCE, left as the owner's call rather
+  read, so a failed reload keeps the last good view and its own error strings. The picture
+  (US 03.03.01): the header's picture is clickable ONLY for an admin viewing a campsite that
+  HAS one (`role == UserRole.ADMIN && campsite.imageUrl` not blank — otherwise the callback is
+  `null` and the picture is inert); tapping it opens the shared `AdminImageRemoval` panel
+  (ui.md), whose confirm calls `onRemoveImage(reason)` — the node runs
+  `admin.removeImage(ImageKind.CAMPSITE, route.campsiteId, reason)`, toasts the message the
+  controller answers with, and on success redraws the page with `imageUrl = ""` (the record
+  itself is cleared by the controller; the page only drops its own copy). DIVERGENCE, left as the owner's call rather
   than silently changed: the live `onDeleteSite` calls `adminController.deleteCampsite(campsiteId, reason)`
   — the whole-record deletion that cascades through `CampsiteRemovalRepository` (controller.md
   documents BOTH `removeCampsite` as the policy action and `deleteCampsite` as the whole-record
@@ -511,6 +526,12 @@ line each; `nav` is the app controller, `homeNav` the nested one, all calls as s
   holds no settings of their own, so where their own-settings section would sit is the switch.
   The settings controllers are handed to this mount and to nothing else — there is no
   settings screen of their own any more — which is why the app root builds them here.
+  The profile's OWN picture (US 01.08.02): `profileImage = userModel.currentUser`'s stored
+  picture text (empty when none — drawn as a round `StoredImage`, and the initials placeholder
+  when blank) and `onImageChanged` writes ONLY `profileImg` through the same update path and
+  answers the screen with the new text so the picture redraws; the screen's picker reads a
+  picture through `ImageRepository` (data.md) and refuses one it cannot get under the size
+  limit with a message rather than a silent no.
 - `fun NavController.goHome(role, tab = null)` — a LOCAL extension of the app's `nav`, inside
   `CampBnbApp`, because it needs `deps`: it writes `deps.homeTab = tab` and THEN navigates
   `Home(role)` with `popUpTo<Screen.Home> { inclusive = true }; launchSingleTop = true`. The
@@ -540,10 +561,18 @@ there (notifications.md owns the format), MainActivity reads it back through
 nothing queues), and the QR half resolves through `models.qrScreenOfLinkPayload` (models.md
 owns that resolver — it delegates to the tested string decision `qrRouteOfLinkPayload` and
 decodes it; the two forms never disagree). The bridge into the graph is
-`LaunchedEffect(deps.pendingScreen)`: the member is an interface property so a null-check
+`LaunchedEffect(deps.pendingScreen, signedIn)`: the member is an interface property so a null-check
 cannot smart-cast it (this batch's compile error), so it captures `deps.pendingScreen` into
-a local first; when non-null it runs `nav.navigate(pending)` on the APP graph then
-`deps.onPendingRouteHandled()`. The screens it can queue, and the nodes that answer them:
+a local first; when non-null AND `signedIn` it runs `nav.navigate(pending)` on the APP graph then
+`deps.onPendingRouteHandled()`. `signedIn` is an app-level flag the local `goHomeAfterSignIn`
+extension sets the moment the FIRST Home opens — i.e. exactly when sign-in ends, on both the
+found-device path and the sign-up path, since both end at `navToHomePage`. The gate is what
+makes a scanned code log the user in before it lands them anywhere: a code's link the device's
+own camera opened at cold start queues a screen BEFORE this app has run, and opening it there
+would show a campsite to a user who is not logged in and has no data loaded (the reported
+"scanning does none of that"). Re-watching on `signedIn` is what re-runs the bridge the moment
+the first Home opens, so the user is signed in and THEN taken to the campsite. A notice that
+arrives during sign-in waits for the same reason. The screens it can queue, and the nodes that answer them:
 - `Screen.Notifications` / `Screen.Messages` (`CorrespondenceGraph` sub-graph START and its
   tab node): a notice whose record names no id falls back to one of these
   (`screenFor` → `Notifications`, or → `Messages` for a MESSAGE with no reservation id);
@@ -591,7 +620,13 @@ a local first; when non-null it runs `nav.navigate(pending)` on the APP graph th
   assertions.
 - `Screen.ChatReservationEntry(reservationID)` (`CorrespondenceGraph`, tapping a MESSAGE
   record that names a reservation id): `CorrespondenceDestination(MESSAGES_TAB,
-  openReservationId = reservationID)` — the same chat-open the Messages tab gets.
+  openReservationId = reservationID)` — the same chat-open the Messages tab gets. UNDER THE
+  HOME BAR this frame is never reached at all: a chat is state the tab opens, not a place the
+  app navigates to, so the destination's own `openNotice` wrapper intercepts this screen BEFORE
+  any navigation and calls the app-level `openChatHere(reservationID)` instead of `onNavToNotif`
+  (US 01.05.02, item 2 — pushing a frame that redraws the same tab is what made the first back
+  press look like nothing). The composable stays registered and unreachable under the bar, like
+  every other node the mount it is registered in never navigates to.
 - `Screen.QrLinkRoute(campsiteID)` (`MiscGraph`, queued by MainActivity after resolving a
   LIVE code's opened-link text): invisible typed frame; `LaunchedEffect(campsiteID)` when
   it is NOT blank: role = the signed-in user's OWN privileges with the login precedence
@@ -607,8 +642,9 @@ a local first; when non-null it runs `nav.navigate(pending)` on the APP graph th
   follows the CURRENT app view regardless, so the key's role is only a carrier. A live
   code's link reaches the SAME details screen a scan of that code opens — a code names a
   campsite.
-- `Screen.OldQRCode` (`MiscGraph`, queued for a DEAD code's link — stop past, or no expiry
-  at all): `QrOldCodeNoticeScreen(back = onNavBack)` (the root: `nav.navigateUp()`) in
+- `Screen.OldQRCode` (`MiscGraph`, still REGISTERED but reachable from nothing: a code carries
+  no expiry, so no code's link is a dead one — whether to delete the notice screen and its
+  route is NEEDS INFO, parked): `QrOldCodeNoticeScreen(back = onNavBack)` (the root: `nav.navigateUp()`) in
   place of any destination. The two QR screens are distinct typed routes, so the old
   one-segment-wide collision rule against the two-segment campsite link route no longer
   applies.
@@ -625,7 +661,11 @@ other viewer gets TWO (NOTIFICATIONS = the received notices). The VIEW decides t
 the signed-in role — both mounts pass `ownerViewActive = { currentRole() ==
 UserRole.OWNER || currentRole() == UserRole.ADMIN }`, where `currentRole()` is the app
 root's derivation from the live `AppView` setting — so switching views moves the tabs and
-an entrant never reaches the sent notices. `ReceivedNoticesTab` = `viewModel(key =
+an entrant never reaches the sent notices. Under the HOME mount the correspondence graph is
+also handed the app-level chat state — `openChatHere: (String?) -> Unit` (writes
+`AppContainer.openChatReservationId`; null closes the chat) and `chatOpenFor: () -> String?`
+(reads it) — which only that mount passes, so the standalone mount keeps navigating the
+bridge frame as before. `ReceivedNoticesTab` = `viewModel(key =
 "notification-inbox-$userId", factory = simpleViewModelFactory {
 NotificationViewModel(notificationController, userId) })` → `NotificationInboxScreen(navToNotification
 = { notification -> onNavToNotif(NotificationRoutes.screenFor(notification)) })` — `viewModel()`
@@ -634,7 +674,11 @@ keeps the same inbox (and its Firestore listener) across recompositions (viewMod
 (notifications.md's `screenFor`), so an in-app notice tap runs the same bridges the banner
 tap above does. `MessagesTab` = same pattern with `MessageViewModel(controller, userId)` +
 `simpleViewModelFactory`; a non-null `openReservationId` calls `messageViewModel.open(id)`;
-draws `MessagesScreen(viewModel, currentUserId = userId)`.
+draws `MessagesScreen(viewModel, currentUserId = userId)`. Under the home bar the tab's open
+id is the app-level fact instead — `chatOpenFor() ?: openReservationId` — so the chat a notice
+tap opened stays open while the tab is showing, and the graph clears the fact on ENTRY to the
+Messages tab (`LaunchedEffect(Unit) { openChatHere(null) }` in the `composable<Screen.Messages>`),
+so a chat never carries over into the next visit.
 
 ## Shared window components (`destinations/`, `tabs/`, `panels/`) — pick per viewer, delegate to ui
 
@@ -646,9 +690,16 @@ destination owns where back and outward jumps go. Signatures (as declared):
   null, onNavBack = {}, ownerViewActive, userId, repo, notifController, msgController,
   onNavToNotif: (screen: Screen) -> Unit, deleteNotice: (String, (removed: Boolean) ->
   Unit) -> Unit = { _, _ -> }, unresolvedProfileText: (String) -> String =
-  unresolvableProfileLabel)`: ui's `CorrespondenceScreen` with the tabs this viewer has (tab
+  unresolvableProfileLabel, openChatHere: ((String?) -> Unit)? = null, chatOpenFor:
+  () -> String? = { null })`: ui's `CorrespondenceScreen` with the tabs this viewer has (tab
   wiring above); `openTab` names which one opens (`CorrespondenceTabs`, ui.md); a non-null
-  `openReservationId` opens the Messages tab straight into that reservation's chat. Every
+  `openReservationId` opens the Messages tab straight into that reservation's chat. The last
+  two are the home-bar chat state, and only that mount passes them: `openNotice` is the
+  destination's own wrapper over `onNavToNotif`, and when `openChatHere` is present it
+  intercepts `Screen.ChatReservationEntry` — a chat tap sets the app-level state
+  (`openChatHere(reservationID)`) instead of navigating — while every other tap still calls
+  `onNavToNotif`; the Messages tab's open id is then `chatOpenFor() ?: openReservationId`, so
+  the chat a tap opened stays open while the tab shows. Every
   branch is handed a `deleteNotice` that answers with whether the store confirmed the removal:
   the graph builds one that runs data.md's `NotificationCommand.Delete` over the entry the
   viewer was shown, toasts `"Could not remove that notice: <reason>"` on failure, then reports

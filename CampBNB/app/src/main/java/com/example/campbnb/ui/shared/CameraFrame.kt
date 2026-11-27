@@ -11,17 +11,21 @@ package com.example.campbnb.ui.shared
  * typed. A test provider hands back a chosen frame, the way DeviceId lets a test
  * replace its source.
  *
- * This platform, so far, can only hand back no frame of bytes: its camera controller
- * (android.hardware.camera2.CameraManager) is a final class whose constructor is
- * package-private, so no platform-only Kotlin here can start one, and a captured frame
- * plane (android.media.Image.Plane) keeps its bytes in java.io.ByteBuffer, a buffer type
- * this platform's runtime no longer exposes, so no bytes could be copied out even if a
- * camera could be started. The androidx.camera path can now start the device camera and
- * show what it sees as a live preview on the scanner screen (US 01.05.02, live
- * scanner), but it hands back no picture bytes either, so this provider seam stays
- * frameless on the device. Both facts were read off the platform itself by letting it
- * compile. A real device provider belongs where NoCameraFrame is used below; the frame
- * reader and the screens are written so that adding one changes nothing else.
+ * This platform, so far, can only hand back no frame of bytes, and that was re-read
+ * off the compiler rather than assumed: what resolves here is the live-preview path
+ * (`Preview.Builder`, `CameraSelector.of`, `ImageProcessor.Builder`) — what does NOT is
+ * anything that could produce an analyzed frame: `androidx.camera.core.ImageAnalysis`
+ * names a class but its nested `Builder` does not resolve, `androidx.camera.core.ImageSource`
+ * is absent, and neither `processWithProcessor` nor `attachImageProcessor` is a member.
+ * So no frame can be started from this app's camera session, which is the whole reason
+ * the seam stays frameless on the device. (The older dead path, kept for history: the
+ * camera2 `CameraManager` is a final class with a package-private constructor, and its
+ * frame planes keep bytes in a `java.io.ByteBuffer` type this runtime no longer exposes.)
+ * A QR DECODER over pixels is separately absent too — Barleader's `BarcodeReader.read`
+ * takes only the unnameable `BufferedImage!` that `javax.imageio.ImageIO` returns, and
+ * that runtime is not on the device — so a frame's bytes could not be read even if one
+ * could be had. A real device provider belongs where NoCameraFrame is used below; the
+ * frame reader and the screens are written so that adding one changes nothing else.
  */
 
 interface CameraFrameSource {

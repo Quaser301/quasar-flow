@@ -39,7 +39,7 @@ class QrCameraFrameTest {
     // TEST: a frame holding a drawn code reads back as the code's own text
     @Test
     fun aFrameOfADrawnCode_readsBackTheCodesText() {
-        val code = QRCode(campsiteId = "frame-round-trip", stopsAtMillis = 0L)
+        val code = QRCode(campsiteId = "frame-round-trip")
         val frameBytes = qrImageFileBytes(code)
         assertEquals(code.payload(), qrTextOfImageBytes(frameBytes))
     }
@@ -60,7 +60,7 @@ class QrCameraFrameTest {
     // TEST: a frame the caller hands over is read through the same door a file is read
     @Test
     fun oneFrameCamera_handsTheChosenFrameToTheReader() {
-        val code = QRCode(campsiteId = "held-up-frame", stopsAtMillis = 1700000000000L)
+        val code = QRCode(campsiteId = "held-up-frame")
         val provider = OneFrameCamera(qrImageFileBytes(code))
         var frameText: String? = null
         provider.requestFrame { frame ->
@@ -86,7 +86,7 @@ class QrCameraFrameTest {
     // screen waiting on a frame never hears twice
     @Test
     fun aFrameProvider_answersItsCallerAtMostOnce() {
-        val code = QRCode(campsiteId = "held-up-frame", stopsAtMillis = 0L)
+        val code = QRCode(campsiteId = "held-up-frame")
         var answers = 0
         OneFrameCamera(qrImageFileBytes(code)).requestFrame { frame ->
             answers += 1

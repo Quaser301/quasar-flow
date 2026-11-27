@@ -244,13 +244,11 @@ fun getOpenDates(campsiteId: String, onSuccess: (Set<String>) -> Unit, onFailure
 ## QR codes — the entity, the codec, and reading scanned text
 
 ```kotlin
-data class QRCode(campsiteId: String = "", stopsAtMillis: Long = 0)
-//  stopsAtMillis == 0 (January 1, 1970) means the code carries NO expiry: such a code
-//  is an old one and works at NO time at all (US 01.05.02 answer; the old "0 = never
-//  stops working" reading is replaced)
-fun payload(): String = "CAMPBNB:" + campsiteId + ":" + stopsAtMillis   // prefix is a private const "CAMPBNB"
+data class QRCode(campsiteId: String = "")
+//  the expiry is DROPPED (US 01.05.02): a code carries its campsite and NOTHING else,
+//  so it works at EVERY time and there is no such thing as a dead code any more
+fun payload(): String = "CAMPBNB:" + campsiteId          // prefix is a private const "CAMPBNB"
 fun fileName(): String = "${downloadSafeName(campsiteId)}.qr.png"
-fun isValidAt(atMillis: Long): Boolean   // a code without an expiry never works; otherwise atMillis <= stopsAtMillis
 ```
 - Campsite ids are document ids and never contain colons, which is what makes the text
   always split back.
@@ -258,9 +256,11 @@ fun isValidAt(atMillis: Long): Boolean   // a code without an expiry never works
 ```kotlin
 fun qrCodeOfScannedText(payload: String): QRCode?
 ```
-- Split on ":"; must be exactly 3 parts, first exactly `CAMPBNB`, second NON-BLANK, third
-  parseable as Long — otherwise `null` (an expired-but-real code DECODES; expiry is a
-  property of the decoded code, not a decode failure).
+- Split on ":"; must be exactly 2 parts, first exactly `CAMPBNB`, second NON-BLANK —
+  otherwise `null`. There is no expired-but-real code to distinguish from a broken one
+  any more: text carrying a segment past the campsite is NOT this app's code text
+  (codes printed before the expiry was dropped carry one and no longer read; whether to
+  accept that legacy spelling is NEEDS INFO, parked).
 
 ```kotlin
 fun codeTextOfOpenedLink(openedText: String): String?
@@ -278,9 +278,9 @@ fun codeTextOfOpenedLink(openedText: String): String?
 
 ```kotlin
 val qrPayloadExtraKey = "campbnb.qrPayload"   // Intent extra MainActivity reads for opened links
-val qrLinkRoute = "qr-link"                   // graph route prefix a live code's link opens under
-val qrOldCodeRoute = "qr-link-old"            // dead-code notice route (ONE segment: can never collide with the two-segment link)
-fun qrRouteOfLinkPayload(payload: String, atMillis: Long = System.currentTimeMillis()): String?
+val qrLinkRoute = "qr-link"                   // graph route prefix a code's link opens under
+val qrOldCodeRoute = "qr-link-old"            // kept and still registered, but NO code text reaches it any more
+fun qrRouteOfLinkPayload(payload: String): String?
 ```
 - The link story (US 01.05.02): the phone's own camera hands the app the opened code's TEXT
   through `qrPayloadExtraKey`, exactly as a notification tap hands over `EXTRA_ROUTE` — or, now
@@ -288,22 +288,20 @@ fun qrRouteOfLinkPayload(payload: String, atMillis: Long = System.currentTimeMil
   `codeTextOfOpenedLink` above turns back into code text before it reaches this decision
   (app.md owns which of the two a device chose); MainActivity resolves the typed twin
   `qrScreenOfLinkPayload` below and queues its screen on `pendingScreen`; the TEXT decision is
-  what tests pin. `qrRouteOfLinkPayload`
-  rules: text that is not code text → `null` (nothing is queued, the app just opens); a DEAD
-  code — its stop already past, OR no expiry at all (the reserved 0 means old, not never-working)
-  → `qrOldCodeRoute`; a code that still works → `"$qrLinkRoute/$campsiteId"` (the same campsite
-  a scan opens — a code carries its campsite, not a lottery). `atMillis` is the moment the link
-  is opened, an injectable time seam (same convention as `scanQr`'s `clock`); tests pass fixed
-  moments.
+  what tests pin. `qrRouteOfLinkPayload` rules: text that is not code text → `null` (nothing is
+  queued, the app just opens); anything that IS code text → `"$qrLinkRoute/$campsiteId"`, the
+  same campsite a scan opens. There is no clock to ask and no dead-code branch to take: a code
+  carries no expiry, so `qrOldCodeRoute` is unreachable from code text.
 
 ```kotlin
-fun qrScreenOfLinkPayload(payload: String, atMillis: Long = System.currentTimeMillis()): Screen?
+fun qrScreenOfLinkPayload(payload: String): Screen?
 ```
 - The typed twin of the decision above, for the app's own crossing (the same pairing as
   notifications.md's `routeFor`/`screenFor`): it resolves THROUGH `qrRouteOfLinkPayload`
-  and decodes the text — `qrOldCodeRoute` → `Screen.OldQRCode`, a `"$qrLinkRoute/…"`
-  text → `Screen.QrLinkRoute(campsiteId)` (the id after the prefix), anything else →
-  `null`. The two forms never disagree; the string rules above are the whole decision.
+  and decodes the text — a `"$qrLinkRoute/…"` text → `Screen.QrLinkRoute(campsiteId)` (the
+  id after the prefix), anything else → `null`. The `qrOldCodeRoute` → `Screen.OldQRCode`
+  mapping stays in the decode so the registered notice screen keeps compiling, but no code
+  text produces it. The two forms never disagree; the string rules above are the whole decision.
 
 ```kotlin
 fun qrImageFileBytes(qrCode: QRCode): ByteArray          // the real PNG bytes of this code's grid
@@ -457,8 +455,29 @@ fun activeCount(): Int   // counts location (non-blank), startDate (non-empty), 
 
 - `data class BookingCardData(id, lotteryId: String, campsiteNames: List<String>, status: String, startDate = "", endDate = "", guests = 0)` —
   NOT Identifiable, pure display data (bookings screen).
-- `Image`, `Location`, `NotificationModel`, `Reservation` (marked `// DELETE`) are empty
-  placeholder classes — no behavior; tests do not stand them up.
+- `Location`, `NotificationModel`, `Reservation` (marked `// DELETE`) are empty
+  placeholder classes — no behavior; tests do not stand them up. (`Image.kt` was deleted
+  upstream: a picture is stored as text inside the record that owns it, and what the
+  admin browses is `UploadedImage` below.)
+
+## UploadedImage — what the admin browses and removes (US 03.06.01, US 03.03.01)
+
+`models/UploadedImage.kt` — a VIEW over saved campsites and users; nothing here is
+written to the database.
+
+- `enum class ImageKind(val label: String)`: `CAMPSITE("Campsite")` (the picture an
+  owner gave a campsite, US 02.01.02) and `PROFILE("Profile")` (the picture an entrant
+  gave their profile, US 01.08.02). The label is what the admin's screens show.
+- `class UploadedImage(kind: ImageKind, sourceId: String, title: String, image: String)`
+  — one uploaded picture. `sourceId` is the id of the campsite or user the picture
+  belongs to (the admin's removal is addressed to it); `title` is that owner's display
+  name; `image` is the picture as stored Base64 text, never blank. `val key: String`
+  is `kind.name + "_" + sourceId` — a key no other picture shares, for lists and test
+  tags.
+- `fun uploadedImagesFor(campsites: List<Campsite>, users: List<User>): List<UploadedImage>`
+  — every uploaded picture: campsites first, then profiles, each group ordered by name
+  case-insensitively; records with no picture are left out; a blank display name reads
+  as `"(no name)"`.
 
 ## Standing models up in tests
 

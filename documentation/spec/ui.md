@@ -67,15 +67,20 @@ they agree on every enum value.
 - `interface CameraFrameSource { fun requestFrame(onFrame: (ByteArray?) -> Unit) }`
 - `class NoCameraFrame : CameraFrameSource` — every request answers `onFrame(null)`.
 JVM-reachable: construct `NoCameraFrame()` and assert the callback receives null. The
-in-source note records why a real provider cannot exist on this platform (camera2
-`CameraManager` is a final class with a package-private constructor; frame planes keep
-bytes in a `java.io.ByteBuffer` type this runtime no longer exposes) — matches the
-night-run finding; do not try to build a camera provider in a test. The androidx.camera
-path (US 01.05.02, live scanner) CAN now start the device camera — MainActivity asks the
-device for its camera at start and only a refusal is carried as an app-level fact, so the
-scanner screen opens a camera unless the device said no — and the scanner screen shows its
-live preview, but that path hands back no picture bytes
-either, so this seam stays frameless on the device.
+in-source note records why a real provider cannot be written HERE, and that was re-read
+off the compiler this round — do not try to build a camera provider in a test or in app
+code. What the platform DOES resolve: `Preview.Builder`, `CameraSelector.of`,
+`ImageProcessor.Builder` (so the live preview works, US 01.05.02). What it does NOT:
+`androidx.camera.core.ImageAnalysis.Builder` (the class resolves, its nested Builder does
+not), `androidx.camera.core.ImageSource` (absent), `ImageAnalysis.processWithProcessor`
+and `ImageAnalysis.attachImageProcessor` (absent) — so no analyzed frame can be started,
+which is the whole reason the seam stays frameless. (The older camera2/`java.io.ByteBuffer`
+wording below is the OTHER dead path, kept for history: `CameraManager` is a final class
+with a package-private constructor and frame planes keep bytes in a buffer type this
+runtime no longer exposes.) A QR DECODER over pixels is separately absent: Barleader's
+`BarcodeReader.read` accepts only the unnameable `BufferedImage!` that `javax.imageio.ImageIO`
+returns, and that runtime is not on the device, so a frame's bytes could not be read even
+if a frame could be had.
 
 `ui.shared/DeviceId.kt`: `object DeviceId { fun get(context, src: () -> String = { …ANDROID_ID… }): String = src() }` —
 returns whatever `src()` returns (the real source is `Settings.Secure.getString(context.contentResolver, ANDROID_ID)`).
@@ -108,6 +113,21 @@ the TODO block in this file is a developer note (future rating-section placement
   and the search view's bar both call this, so the two burgers can never list different
   items (fix 11); a caller supplies only what choosing means in its view, and
   `active(option)` appends `" ✓"` to options whose section is already showing.
+
+`ui.shared/SharedImage.kt` (US 02.01.02, US 01.08.02 — the screen side of ImageRepository):
+- `fun decodeStoredImage(stored: String): ImageBitmap?` — the Base64 text of image bytes →
+  a bitmap; `null` for blank text or text that is not a valid image. Accepts plain Base64
+  and `data:image/...;base64,...` spelling. JVM-reachable only through the null arms (the
+  decode itself runs on Android picture decoders): blank and not-Base64 both answer null.
+- `@Composable fun StoredImage(stored, contentDescription, modifier = Modifier, contentScale =
+  ContentScale.Fit)` — draws the picture in [stored], decoding OFF the main thread; draws
+  NOTHING while decoding or when the text is blank or not an image, so a caller puts its own
+  fallback (initials, say) underneath.
+- `@Composable fun rememberImagePicker(maxEdge, onPicked: (String) -> Unit, onFailed: () -> Unit):
+  () -> Unit` — prepares the phone's photo picker and returns a function that opens it (call
+  it from a button's click). A chosen picture is shrunk and turned into text by
+  `ImageRepository` off the main thread, then handed to `onPicked`; a choice that is not an
+  image or is too big to store runs `onFailed`; backing out of the picker calls neither.
 
 ### ui.screens — home-bar vocabulary (HomeScreen.kt)
 
@@ -177,7 +197,10 @@ names that in its notice instead. The in-app image-file scan (the `image_path_fi
 text field and its `image_scan` button) is GONE: the user called it bulky and the phone's own
 camera opens a code's link instead (the registered `campbnb` scheme, app.md); the screen keeps
 its live preview, the typed-code field, the frame-reading seam and the Open button. Screen-internal
-wiring only — no parameter or call-site change, and the frame-reading seam is untouched. `ui.screens/messagesScreen.kt` (package **ui.inbox**): private
+wiring only — no parameter or call-site change, and the frame-reading seam is untouched. A code
+that names a registered campsite opens it through `onOpenCampsite`; text that is not code text,
+or names a campsite that is not registered, says so in the notice — there is no expired arm and
+no "that code stopped working" message any more, since a code carries no expiry (models.md). `ui.screens/messagesScreen.kt` (package **ui.inbox**): private
 drawing helpers `ConversationList/ConversationRow/ChatThread/MessageBubble` +
 `private relativeTime(seconds: Long?): String = seconds?.let { DateUtils.getRelativeTimeSpanString(seconds*1000L, System.currentTimeMillis(), MINUTE_IN_MILLIS).toString() } ?: "Just now"`
 — null seconds ⇒ `"Just now"`; file-PRIVATE (and DUPLICATED identically in
@@ -306,15 +329,35 @@ Sort ties between users with equal keys are NOT spec'd (stable-sort detail — d
 `roleLabelOf` uses the enum's generated name (models.md's `Role` has no custom name) ⇒
 uppercase tokens `ENTRANT`/`OWNER`/`ADMIN` separated by `/` in the user's stored roles ORDER
 (no dedup, no sort). Empty users list ⇒ empty list ("no users means no rows").
-`ui.admin/AdminActivity.kt` + `PolicyActivity.kt` are near-empty placeholder classes
-(admin actions go through `AdminController`, controller.md).
+`ui.admin/AdminActivity.kt` and `PolicyActivity.kt` were deleted upstream (admin actions go
+through `AdminController`, controller.md).
 
 The screen itself is `AdminProfilesScreen(back, userModel, adminController)` — the third
-argument carries out the deletion an admin confirms (app.md shows the shared instance). Its
-drawn surface: each row offers a delete action; confirming opens `ConfirmRemovalDialog` with
-`reasonRequired = false` (a profile may be deleted without naming a reason), and the message
-the action answers with is drawn back into the list under testTag `profiles_message` while it
-is non-blank.
+argument carries out the removals an admin confirms (app.md shows the shared instance). Its
+drawn surface: each row (`ProfileEntry`, file-private) offers a settings toggle, a delete
+action, a remove-owner action (tapping the row's ROLES label), and — when the user has a
+picture — the picture itself, a 44dp round `StoredImage` under testTag `profile_image_<userId>`,
+tapping it opening the image removal. Confirming a profile delete opens `ConfirmRemovalDialog`
+with `reasonRequired = false` (a profile may be deleted without naming a reason); confirming an
+OWNER removal opens the same dialog with `reasonRequired = true` and title `Remove this
+campsite owner?` (the cascade is `AdminController.removeOwner`, controller.md); tapping the
+picture opens `AdminImageRemoval` (below), whose confirm calls
+`adminController.removeImage(ImageKind.PROFILE, <userId>, reason)`. Whatever any of these
+answers with is drawn back into the list under testTag `profiles_message` while it is non-blank.
+
+`ui.admin/AdminImageRemoval.kt` — `fun AdminImageRemoval(title, stored,
+onRemove: (RemovalReason?) -> Unit, onDismiss: () -> Unit)`: the one "remove this picture?"
+panel every image removal opens. It shows the picture (`StoredImage`), lists every
+`RemovalReason` as a radio row (same testTag shape as `ConfirmRemovalDialog`), and its
+confirm calls `onRemove` with the picked reason (a reason is required); closing it —
+cancelled or confirmed — calls `onDismiss`.
+
+`ui.admin/AdminImagesScreen.kt` — `fun AdminImagesScreen(back, adminController)` (US 03.06.01,
+the admin's browser of every uploaded picture): it reads the users list and the campsites
+through the controller and draws `uploadedImagesFor` (models.md) as one row per picture —
+campsites first, then profiles — each row showing the picture, its kind's label and its
+owner's title, and offering the same `AdminImageRemoval` panel addressed to that picture's
+`sourceId`. It is registered bare in `DebugGraph` (graphs.md), not a bottom-bar tab.
 
 ### ui.admin — the removal dialogs (shared view)
 
@@ -442,13 +485,14 @@ labels an unresolvable reference draws is the caller's decision, keyed on the li
 (app.md). The sent tab still passes `rawIdsAllowed = false` — a person reading the notices
 they caused is not reading database keys.
 
-### ui.theme, ui.profile, ui.booking — no test surface
+### ui.theme, ui.booking — no test surface
 
 `ui.theme/` (Color/Type tokens: `FieldGrey`, `ButtonGradient`, `DataColor`, `DataColorImportant`,
-`CampBnbTheme`) — visual tokens, no behavior. `ui.profile/ProfileActivity.kt` and every
-`ui/booking/*Activity.kt` (3–4 lines) are empty placeholder classes — future screen
-namespaces; today the bookings/reservations renderers are `ui.screens` (BookingsScreen) and
-the app-level `ReservationsPanel` (app.md).
+`CampBnbTheme`) — visual tokens, no behavior. `ui/booking/*Activity.kt` (3–4 lines) are empty
+placeholder classes — future screen namespaces; today the bookings/reservations renderers are
+`ui.screens` (BookingsScreen) and the app-level `ReservationsPanel` (app.md). (`ui.profile/`
+and the `ui.admin/` + `ui/campsite/` placeholder Activities were deleted upstream: the profile
+renders through `ui/screens/ProfileScreen.kt` and the admin's screens are real now.)
 
 ## Standing ui up in tests
 

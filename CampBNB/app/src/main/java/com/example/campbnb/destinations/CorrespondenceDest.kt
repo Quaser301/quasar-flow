@@ -50,7 +50,26 @@ fun CorrespondenceDestination(
     onNavToNotif: (screen: Screen) -> Unit,
     deleteNotice: (String, (removed: Boolean) -> Unit) -> Unit = { _, _ -> },
     unresolvedProfileText: (String) -> String = unresolvableProfileLabel,
+    // Only the home-bar mount passes this: under the bar a chat is not a place to
+    // navigate to, it is a thing the messages tab opens. A pushed bridge frame draws the
+    // same tab again, so the back press that clears it looks like nothing happened — the
+    // reported extra press. Without this channel a MESSAGE notice still names its typed
+    // bridge, which is what the standalone mount does. `openChatHere` opens one (null
+    // closes it, which is what entering the tab does), `chatOpenFor` reads which one is
+    // open.
+    openChatHere: ((String?) -> Unit)? = null,
+    chatOpenFor: () -> String? = { null },
 ) {
+    // A tapped notice either names a bridge the caller navigates to, or — for a chat,
+    // where the caller can open one — opens its chat in the tab it was tapped from.
+    val openNotice: (screen: Screen) -> Unit = { screen ->
+        val openChat = openChatHere
+        if (openChat != null && screen is Screen.ChatReservationEntry) {
+            openChat(screen.reservationID)
+        } else {
+            onNavToNotif(screen)
+        }
+    }
     if (ownerViewActive()) {
         CorrespondenceScreen(
             tabLabels = listOf(
@@ -66,11 +85,11 @@ fun CorrespondenceDestination(
                 ReceivedNoticesTab(
                     userId,
                     notifController,
-                    onNavToNotif,
+                    openNotice,
                     deleteNotice
                 )
              },
-            messagesTabContent = { MessagesTab(openReservationId, userId, msgController) },
+            messagesTabContent = { MessagesTab(chatOpenFor() ?: openReservationId, userId, msgController) },
             onNavBack = onNavBack
         )
     } else {
@@ -84,11 +103,11 @@ fun CorrespondenceDestination(
                 ReceivedNoticesTab(
                     userId,
                     notifController,
-                    onNavToNotif,
+                    openNotice,
                     deleteNotice
                 )
             },
-            messagesTabContent = { MessagesTab(openReservationId, userId, msgController) },
+            messagesTabContent = { MessagesTab(chatOpenFor() ?: openReservationId, userId, msgController) },
             onNavBack = onNavBack
         )
     }
