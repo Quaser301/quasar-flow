@@ -21,6 +21,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
@@ -34,6 +35,7 @@ import com.example.campbnb.ui.components.StarGlyph
 import com.example.campbnb.ui.components.UserRole
 import com.example.campbnb.ui.screens.RoleBottomBar
 import com.example.campbnb.ui.screens.tabsFor
+import com.example.campbnb.ui.shared.StoredImage
 import com.example.campbnb.ui.theme.*
 import java.util.Locale
 import kotlin.math.roundToInt
@@ -155,7 +157,7 @@ fun CampsiteDetailsScreen(
                         .padding(bottom = 16.dp),
                     verticalArrangement = Arrangement.spacedBy(20.dp)
                 ) {
-                    DetailsHeader(campsite.name, onBack)
+                    DetailsHeader(campsite.name, campsite.imageUrl, onBack)
 
                     Column(
                         Modifier.padding(horizontal = 16.dp),
@@ -283,12 +285,14 @@ fun CampsiteDetailsScreen(
 }
 
 /**
- * The top of the page: a green banner with the back circle and the campsite's name.
- * Todo: the campsite's picture (CampsiteDetails.imageUrl) is not shown yet because the app has
- * no image loader; when it does, draw the picture behind the dark fade below.
+ * The top of the page: the campsite's picture (US 02.01.02) behind the back circle and the
+ * campsite's name. The green gradient underneath is what shows for a campsite with no
+ * picture, or while the picture is still decoding or if it can't be decoded.
+ *
+ * @param imageData The campsite's picture as stored text (CampsiteDetails.imageUrl); empty if none.
  */
 @Composable
-private fun DetailsHeader(name: String, onBack: () -> Unit) {
+private fun DetailsHeader(name: String, imageData: String, onBack: () -> Unit) {
     Box(
         Modifier
             .fillMaxWidth()
@@ -296,6 +300,13 @@ private fun DetailsHeader(name: String, onBack: () -> Unit) {
             .clip(RoundedCornerShape(bottomStart = 28.dp, bottomEnd = 28.dp))
             .background(ScreenGradient)
     ) {
+        // Draws nothing when there is no picture, so the gradient above stays visible.
+        StoredImage(
+            stored = imageData,
+            contentDescription = name,
+            modifier = Modifier.fillMaxSize().testTag("details_image"),
+            contentScale = ContentScale.Crop
+        )
         // Darkens the bottom so the white name stays readable on any picture.
         Box(
             Modifier
