@@ -241,14 +241,42 @@ fun getPending(campsiteId, onSuccess, onFailure)
 ```kotlin
 fun activateDueReservations(today: String = DateUtils.today(), onComplete: (Result<Int>) -> Unit)
 ```
-- Reads every PENDING reservation across ALL campsites, keeps those whose `startDate` is nonblank
-  and `<= today`, and rewrites each to ACTIVE one at a time; `onComplete` receives
-  `Result.success(count)` of how many were moved, or `Result.failure(exception)` when the read
-  fails. This is the clock half: a reservation becomes due when its start date arrives.
-  The private walker `updateDueReservationStatuses` also carries an `ACTIVE → PAST` branch
-  (`endDate < today`), but this entry point only ever hands it PENDING records, so that branch
-  is unreachable here — `getPast` reads `status == ACTIVE` with `endDate < today` instead, and
-  nothing in this app ever writes `PAST` by hand.
+- The read is ONE chain, stated exactly: `engine.query()` → ONE clause
+  `whereEquals(ReservationModel::status, ReservationStatus.PENDING.name)` → `execute(onSuccess, onFailure)`.
+  This is the raw engine chain, NOT a `FirestoreQueryViewModel` run — `fetchAll()` and `executeQuery(block)`
+  (database.md's ViewModel forms) are not involved and no `queryState` is observable here.
+  There is NO date clause and there cannot be one: `whereLessThanOrEqual` is not in the engine
+  (the clause list in database.md is the whole set — `whereEquals`/`whereIn`/`whereGreaterThanOrEqual`/
+  `whereGreaterThan`/`whereLessThan`/`orderBy`/`limitResults`), so the query selects by STATUS ONLY
+  and the due-check never runs in the query. The clause's value is the STRING
+  `ReservationStatus.PENDING.name` — the document field holds the status NAME as a string (`save`
+  and every `update` write `status.name`), so a mock that filters its own fixtures against the
+  clause must compare against that string, not against the enum.
+- `onSuccess` receives the `List<ReservationModel>` the chain matched; the due-check is a client-side
+  predicate over THOSE objects, verbatim: `it.startDate.isNotBlank() && it.startDate <= today`.
+  `today` is a `yyyy-MM-dd` STRING (`models.DateUtils.today()` is `SimpleFormatter("yyyy-MM-dd", Locale.US)`
+  over the current `Date()`), so the comparison is LEXICOGRAPHIC — it orders correctly only for that
+  spelling, and a record whose `startDate` is blank or spelled otherwise is NOT due and never moves.
+- The survivors are handed to the private walker `updateDueReservationStatuses(reservations, index,
+  updatedCount, onComplete)`, which re-checks EACH record again and asks `DateUtils.today()` AGAIN
+  per record — the `today` PARAMETER reaches only the filter above, never the walker, so a mock that
+  pins the clock by passing that parameter still gets the walker's own clock. The walker's transition
+  table: `PENDING` → `ACTIVE` when `startDate <= today`, else no transition; `ACTIVE` → `PAST` when
+  `endDate < today`, else none; any other status → none. This entry point hands it only PENDING
+  records (the clause and the filter both keep them PENDING), so its `ACTIVE → PAST` row is
+  unreachable here — `getPast` reads `status == ACTIVE` with `endDate < today` instead, and nothing
+  in this app ever writes `PAST` by hand.
+- Each record with a due transition is written ONE AT A TIME, in the order the chain answered, through
+  `reservationWriter.update(id = reservation.id, fieldMap = mapOf("status" to newStatus.name))` — ONLY
+  the `status` field changes — and the walk continues only while that write succeeds.
+- `onComplete` receives `Result.success(count)` where count is the number of records whose write
+  SUCCEEDED (a record with no due transition is skipped and never counted), or `Result.failure(…)`
+  from the FIRST failing write — the write's own exception, or `Exception("Could not update reservation
+  status")` when the envelope carries none — or from a failed read, the read's exception.
+- Observable for a mock, and the reason a scripted chain can move nothing: records whose `startDate`
+  is blank or not `yyyy-MM-dd` are NOT due, so the answer is `Result.success(0)` and `reservationWriter.update`
+  is never called at all. A chain that answers records whose `status` is not `PENDING` moves none of
+  them either — that is the clause, not the filter.
 
 ```kotlin
 fun getCancelled(campsiteId, onSuccess, onFailure)
