@@ -119,6 +119,10 @@ sealed interface Screen {
     @Serializable
     data object AdminProfileView : Screen
 
+    // the admin's browser of every uploaded picture (US 03.06.01).
+    @Serializable
+    data object AdminImages : Screen
+
     @Serializable
     data object AdminNotificationView : Screen
 

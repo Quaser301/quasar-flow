@@ -164,10 +164,6 @@ fun NavGraphBuilder.MiscGraph(
         PlaceholderTab("Reports")
     }
 
-    composable<Screen.Flagged> {
-        PlaceholderTab("Flagged")
-    }
-
     // The phone's own camera opens a CampBNB code's link here: MainActivity has
     // already resolved the code's text into one of these routes and queued it on
     // pendingScreen, the same bridge a notification tap uses, and the sign-in ran
