@@ -22,21 +22,27 @@ private val BookingGray = Color(0xFFD9D9D9)
 
 enum class BookingTab {
     CONFIRMED,
-    PENDING
+    PENDING,
+    PAST
 }
 
 @Composable
 fun BookingsScreen(
     confirmedBookings: List<BookingCardData>,
     pendingBookings: List<BookingCardData>,
+    pastBookings: List<BookingCardData>,
     selectedTab: BookingTab,
     onTabSelected: (BookingTab) -> Unit,
     onBookingClick: (BookingCardData) -> Unit = {},
-    onMessageOwnerClick: (BookingCardData) -> Unit = {}
+    onMessageOwnerClick: (BookingCardData) -> Unit = {},
+    onAcceptWin: (BookingCardData) -> Unit = {},
+    onDeclineWin: (BookingCardData) -> Unit = {},
+    onSelectDates: (BookingCardData) -> Unit = {}
 ) {
     val displayedBookings = when (selectedTab) {
         BookingTab.CONFIRMED -> confirmedBookings
         BookingTab.PENDING -> pendingBookings
+        BookingTab.PAST -> pastBookings
     }
 
     Column(
@@ -45,85 +51,97 @@ fun BookingsScreen(
             .background(Color.White)
             .padding(horizontal = 16.dp, vertical = 18.dp)
     ) {
-        Column(
+        Text(
+            text = "My Bookings",
+            fontSize = 24.sp,
+            fontWeight = FontWeight.Bold,
+            color = Color.Black
+        )
+
+        Spacer(Modifier.height(18.dp))
+
+        Row(
             modifier = Modifier
-                .fillMaxSize()
-                .padding(horizontal = 16.dp, vertical = 18.dp)
+                .fillMaxWidth()
+                .background(BookingGray, RoundedCornerShape(50.dp))
+                .padding(3.dp)
         ) {
-            Text(
-                text = "My Bookings",
-                fontSize = 24.sp,
-                fontWeight = FontWeight.Bold,
-                color = Color.Black
-            )
-
-            Spacer(Modifier.height(18.dp))
-
-            Row(
+            BookingTabButton(
+                label = "Confirmed",
+                selected = selectedTab == BookingTab.CONFIRMED,
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .background(BookingGray, RoundedCornerShape(50.dp))
-                    .padding(3.dp)
+                    .testTag("booking_tab")
+                    .weight(1f)
             ) {
-                BookingTabButton(
-                    label = "Confirmed",
-                    selected = selectedTab == BookingTab.CONFIRMED,
-                    modifier = Modifier.testTag("booking_tab").weight(1f)
-                ) {
-                    onTabSelected(BookingTab.CONFIRMED)
-                }
-
-                BookingTabButton(
-                    label = "Pending",
-                    selected = selectedTab == BookingTab.PENDING,
-                    modifier = Modifier.testTag("booking_tab").weight(1f)
-                ) {
-                    onTabSelected(BookingTab.PENDING)
-                }
+                onTabSelected(BookingTab.CONFIRMED)
             }
 
-            Spacer(Modifier.height(16.dp))
+            BookingTabButton(
+                label = "Pending",
+                selected = selectedTab == BookingTab.PENDING,
+                modifier = Modifier
+                    .testTag("booking_tab")
+                    .weight(1f)
+            ) {
+                onTabSelected(BookingTab.PENDING)
+            }
 
-            if (displayedBookings.isEmpty()) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 12.dp),
-                    contentAlignment = Alignment.TopCenter
+            BookingTabButton(
+                label = "Past",
+                selected = selectedTab == BookingTab.PAST,
+                modifier = Modifier
+                    .testTag("booking_tab")
+                    .weight(1f)
+            ) {
+                onTabSelected(BookingTab.PAST)
+            }
+        }
+
+        Spacer(Modifier.height(16.dp))
+
+        if (displayedBookings.isEmpty()) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 12.dp),
+                contentAlignment = Alignment.TopCenter
+            ) {
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    color = BookingGray
                 ) {
-                    Surface(
-                        shape = RoundedCornerShape(12.dp),
-                        color = BookingGray
-                    ) {
-                        Text(
-                            text = when (selectedTab) {
-                                BookingTab.CONFIRMED ->
-                                    "No confirmed bookings"
-
-                                BookingTab.PENDING ->
-                                    "No pending bookings"
-                            },
-                            modifier = Modifier.padding(18.dp),
-                            fontSize = 13.sp,
-                            color = Color.DarkGray
-                        )
-                    }
+                    Text(
+                        text = when (selectedTab) {
+                            BookingTab.CONFIRMED -> "No confirmed bookings"
+                            BookingTab.PENDING -> "No pending bookings"
+                            BookingTab.PAST -> "No past reservations"
+                        },
+                        modifier = Modifier.padding(18.dp),
+                        fontSize = 13.sp,
+                        color = Color.DarkGray
+                    )
                 }
-            } else {
-                LazyColumn(
-                    modifier = Modifier.fillMaxSize(),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    items(
-                        displayedBookings,
-                        key = { it.id }
-                    ) { booking ->
-                        BookingCard(
-                            booking = booking,
-                            onClick = { onBookingClick(booking) },
-                            onMessageOwnerClick = { onMessageOwnerClick(booking) }
-                        )
-                    }
+            }
+        } else {
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                items(
+                    displayedBookings,
+                    key = { it.id }
+                ) { booking ->
+                    BookingCard(
+                        booking = booking,
+                        isPast = selectedTab == BookingTab.PAST,
+                        onClick = { onBookingClick(booking) },
+                        onMessageOwnerClick = {
+                            onMessageOwnerClick(booking)
+                        },
+                        onAcceptWin = { onAcceptWin(booking) },
+                        onDeclineWin = { onDeclineWin(booking) },
+                        onSelectDates = { onSelectDates(booking) }
+                    )
                 }
             }
         }
@@ -160,11 +178,18 @@ private fun BookingTabButton(
 @Composable
 private fun BookingCard(
     booking: BookingCardData,
+    isPast: Boolean,
     onClick: () -> Unit,
-    onMessageOwnerClick: () -> Unit
+    onMessageOwnerClick: () -> Unit,
+    onAcceptWin: () -> Unit,
+    onDeclineWin: () -> Unit,
+    onSelectDates: () -> Unit
 ) {
     Card(
-        modifier = Modifier.fillMaxWidth().testTag("booking_card").clickable(onClick = onClick),
+        modifier = Modifier
+            .fillMaxWidth()
+            .testTag("booking_card")
+            .clickable(onClick = onClick),
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(
             containerColor = BookingGray
@@ -175,9 +200,8 @@ private fun BookingCard(
             verticalArrangement = Arrangement.spacedBy(5.dp)
         ) {
             Text(
-                text = booking.campsiteNames.joinToString(", ").ifBlank {
-                    "Campsite name unavailable"
-                },
+                text = booking.campsiteNames.joinToString(", ")
+                    .ifBlank { "Campsite name unavailable" },
                 fontSize = 16.sp,
                 fontWeight = FontWeight.SemiBold
             )
@@ -195,15 +219,54 @@ private fun BookingCard(
                 Text("Guests: ${booking.guests}")
             }
 
-            // allows entrants to start a conversation with the campsite owner
-            Button(
-                onClick = onMessageOwnerClick,
-                modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = BookingGreen
-                )
-            ) {
-                Text("Message Owner")
+            if (!isPast) {
+                when (booking.status) {
+                    "Won — response needed" -> {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Button(
+                                onClick = onAcceptWin,
+                                modifier = Modifier.weight(1f),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = BookingGreen
+                                )
+                            ) {
+                                Text("Accept")
+                            }
+
+                            OutlinedButton(
+                                onClick = onDeclineWin,
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Text("Decline")
+                            }
+                        }
+                    }
+
+                    "Select dates" -> {
+                        Button(
+                            onClick = onSelectDates,
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = BookingGreen
+                            )
+                        ) {
+                            Text("Select Dates")
+                        }
+                    }
+                }
+
+                Button(
+                    onClick = onMessageOwnerClick,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = BookingGreen
+                    )
+                ) {
+                    Text("Message Owner")
+                }
             }
         }
     }

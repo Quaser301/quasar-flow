@@ -41,22 +41,19 @@ data class HomeTab(val label: String, val destination: Screen)
 fun tabsFor(role: UserRole): List<HomeTab> = when (role) {
     UserRole.CAMPER -> listOf(
         HomeTab("Explore", Screen.Explore),
-        HomeTab("Messages", Screen.Messages),
         HomeTab("Bookings", Screen.Bookings),
-        HomeTab("Reservations", Screen.Reservations),
         HomeTab("Inbox", Screen.Inbox),
         HomeTab("Profile", Screen.Profile)
     )
     UserRole.OWNER -> listOf(
         HomeTab("Explore", Screen.Explore),
-        HomeTab("Messages", Screen.Messages),
         HomeTab("My Campsites", Screen.MyCampsites),
         HomeTab("Inbox", Screen.Inbox),
         HomeTab("Profile", Screen.Profile)
     )
     UserRole.ADMIN -> listOf(
         HomeTab("Explore", Screen.Explore),
-        HomeTab("Messages", Screen.Messages),
+        HomeTab("Inbox", Screen.Messages),
         HomeTab("Reports", Screen.Reports),
         HomeTab("Images", Screen.AdminImages),
         HomeTab("Profiles", Screen.AdminProfileView),

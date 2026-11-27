@@ -24,7 +24,10 @@ import com.example.campbnb.data.ReservationRepository
 import com.example.campbnb.data.UserRepository
 import com.example.campbnb.database.Database
 import com.example.campbnb.models.Role
-import com.example.campbnb.Screen
+import com.example.campbnb.controller.LotteryController
+import com.example.campbnb.controller.ReservationController
+import com.example.campbnb.models.Availability
+import com.example.campbnb.models.LotteryModel
 import com.example.campbnb.models.UserModel
 import com.example.campbnb.ui.shared.DeviceId
 import com.example.campbnb.viewModels.AppViewSettingController
@@ -82,6 +85,28 @@ object AppContainer: Dependencies {
             Database.Reservations.readEngine(),
             Database.Reservations.writeEngine(),
             Database.BookedDates.writeEngine()
+        )
+    }
+
+    override val availability: Availability by lazy {
+        Availability(Database.Campsites.readEngine())
+    }
+
+    override val lotteryController: LotteryController by lazy {
+        LotteryController(
+            LotteryModel(),
+            LotteryRepository(),
+            Database.Lotteries.readEngine(),
+            notificationController
+        ) { System.currentTimeMillis() }
+    }
+
+    override val reservationController: ReservationController by lazy {
+        ReservationController(
+            lotteryController,
+            availability,
+            reservationRepository,
+            notificationController
         )
     }
 

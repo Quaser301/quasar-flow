@@ -78,6 +78,11 @@ class LotteryForceCloseTest {
         } answers {
             onSaved.captured.invoke()
         }
+        every {
+            repository.updateEntry(any(), any())
+        } answers {
+            secondArg<(Result<Exception?>) -> Unit>().invoke(Result.success(null))
+        }
 
         controller.forceCloseLottery(lottery, nameOfCampsite = { id -> id })
 

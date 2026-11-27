@@ -43,6 +43,13 @@ import com.example.campbnb.models.NotificationSettings
 import com.example.campbnb.models.ReservationModel
 import com.example.campbnb.models.reservationCsvBytesOf
 import com.example.campbnb.models.reservationCsvFileName
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 
 private val CampGreen = Color(0xFF64A83F)
 private val CampDarkGreen = Color(0xFF397C28)
@@ -55,6 +62,8 @@ fun ReservationScreen(
     selectedCampsiteId: String?,
     selectedFilter: ReservationFilter,
     reservations: List<ReservationModel>,
+    viewerIsOwner: Boolean = false,
+    onRejectReservation: (ReservationModel) -> Unit = {},
     onCampsiteSelected: (String) -> Unit,
     onFilterSelected: (ReservationFilter) -> Unit,
     onBack: () -> Unit,
@@ -68,7 +77,7 @@ fun ReservationScreen(
             .background(MaterialTheme.colorScheme.background)
             .padding(horizontal = 16.dp, vertical = 12.dp)
     ) {
-        // Back button and campsite selector
+        // Back button and campsite selector.
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
@@ -102,7 +111,8 @@ fun ReservationScreen(
 
         Spacer(Modifier.height(20.dp))
 
-        // Active / Past / Cancelled
+        // Pending / Active / Past / Cancelled reservation filters.
+        // Selecting a filter tells ReservationsPanel to load the matching records.
         ReservationFilterTabs(
             selectedFilter = selectedFilter,
             onFilterSelected = onFilterSelected
@@ -110,10 +120,14 @@ fun ReservationScreen(
 
         Spacer(Modifier.height(16.dp))
 
-        // Reservation content
+        // Reservation content.
+        // The list displays an empty-state message when the selected category has
+        // no reservations, rather than showing an error or a blank screen.
         ReservationList(
             reservations = reservations,
             filter = selectedFilter,
+            viewerIsOwner = viewerIsOwner,
+            onRejectReservation = onRejectReservation,
             campsitesById = campsites.groupBy { campsite -> campsite.id },
             csvPreferences = csvPreferences,
             currentUserId = currentUserId,
@@ -145,6 +159,7 @@ private fun CampsiteSelector(
         return
     }
 
+    // Horizontally scrollable campsite selector.
     LazyRow(
         modifier = modifier,
         horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -153,9 +168,11 @@ private fun CampsiteSelector(
             val selected = campsite.id == selectedCampsiteId
 
             Surface(
-                modifier = Modifier.testTag("campsite_choice").clickable {
-                    onCampsiteSelected(campsite.id)
-                },
+                modifier = Modifier
+                    .testTag("campsite_choice")
+                    .clickable {
+                        onCampsiteSelected(campsite.id)
+                    },
                 shape = RoundedCornerShape(10.dp),
                 color = if (selected) CampLightGray
                 else MaterialTheme.colorScheme.surfaceVariant
@@ -187,6 +204,7 @@ private fun ReservationFilterTabs(
     selectedFilter: ReservationFilter,
     onFilterSelected: (ReservationFilter) -> Unit
 ) {
+    // Each filter receives equal width so all four categories fit in the row.
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -197,12 +215,25 @@ private fun ReservationFilterTabs(
             .padding(3.dp)
     ) {
         ReservationTab(
+            label = "Pending",
+            selected = selectedFilter == ReservationFilter.PENDING,
+            onClick = {
+                onFilterSelected(ReservationFilter.PENDING)
+            },
+            modifier = Modifier
+                .testTag("reservation_tab_pending")
+                .weight(1f)
+        )
+
+        ReservationTab(
             label = "Active",
             selected = selectedFilter == ReservationFilter.ACTIVE,
             onClick = {
                 onFilterSelected(ReservationFilter.ACTIVE)
             },
-            modifier = Modifier.testTag("reservation_tab").weight(1f)
+            modifier = Modifier
+                .testTag("reservation_tab_active")
+                .weight(1f)
         )
 
         ReservationTab(
@@ -211,7 +242,9 @@ private fun ReservationFilterTabs(
             onClick = {
                 onFilterSelected(ReservationFilter.PAST)
             },
-            modifier = Modifier.testTag("reservation_tab").weight(1f)
+            modifier = Modifier
+                .testTag("reservation_tab_past")
+                .weight(1f)
         )
 
         ReservationTab(
@@ -220,7 +253,9 @@ private fun ReservationFilterTabs(
             onClick = {
                 onFilterSelected(ReservationFilter.CANCELLED)
             },
-            modifier = Modifier.testTag("reservation_tab").weight(1f)
+            modifier = Modifier
+                .testTag("reservation_tab_cancelled")
+                .weight(1f)
         )
     }
 }
@@ -239,14 +274,14 @@ private fun ReservationTab(
     ) {
         Box(
             modifier = Modifier.padding(
-                horizontal = 4.dp,
+                horizontal = 2.dp,
                 vertical = 9.dp
             ),
             contentAlignment = Alignment.Center
         ) {
             Text(
                 text = label,
-                fontSize = 12.sp,
+                fontSize = 11.sp,
                 color = if (selected) Color.White else Color.DarkGray,
                 fontWeight = if (selected) FontWeight.SemiBold
                 else FontWeight.Normal
@@ -259,14 +294,21 @@ private fun ReservationTab(
 private fun ReservationList(
     reservations: List<ReservationModel>,
     filter: ReservationFilter,
+    viewerIsOwner: Boolean = false,
+    onRejectReservation: (ReservationModel) -> Unit = {},
     campsitesById: Map<String, List<Campsite>> = emptyMap(),
     csvPreferences: NotificationPreferencesService = NoNotificationPreferencesService(),
     currentUserId: String = "",
     fileDownloadWriter: FileDownloadWriter = NoFileDownloadWriter(),
     modifier: Modifier = Modifier
 ) {
+    // Show a category-specific empty state instead of an error when there
+    // are currently no reservations matching the selected filter.
     if (reservations.isEmpty()) {
         val message = when (filter) {
+            ReservationFilter.PENDING ->
+                "No pending reservations found."
+
             ReservationFilter.ACTIVE ->
                 "No active reservations found."
 
@@ -299,19 +341,34 @@ private fun ReservationList(
         return
     }
 
+    // Display each reservation in its own card.
     LazyColumn(
         modifier = modifier,
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        items(reservations) { reservation ->
-            val campsite = campsitesById[reservation.campsiteId]?.firstOrNull()
-            val csvAllowed = csvPreferences.notificationSettingsFor(currentUserId).contains(NotificationSettings.CSV)
+        items(
+            items = reservations,
+            key = { it.lotteryEntryId }
+        ) { reservation ->
+
+            // Find the campsite associated with this reservation.
+            // This is used for the campsite name and CSV receipt information.
+            val campsite =
+                campsitesById[reservation.campsiteId]?.firstOrNull()
+
+            // CSV export is shown only when the signed-in user has enabled
+            // the CSV notification/export preference.
+            val csvAllowed = csvPreferences
+                .notificationSettingsFor(currentUserId)
+                .contains(NotificationSettings.CSV)
 
             ReservationCard(
                 reservation = reservation,
                 campsite = campsite,
                 csvAllowed = csvAllowed,
-                fileDownloadWriter = fileDownloadWriter
+                fileDownloadWriter = fileDownloadWriter,
+                showRejectButton = viewerIsOwner && filter == ReservationFilter.PENDING,
+                onRejectReservation = onRejectReservation
             )
         }
     }
@@ -323,8 +380,13 @@ private fun ReservationCard(
     campsite: Campsite? = null,
     csvAllowed: Boolean = false,
     fileDownloadWriter: FileDownloadWriter = NoFileDownloadWriter(),
+    showRejectButton: Boolean = false,
+    onRejectReservation: (ReservationModel) -> Unit = {},
 ) {
     val context = LocalContext.current
+    var showRejectConfirmation by remember(reservation.lotteryEntryId) {
+        mutableStateOf(false)
+    }
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(12.dp),
@@ -336,6 +398,13 @@ private fun ReservationCard(
             modifier = Modifier.padding(12.dp),
             verticalArrangement = Arrangement.spacedBy(5.dp)
         ) {
+            // Display the campsite name when its record is available.
+            Text(
+                text = campsite?.campName ?: "Campsite reservation",
+                fontSize = 16.sp,
+                fontWeight = FontWeight.SemiBold
+            )
+
             Text(
                 text = "Entrant ID: ${reservation.entrantId}",
                 fontSize = 11.sp,
@@ -364,9 +433,10 @@ private fun ReservationCard(
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Text(
-                    text = reservation.startDate,
+                    text = "From: ${reservation.startDate}",
                     fontSize = 11.sp
                 )
+
                 Text(
                     text = "Status: ${reservation.status}",
                     fontSize = 11.sp
@@ -380,6 +450,7 @@ private fun ReservationCard(
 
             Spacer(Modifier.height(3.dp))
 
+            // The lottery entry ID identifies the reservation's originating entry.
             Text(
                 text = "Reservation ID: ${reservation.lotteryEntryId}",
                 fontSize = 10.sp
@@ -398,6 +469,57 @@ private fun ReservationCard(
                 fontSize = 10.sp
             )
 
+            if (showRejectButton) {
+                Button(
+                    onClick = {
+                        showRejectConfirmation = true
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("reservation_reject")
+                ) {
+                    Text("Reject Reservation")
+                }
+            }
+
+            if (showRejectConfirmation) {
+                AlertDialog(
+                    onDismissRequest = {
+                        showRejectConfirmation = false
+                    },
+                    title = {
+                        Text("Reject Reservation?")
+                    },
+                    text = {
+                        Text(
+                            "Are you sure you want to reject this reservation? " +
+                                    "The selected dates will be released."
+                        )
+                    },
+                    confirmButton = {
+                        TextButton(
+                            onClick = {
+                                showRejectConfirmation = false
+                                onRejectReservation(reservation)
+                            }
+                        ) {
+                            Text("Reject")
+                        }
+                    },
+                    dismissButton = {
+                        TextButton(
+                            onClick = {
+                                showRejectConfirmation = false
+                            }
+                        ) {
+                            Text("Keep Reservation")
+                        }
+                    }
+                )
+            }
+
+            // CSV download is optional and depends on the user's preferences.
+            // The file writer handles the actual file creation/download.
             if (csvAllowed) {
                 Surface(
                     modifier = Modifier
@@ -426,7 +548,10 @@ private fun ReservationCard(
                         text = "Download CSV",
                         color = Color.White,
                         fontSize = 12.sp,
-                        modifier = Modifier.padding(vertical = 8.dp, horizontal = 12.dp)
+                        modifier = Modifier.padding(
+                            vertical = 8.dp,
+                            horizontal = 12.dp
+                        )
                     )
                 }
             }
