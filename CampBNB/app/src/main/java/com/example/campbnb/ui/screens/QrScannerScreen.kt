@@ -33,10 +33,7 @@ import androidx.lifecycle.compose.rememberLifecycleOwner
 import com.example.campbnb.controller.CampsiteController
 import com.example.campbnb.models.Campsite
 import com.example.campbnb.models.QRCode
-import com.example.campbnb.models.qrTextOfImageBytes
 import com.example.campbnb.ui.shared.cameraFrameAnalysis
-import com.example.campbnb.ui.shared.CameraFrameSource
-import com.example.campbnb.ui.shared.NoCameraFrame
 import com.example.campbnb.ui.theme.FieldGrey
 
 /**
@@ -44,15 +41,13 @@ import com.example.campbnb.ui.theme.FieldGrey
  * area shows what the camera sees, live (US 01.05.02, live scanner), and the camera's
  * own frames are read for a code as they come: the analysis node this app binds to the
  * session (ui.md's CameraFrameReader adapter) reads each frame's pixels and the text it
- * finds arrives here as scanned text. What the camera sees still never answers for a
- * device that gave no camera frame, so a code also arrives through the typed text or
- * the picture-file paths. Tapping the camera button asks the frame source for one
- * picture frame, which is the path a test provider and a real picture file use; on a
- * device that hands no picture bytes it says so and the screen keeps working on what
- * the user typed. A device with no camera, or a camera that cannot be opened, says so
- * and the screen keeps working on what the user typed. Text a scan produced can also be
- * typed into the field, and a picture on this device can be scanned straight from its
- * file. Whichever way a code is read, a code that names a registered campsite opens
+ * finds arrives here as scanned text. Nothing is pressed to scan: the user holds a
+ * CampBNB code inside the frame and the screen reads it as the camera sees it. A code
+ * also arrives through the typed field, which is the path a device with no camera or a
+ * refused camera keeps the scanner on, and the field is where a read the user did not
+ * want is corrected. A device with no camera, or a camera that cannot be opened, says
+ * so and the screen keeps working on what the user typed. Whichever way a code is read,
+ * a code that names a registered campsite opens
  * its campsite through [onOpenCampsite]; text that is not a CampBNB code, or names a
  * campsite that is not registered, says so here and stays on this screen so the next
  * scan starts from it. Going back from an opened campsite returns to this screen
@@ -61,8 +56,6 @@ import com.example.campbnb.ui.theme.FieldGrey
  * @param controller The controller that reads the code and loads the named campsite.
  * @param onOpenCampsite Called with the campsite a working code names; the app opens
  *   its details page.
- * @param frameSource Where the next camera frame comes from; NoCameraFrame keeps the
- *   screen on typed text when this device gives no frames.
  * @param cameraRefused Whether the device said NO to the app using its camera. Only
  *   the app can ask the device, so a refusal arrives here as a fact: true keeps the
  *   frame area on its placeholder and the screen on its typed path. A device that
@@ -72,7 +65,6 @@ import com.example.campbnb.ui.theme.FieldGrey
 fun QrScannerScreen(
     controller: CampsiteController,
     onOpenCampsite: (Campsite) -> Unit = {},
-    frameSource: CameraFrameSource = NoCameraFrame(),
     cameraRefused: Boolean = false
 ) {
     var typedCode by remember { mutableStateOf("") }
@@ -139,7 +131,7 @@ fun QrScannerScreen(
         }
     }
 
-    // Text the user typed wins over the last picture this screen read.
+    // Text the user typed wins over the last code the camera read.
     val scannedCode = if (typedCode.isNotBlank()) typedCode else scannedText
 
     Column(
@@ -177,28 +169,9 @@ fun QrScannerScreen(
             modifier = Modifier.testTag("qr_code_field").fillMaxWidth()
         )
 
-        // The device's own camera: one frame, read for a code.
-        Button(
-            modifier = Modifier.testTag("camera_scan"),
-            onClick = {
-                frameSource.requestFrame { frame ->
-                    if (frame == null) {
-                        notice = "This device gave no camera frame. Type the code instead."
-                    } else {
-                        val readFromFrame = qrTextOfImageBytes(frame)
-                        if (readFromFrame == null) {
-                            notice = "The camera frame holds no readable CampBNB code."
-                        } else {
-                            notice = ""
-                            scannedText = readFromFrame
-                        }
-                    }
-                }
-            }
-        ) {
-            Text("Scan With Camera")
-        }
-
+        // The camera reads its own frames (see openCamera above): there is nothing to
+        // press to scan, so the screen offers the field for correcting a read and the
+        // Open button for going where a read names.
         Button(
             enabled = scannedCode.isNotBlank(),
             modifier = Modifier.testTag("open_scanned_code"),

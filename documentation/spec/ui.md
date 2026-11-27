@@ -222,10 +222,19 @@ names that in its notice instead. The SAME session also carries the frame reader
 read for a code as they come and the text it finds arrives as the screen's scanned text — the user
 holding a code up needs no button press (US 01.12.01). The in-app image-file scan (the `image_path_field`
 text field and its `image_scan` button) is GONE: the user called it bulky and the phone's own
-camera opens a code's link instead (the registered `campbnb` scheme, app.md); the screen keeps
-its live preview, the typed-code field, the frame-reading seam and the Open button. Screen-internal
-wiring only — no parameter or call-site change, and the frame-reading seam (the picture-bytes
-path a test provider and a real picture file use) is untouched. A code
+camera opens a code's link instead (the registered `campbnb` scheme, app.md). The `camera_scan`
+"Scan With Camera" button is GONE TOO, along with the screen's `frameSource: CameraFrameSource
+= NoCameraFrame()` parameter and its `CameraFrameSource`/`NoCameraFrame`/`qrTextOfImageBytes`
+imports: the user asked for "just scan and go", and on EVERY device that button could only answer
+"This device gave no camera frame. Type the code instead." — the seam behind it has no device
+provider, while the live reader does strictly more, so the button was weight the user could press
+with no possible effect. The screen keeps its live preview, the typed-code field, and the Open
+button — reading a code and going to what it names are two acts, and the Open button is that
+confirmation (`scannedCode = typedCode` when typed, else the last code the camera read). The
+SEAM itself (`CameraFrameSource`/`NoCameraFrame`, models.md's `qrTextOfImageBytes`) stays and
+stays tested, but NOTHING in the app reads it now — whether to drop it is the owner's call. Its
+parameter was defaulted in the MIDDLE of the signature; the only call site (`ExploreGraph`) names
+its arguments and never passed it, so removing it moved no positional argument. A code
 that names a registered campsite opens it through `onOpenCampsite`; text that is not code text,
 or names a campsite that is not registered, says so in the notice — there is no expired arm and
 no "that code stopped working" message any more, since a code carries no expiry (models.md). `ui.screens/messagesScreen.kt` (package **ui.inbox**): private
