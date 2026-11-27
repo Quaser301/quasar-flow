@@ -52,8 +52,13 @@ data class Lottery(
      * Checks whether this lottery is valid for saving.
      */
     fun isValid(now: Long): Boolean {
-        // Exactly one campsite is allowed per lottery.
-        if (campsiteIds.size != 1 || campsiteIds[0].isBlank()) {
+        // A lottery must cover at least one campsite.
+        // Every campsite ID must be nonblank and unique.
+        if (
+            campsiteIds.isEmpty() ||
+            campsiteIds.any { it.isBlank() } ||
+            campsiteIds.distinct().size != campsiteIds.size
+        ) {
             return false
         }
 
