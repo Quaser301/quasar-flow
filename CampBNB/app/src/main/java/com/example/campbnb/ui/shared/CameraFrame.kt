@@ -1,7 +1,7 @@
 package com.example.campbnb.ui.shared
 
-// AI-assisted (US 01.12.01, camera-frame provider seam and the frame-to-code adapter):
-// written by Qwen 3.8 Flash Next Coder IQ1_M.
+// AI-assisted (US 01.12.01, the camera-frame-to-code adapter): written by Qwen 3.8 Flash
+// Next Coder IQ1_M.
 
 import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.ImageAnalysis.Analyzer
@@ -11,48 +11,34 @@ import java.util.concurrent.Executor
 import com.example.campbnb.models.qrTextOfFramePixels
 
 /**
- * Provider: what this device's camera sees (US 01.12.01). Screens ask one frame here
- * instead of touching the device; a frame is the bytes of a real picture, which is
- * what reading a code out of a picture needs (qrTextOfImageBytes). A device that
- * gives no frame answers with null and the scanner keeps working on what the user
- * typed. A test provider hands back a chosen frame, the way DeviceId lets a test
- * replace its source.
+ * The adapter over the two interfaces a code read needs (US 01.12.01): the device's frame
+ * interface — `ImageAnalysis.Analyzer`, which the camera calls once per frame with an
+ * `ImageProxy` — and this app's reader, which takes a flat grey buffer and the frame's
+ * own size (`qrTextOfFramePixels`). Screens bind the node this file builds; the camera
+ * then reads its own frames as they come, and each code's text answers through a callback
+ * the screen supplies.
  *
  * What this platform can and cannot hand back was re-read off the compiler rather than
- * assumed. The analysed-frame path DOES resolve: `ImageAnalysis.Builder().build()`, the
- * `ImageAnalysis.Analyzer` interface the device calls once per frame, an `ImageProxy`
- * with `imagePlanes`, `width` and `height`, and the planes themselves through
- * `androidx.camera.common.ImagePlane` (`buffer`, `rowStride`, `pixelStride`) — which is
- * why that package is a dependency. What does NOT resolve is the one thing this seam
- * asks for: a frame as the BYTES OF AN ENCODED PICTURE. The device hands back raw
- * planes, and the codec that would turn pixels into a picture file is `javax.imageio`
- * over `java.awt`, which is not on the device runtime. So no provider of THIS shape
- * exists on the device and `NoCameraFrame` stays the default; the device's frames are
- * read through the adapter below instead, which answers the code's TEXT rather than
- * picture bytes. (The older dead path, kept for history: the camera2 `CameraManager`
- * is a final class with a package-private constructor, and its frame planes keep bytes
- * in a `java.io.ByteBuffer` type this runtime no longer exposes.)
+ * assumed. What resolves, and what the adapter is built from: `ImageAnalysis.Builder().build()`,
+ * the `ImageAnalysis.Analyzer` interface, an `ImageProxy` with `imagePlanes`/`width`/`height`,
+ * and the planes themselves through `androidx.camera.common.ImagePlane` (`buffer`, `rowStride`,
+ * `pixelStride`) — which is why that package is a dependency: those plane types are NOT in
+ * camera-core. Barleader's reader also takes a raw buffer, so pixels can be read with no image
+ * codec at all. What does NOT resolve: a frame as the BYTES OF AN ENCODED PICTURE — that needs
+ * `javax.imageio` over `java.awt`, which is not on the device runtime — so no frame is ever
+ * handed around as a picture file here, and `ImageProcessor.Builder` is not a thing that can be
+ * built (`ImageProcessor` is an interface with only `process(Request)`). `setAnalyzer` takes a
+ * NON-NULL `java.util.concurrent.Executor`, so this app supplies its own one-method executor
+ * that runs the frame's work where it was handed. Note the Kotlin builtin packages
+ * `java.concurrent`/`java.thread`/`java.function`/`java.pool` are NOT nameable in this toolchain
+ * — only jar-qualified names are.
  */
 
-interface CameraFrameSource {
-    /** Called with the bytes of one picture frame, or null when none can be read. */
-    fun requestFrame(onFrame: (ByteArray?) -> Unit)
-}
-
-/** The provider for devices that cannot give any frame: every request answers with none. */
-class NoCameraFrame : CameraFrameSource {
-    override fun requestFrame(onFrame: (ByteArray?) -> Unit) {
-        onFrame(null)
-    }
-}
-
 /**
- * The adapter over the two interfaces (US 01.12.01): the device's frame interface —
- * `ImageAnalysis.Analyzer`, which the camera calls once per frame with an `ImageProxy`
- * — and this app's reader, which takes a flat grey buffer and the frame's own size
- * (`qrTextOfFramePixels`). Between the two it copies the frame's first plane honouring
- * the plane's own row and pixel strides, so a padded row does not skew the picture. A
- * frame that holds no readable code answers nothing, and a plane that cannot be read
+ * The device's frame interface joined to this app's code reader. The camera calls it once
+ * per frame; the frame's first plane is copied into the flat grey buffer the reader takes,
+ * honouring the plane's own row and pixel strides so a padded row does not skew the picture.
+ * A frame that holds no readable code answers nothing, and a plane that cannot be read
  * answers nothing rather than ending the camera session.
  *
  * @param onText Called with the text of each code the frame holds.

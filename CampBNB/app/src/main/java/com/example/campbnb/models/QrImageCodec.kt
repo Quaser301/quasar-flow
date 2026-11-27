@@ -253,37 +253,8 @@ private fun copyBytes(bytes: ByteArray, at: Int, from: ByteArray): Int {
 }
 
 /**
- * The text held by the first QR Code in the bytes of an encoded picture, whether those
- * bytes came from a file or from a camera frame. Reading is allowed to find nothing:
- * bytes that hold no picture, a picture that will not decode, or a picture with no
- * readable QR all answer with null, the same as an unscannable input elsewhere in
- * this app.
- *
- * @param imageBytes The bytes of the picture to read.
- * @return The text the QR image holds, or null when the bytes name no readable QR.
- */
-fun qrTextOfImageBytes(imageBytes: ByteArray): String? {
-    val picture = try {
-        ImageIO.read(imageBytes.inputStream())
-    } catch (e: Exception) {
-        null
-    }
-    if (picture == null) {
-        return null
-    }
-    val hits = BarcodeReader.sequential().read(
-        picture,
-        ReadOptions.fast().symbologies(Symbology.QR_CODE)
-    )
-    if (hits.isEmpty()) {
-        return null
-    }
-    return hits[0].text()
-}
-
-/**
  * The text held by the first QR Code in the grey pixels of one camera frame. Unlike the
- * two paths above, this one needs no image codec: the reader takes the flat grey buffer
+ * file path below, this one needs no image codec: the reader takes the flat grey buffer
  * and the frame's own width and height, so it runs on the device as well as on the JVM
  * host. Reading is allowed to find nothing: pixels that hold no code, a buffer that does
  * not match the given size, or a picture with no readable QR all answer with null, the
@@ -314,7 +285,8 @@ fun qrTextOfFramePixels(framePixels: ByteArray, frameWidth: Int, frameHeight: In
  * The text held by the first QR Code image in a real image file. Reading is allowed to
  * find nothing: a file that cannot be opened, a file with no picture in it, or a
  * picture with no readable QR all answer with null, the same as an unscannable input
- * elsewhere in this app.
+ * elsewhere in this app. This path needs the JDK image codec, so unlike the frame path
+ * above it only runs where that codec exists — the Android runtime has no java.awt.
  *
  * @param imageFilePath The file to read the code from.
  * @return The text the QR image holds, or null when the file names no readable QR.
@@ -324,5 +296,20 @@ fun qrTextOfImageFile(imageFilePath: String): String? {
     if (!imageFile.canRead()) {
         return null
     }
-    return qrTextOfImageBytes(imageFile.readBytes())
+    val picture = try {
+        ImageIO.read(imageFile.readBytes().inputStream())
+    } catch (e: Exception) {
+        null
+    }
+    if (picture == null) {
+        return null
+    }
+    val hits = BarcodeReader.sequential().read(
+        picture,
+        ReadOptions.fast().symbologies(Symbology.QR_CODE)
+    )
+    if (hits.isEmpty()) {
+        return null
+    }
+    return hits[0].text()
 }
