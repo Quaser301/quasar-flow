@@ -10,7 +10,6 @@ import com.example.campbnb.models.QRCode
 import com.example.campbnb.models.qrCodeOfScannedText
 import com.example.campbnb.models.qrImageFileBytes
 import com.example.campbnb.models.qrLinkRoute
-import com.example.campbnb.models.qrOldCodeRoute
 import com.example.campbnb.models.qrRouteOfLinkPayload
 import com.example.campbnb.models.qrScreenOfLinkPayload
 import com.example.campbnb.models.qrTextOfImageFile
@@ -107,12 +106,16 @@ class QrCodesTest {
         )
     }
 
-    // TEST: no code text resolves to the old-code notice: a code carries no expiry,
-    // so nothing a code says can make it a dead one
+    // TEST: a code's link has ONE route — the campsite link. A legacy three-part
+    // spelling is not this app's code text and names no route at all (US 01.05.02,
+    // the reading is narrowed to the one spelling a code writes).
     @Test
-    fun qrLink_noCodeText_routesToTheOldCodeNotice() {
-        assertTrue(qrRouteOfLinkPayload(QRCode(campsiteId = "target").payload()) != qrOldCodeRoute)
-        assertTrue(qrRouteOfLinkPayload("CAMPBNB:target:1700000000000") != qrOldCodeRoute)
+    fun qrLink_onlyTheCampsiteRouteIsReachable() {
+        assertEquals(
+            "$qrLinkRoute/target",
+            qrRouteOfLinkPayload(QRCode(campsiteId = "target").payload())
+        )
+        assertEquals(null, qrRouteOfLinkPayload("CAMPBNB:target:1700000000000"))
     }
 
     // TEST: link text that is not code text names no route at all
@@ -131,10 +134,11 @@ class QrCodesTest {
         assertEquals("target", (opened as Screen.QrLinkRoute).campsiteID)
     }
 
-    // TEST: the typed twin never answers the old-code notice for any code text
+    // TEST: the typed twin names no screen for a legacy spelling — the narrowed
+    // reading leaves nothing for it to open.
     @Test
-    fun qrScreenOfLinkPayload_noCodeText_namesTheOldNoticeScreen() {
-        assertTrue(qrScreenOfLinkPayload(QRCode(campsiteId = "target").payload()) != Screen.OldQRCode)
+    fun qrScreenOfLinkPayload_noLegacySpelling_namesNoScreen() {
+        assertEquals(null, qrScreenOfLinkPayload("CAMPBNB:target:1700000000000"))
     }
 
     // TEST: the typed twin names no screen for text that is not code text

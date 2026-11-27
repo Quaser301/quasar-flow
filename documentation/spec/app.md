@@ -164,7 +164,8 @@ no link of this app names no code and queues nothing). That code text then resol
 expiry (models.md): it resolves THROUGH the tested text
 decision `models.qrRouteOfLinkPayload` (models.md owns THAT) and decodes the answer into a
 typed screen: ANY code text names `Screen.QrLinkRoute(campsiteId)` — there is no dead/expired
-arm any more, so `Screen.OldQRCode` is never queued from a code — and ONLY a non-null
+arm any more and the old-code notice was deleted, so a code's link queues only its campsite —
+and ONLY a non-null
 screen is set on `pendingScreen` (a link that resolves nothing never overwrites an already-queued
 notification screen). The graph then holds that screen until sign-in has ended and opens it
 once the user is logged in (app.md's pending bridge, `signedIn`): MainActivity runs before any
@@ -208,8 +209,7 @@ notice names — the typed twin of notifications.md's `"reservations"` text),
 `BookingEntry(lotteryID)` (the bridge tapped WIN/INVITE notices name),
 `ChatReservationEntry(reservationID)` (the bridge a tapped MESSAGE notice names),
 `QrLinkRoute(campsiteID)` (what MainActivity queues when the phone's own camera opens a
-code's link — any code, none of them dead any more), `OldQRCode` (the dead-code notice, registered
-but reachable from nothing) — the graph below registers
+code's link — any code, none of them dead any more) — the graph below registers
 content and bridge frames for every one of these.
 `UserRole` is the UI role (ui/components — ui.md); data-class payloads ARE the route
 arguments (`toRoute<T>()` reads them back). A route argument can only hold a
@@ -440,8 +440,7 @@ line each; `nav` is the app controller, `homeNav` the nested one, all calls as s
   - PROFILE/REPORTS/FLAGGED→`MiscGraph`'s nodes; PROFILE is `ProfileScreen`, which now
     carries the whole settings surface (see the Profile node below). There is NO Settings
     node: the member and the mount were removed once every setting was read from the Profile
-    view, so `MiscGraph` registers bare `Profile`, `Reports`, `QrLinkRoute` and
-    `OldQRCode` only. `Screen.Flagged` is still a declared route and the mount comment still
+    view, so `MiscGraph` registers bare `Profile`, `Reports` and `QrLinkRoute` only. `Screen.Flagged` is still a declared route and the mount comment still
     names it, but nothing registers or draws it — the flagged view was never built, so the tab
     is unreachable rather than empty. The `role` the Profile shows is the role the signed-in profile holds
     (`deps.userModel.currentUser`'s roles, ADMIN > OWNER > ENTRANT — the same pick the sign-in
@@ -468,7 +467,7 @@ line each; `nav` is the app controller, `homeNav` the nested one, all calls as s
   (Screens with no entry at the mount that registers them — the APP mount's tab nodes
   (`Screen.Explore`, `Screen.MyCampsites`, Messages/Inbox/Bookings) and the HOME mount's
   bridge nodes (`NotifReservations`, `BookingEntry`, `ChatReservationEntry`,
-  `QrLinkRoute`, `OldQRCode` — the last reachable from nothing now a code carries no expiry), its `Settings`, and its `DebugGraph` copies — stay
+  `QrLinkRoute`), its `Settings`, and its `DebugGraph` copies — stay
   registered where nothing navigates. These are NOT dead windows as in the earlier
   half-finished restructure: the SAME graph is live at the mount whose callbacks point
   there, and the root passes shared models into both mounts, so the two copies read one
@@ -724,12 +723,11 @@ arrives during sign-in waits for the same reason. The screens it can queue, and 
   follows the CURRENT app view regardless, so the key's role is only a carrier. A live
   code's link reaches the SAME details screen a scan of that code opens — a code names a
   campsite.
-- `Screen.OldQRCode` (`MiscGraph`, still REGISTERED but reachable from nothing: a code carries
-  no expiry, so no code's link is a dead one — whether to delete the notice screen and its
-  route is NEEDS INFO, parked): `QrOldCodeNoticeScreen(back = onNavBack)` (the root: `nav.navigateUp()`) in
-  place of any destination. The two QR screens are distinct typed routes, so the old
-  one-segment-wide collision rule against the two-segment campsite link route no longer
-  applies.
+- The old-code notice was DELETED with the timeout (US 01.05.02): `Screen.OldQRCode`,
+  `QrOldCodeNoticeScreen`, the `qr-link-old` route and the `MiscGraph` registration are all
+  gone, so a code's link has exactly ONE destination — the campsite it names. The one-segment
+  collision rule against the two-segment campsite link route no longer applies because there
+  is no second route to collide with.
 
 Correspondence/message tab wiring (`CorrespondenceDestination` in destinations/ owns WHERE
 each list comes from — the screens themselves only draw what they are handed, ui.md): a

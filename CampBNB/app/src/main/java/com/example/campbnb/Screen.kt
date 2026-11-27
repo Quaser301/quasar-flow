@@ -140,7 +140,4 @@ sealed interface Screen {
 
     @Serializable
     data class QrLinkRoute(val campsiteID:String) : Screen
-
-    @Serializable
-    data object OldQRCode : Screen
 }

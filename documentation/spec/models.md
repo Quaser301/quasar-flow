@@ -286,8 +286,8 @@ fun qrCodeOfScannedText(payload: String): QRCode?
 - Split on ":"; must be exactly 2 parts, first exactly `CAMPBNB`, second NON-BLANK —
   otherwise `null`. There is no expired-but-real code to distinguish from a broken one
   any more: text carrying a segment past the campsite is NOT this app's code text
-  (codes printed before the expiry was dropped carry one and no longer read; whether to
-  accept that legacy spelling is NEEDS INFO, parked).
+  (the reading is NARROWED to the one spelling a code writes: codes printed before the
+  expiry was dropped carry a third segment and no longer read — settled, not parked).
 
 ```kotlin
 fun codeTextOfOpenedLink(openedText: String): String?
@@ -306,7 +306,6 @@ fun codeTextOfOpenedLink(openedText: String): String?
 ```kotlin
 val qrPayloadExtraKey = "campbnb.qrPayload"   // Intent extra MainActivity reads for opened links
 val qrLinkRoute = "qr-link"                   // graph route prefix a code's link opens under
-val qrOldCodeRoute = "qr-link-old"            // kept and still registered, but NO code text reaches it any more
 fun qrRouteOfLinkPayload(payload: String): String?
 ```
 - The link story (US 01.05.02): the phone's own camera hands the app the opened code's TEXT
@@ -318,7 +317,7 @@ fun qrRouteOfLinkPayload(payload: String): String?
   what tests pin. `qrRouteOfLinkPayload` rules: text that is not code text → `null` (nothing is
   queued, the app just opens); anything that IS code text → `"$qrLinkRoute/$campsiteId"`, the
   same campsite a scan opens. There is no clock to ask and no dead-code branch to take: a code
-  carries no expiry, so `qrOldCodeRoute` is unreachable from code text.
+  carries no expiry, so a code's link has exactly ONE route.
 
 ```kotlin
 fun qrScreenOfLinkPayload(payload: String): Screen?
@@ -326,9 +325,9 @@ fun qrScreenOfLinkPayload(payload: String): Screen?
 - The typed twin of the decision above, for the app's own crossing (the same pairing as
   notifications.md's `routeFor`/`screenFor`): it resolves THROUGH `qrRouteOfLinkPayload`
   and decodes the text — a `"$qrLinkRoute/…"` text → `Screen.QrLinkRoute(campsiteId)` (the
-  id after the prefix), anything else → `null`. The `qrOldCodeRoute` → `Screen.OldQRCode`
-  mapping stays in the decode so the registered notice screen keeps compiling, but no code
-  text produces it. The two forms never disagree; the string rules above are the whole decision.
+  id after the prefix), anything else → `null`. There is no other branch: the old-code notice
+  was deleted with the timeout, so nothing a code says can open anything but its campsite.
+  The two forms never disagree; the string rules above are the whole decision.
 
 ```kotlin
 fun qrImageFileBytes(qrCode: QRCode): ByteArray          // the real PNG bytes of this code's grid

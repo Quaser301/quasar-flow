@@ -21,7 +21,6 @@ import com.example.campbnb.models.UserModel
 import com.example.campbnb.ui.components.UserRole
 import com.example.campbnb.ui.screens.ProfileScreen
 import com.example.campbnb.ui.screens.PlaceholderTab
-import com.example.campbnb.ui.screens.QrOldCodeNoticeScreen
 import com.example.campbnb.ui.shared.observeModel
 import com.example.campbnb.ui.shared.toUserRole
 import com.example.campbnb.viewModels.AppViewSettingController
@@ -180,12 +179,5 @@ fun NavGraphBuilder.MiscGraph(
                 navToCampsiteDetails(toUserRole(role), campsiteID)
             }
         }
-    }
-
-    // A dead code's link — its stop already past, or no expiry at all — answers
-    // the old-code notice in place of any destination; back goes where the link
-    // would otherwise have been.
-    composable<Screen.OldQRCode> {
-        QrOldCodeNoticeScreen(back = onNavBack)
     }
 }

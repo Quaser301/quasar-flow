@@ -78,12 +78,10 @@ fun codeTextOfOpenedLink(openedText: String): String? {
 
 // The link story of a code (US 01.05.02): the phone's own camera hands the app the
 // code's text through an Intent extra, exactly as a notification tap hands over a
-// route; the route resolved from the text opens like any other pending route. The
-// old-code notice route is ONE path segment wide so it can never collide with a
-// live code's two-segment campsite link, even for a campsite id that spells it.
+// route; the route resolved from the text opens like any other pending route. A code
+// names ONE thing — the campsite it opens — so a code's link has exactly ONE route.
 val qrPayloadExtraKey = "campbnb.qrPayload"
 val qrLinkRoute = "qr-link"
-val qrOldCodeRoute = "qr-link-old"
 
 /**
  * Resolves the text carried by an opened CampBNB code link into the route the app
@@ -112,7 +110,6 @@ fun qrRouteOfLinkPayload(payload: String): String? {
 fun qrScreenOfLinkPayload(payload: String): Screen? {
     val routeText = qrRouteOfLinkPayload(payload) ?: return null
     return when {
-        routeText == qrOldCodeRoute -> Screen.OldQRCode
         routeText.startsWith("$qrLinkRoute/") ->
             Screen.QrLinkRoute(routeText.substringAfter("$qrLinkRoute/"))
         else -> null

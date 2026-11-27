@@ -224,8 +224,7 @@ stand-ins). Its private parts are `CampsiteSelector`, `ReservationFilterTabs`, `
 `ReservationList`, `ReservationCard`; the reject affordance is drawn only when
 `viewerIsOwner AND selectedFilter == ReservationFilter.PENDING` — an owner may reject a stay whose
 dates have not started, and nothing else. `ui.screens/DeviceSignInScreen.kt`, `QrScannerScreen.kt`,
-`QrOldCodeNoticeScreen.kt` (`back: () -> Unit = {}` fires on its Back button), `SetUpScreens.kt`
-(StartScreen/SignUpScreen/RoleSelectScreen) — Composables, contract = their call sites in app.md.
+`SetUpScreens.kt` (StartScreen/SignUpScreen/RoleSelectScreen) — Composables, contract = their call sites in app.md.
 `QrScannerScreen` also opens the device camera via androidx.camera when the screen opens and
 draws its live preview once the preview surface arrives (US 01.05.02, live scanner). The ask
 is NOT the screen's: only the running activity can ask a device, so MainActivity asks for
