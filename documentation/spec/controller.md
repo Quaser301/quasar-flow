@@ -376,7 +376,9 @@ class LotteryController(private val model: LotteryModel, private val repo: Lotte
 - `saveCampsitesEditedBy(editorId, lottery, selectedCampsiteIds, onSuccess, onFailure)`:
   loads the editor's OWN campsites (read failure → `onFailure`); any selected id not owned
   → `IllegalArgumentException("Only your own campsites can be added to a lottery")`;
-  the new list = campsites NOT owned by the editor, kept, plus the selection, deduplicated;
+  the new list = the lottery's EXISTING campsites plus the selection, deduplicated — a
+  joining owner only ever ADDS (US 02.08.02): no campsite is taken out, and the primary
+  owner who created the lottery keeps full control of the list and of every parameter;
   empty result → `IllegalArgumentException("A lottery must cover at least one campsite")`;
   otherwise save `lottery.withCampsiteIds(that list)` (only the campsite field changes —
   `models.md`).

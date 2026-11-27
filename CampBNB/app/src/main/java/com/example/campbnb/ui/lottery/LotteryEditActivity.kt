@@ -172,6 +172,13 @@ class LotteryEditActivity(
                 .getInstance()
                 .currentUser?.uid ?: deviceID }
 
+        val isEditMode = initialLottery != null
+        // A joining owner edits a lottery owned by someone else: they may only ADD one of
+        // their own campsites to it, so the parameter fields stay read-only below, the
+        // picker starts empty, and the save takes the joining-owner path that keeps the
+        // lottery exactly as its primary owner wrote it apart from the added campsite.
+        val isJoiningOwnerEdit = initialLottery != null && initialLottery.ownerId != resolvedOwnerId
+
         val lotteryToSave = Lottery(
             ownerId = resolvedOwnerId,
             campsiteIds = selectedCampsites.map { it.id },
@@ -191,11 +198,16 @@ class LotteryEditActivity(
             }
         }
 
+        // A joining owner adds to the lottery AS ITS PRIMARY OWNER WROTE IT: the form's own
+        // fields (owner, invitations, parameters) belong to the creator's edit path only, so
+        // the joining save starts from the record on file and only the campsite is added.
+        val lotteryToSaveAgainst = if (isJoiningOwnerEdit) initialLottery ?: lotteryToSave else lotteryToSave
+
         LaunchedEffect(resolvedOwnerId) {
             if (resolvedOwnerId.isNotBlank()) {
                 controller.loadOwnerCampsites(resolvedOwnerId) { fetchedCampsites ->
                     ownerCampsitesList = fetchedCampsites
-                    if (initialLottery != null && selectedCampsites.isEmpty()) {
+                    if (initialLottery != null && !isJoiningOwnerEdit && selectedCampsites.isEmpty()) {
                         selectedCampsites = fetchedCampsites.filter { it.id in initialLottery.campsiteIds }.toSet()
                     }
                 }
@@ -241,12 +253,6 @@ class LotteryEditActivity(
             formatter.timeZone = TimeZone.getTimeZone("UTC")
             return "${formatter.format(Date(start))} - ${formatter.format(Date(end))}"
         }
-
-        val isEditMode = initialLottery != null
-        // A joining owner edits a lottery owned by someone else: they may only change
-        // their own campsites, so the parameter fields stay read-only below and the
-        // save takes the joining-owner path that keeps the other owners' campsites.
-        val isJoiningOwnerEdit = initialLottery != null && initialLottery.ownerId != resolvedOwnerId
 
         Column(
             modifier = Modifier
@@ -518,14 +524,15 @@ class LotteryEditActivity(
                     Text("Cancel")
                 }
                 Button(
-                    enabled = lotteryToSave.isValid(System.currentTimeMillis()),
+                    enabled = lotteryToSaveAgainst.isValid(System.currentTimeMillis()),
                     onClick = {
                         if (isJoiningOwnerEdit) {
-                            // Joining owners save through the controller path that keeps
-                            // the other owners' campsites and every parameter unchanged
+                            // Joining owners add their own campsite to the lottery as it is
+                            // on file: its primary owner and every parameter stay exactly as
+                            // they were written, and no second lottery is ever made.
                             controller.saveCampsitesEditedBy(
                                 editorId = resolvedOwnerId,
-                                lottery = lotteryToSave,
+                                lottery = lotteryToSaveAgainst,
                                 selectedCampsiteIds = selectedCampsites.map { it.id },
                                 onSuccess = {
                                     navigateBackwards()

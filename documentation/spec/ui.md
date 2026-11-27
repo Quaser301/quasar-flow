@@ -437,6 +437,10 @@ Their drawing bodies are not unit targets. Truth kept, though: date-range rows d
 picker's UTC-midnight millis on an explicit UTC basis — a device-local formatter showed the
 day before on both endpoints west of UTC (fix 13) — edit renders a creator-only
 "Force Close" control delegating to controller.md's `forceCloseLottery` (feature 1), and
+for a JOINING owner (the record's `ownerId` is not the viewer) the campsite picker starts
+EMPTY — they are adding, and the campsites they do not own are never offered — while the
+save hands controller.md's `saveCampsitesEditedBy` the lottery AS IT IS ON FILE, never the
+record this form rebuilt, so the primary owner and every parameter survive the add;
 edit's invited-owner panel is a FIXED-VISIBLE-HEIGHT scrollable sheet, not a dropdown:
 six rows visible at 56.dp each (sheet height = `rowHeight × visibleRows`, and the
 multiplication is only ever Dp × Int), rows full-width at one row height with a checkbox
@@ -447,8 +451,13 @@ for a lottery offers Details ALWAYS and a `lottery_delete_closed` "Delete" contr
 `Lottery.statusAt(now)` is `CLOSED` — its booking window has passed, so the lottery can no
 longer be joined, edited or drawn and is only clutter in this list; the control calls
 controller.md's `deleteLottery` and the card answers by going away (the controller takes the
-lottery out of the model's list as well as out of the records). No other card state gets the
-control, and no lottery screen renders a status message.
+lottery out of the model's list as well as out of the records). A card for a lottery whose
+`ownerId` is NOT the viewer — one the viewer JOINED (US 02.08.02, a lottery spanning
+several owners' campsites) — also carries a `lottery_add_campsite` "Add Campsite" control
+that opens THAT lottery's details: adding one of their own campsites is the one thing a
+joined owner may do, and leaving "Create Lottery" as the only route made a second lottery
+next to the one they had joined. No other card state gets the control, and no lottery
+screen renders a status message.
 
 ### ui.notification — the log screen
 

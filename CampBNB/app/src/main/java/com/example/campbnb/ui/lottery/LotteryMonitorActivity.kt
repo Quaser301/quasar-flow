@@ -184,6 +184,20 @@ class LotteryMonitorActivity(
                                 Text("Details")
                             }
 
+                            // A lottery in this list that belongs to another owner is one
+                            // this viewer JOINED (US 02.08.02): the one thing a joined owner
+                            // may do is add one of their own campsites to THAT lottery, so the
+                            // card offers it directly rather than leaving "Create Lottery" as
+                            // the only route, which would start a second lottery.
+                            if (lottery.ownerId != resolvedOwnerId) {
+                                Button(
+                                    onClick = { goToLotteryDetails(lottery) },
+                                    modifier = Modifier.testTag("lottery_add_campsite").padding(start = 8.dp)
+                                ) {
+                                    Text("Add Campsite")
+                                }
+                            }
+
                             // A lottery whose booking window has already passed can no
                             // longer be joined, edited or drawn, so it is only clutter
                             // in this list: deleting it is the one thing an owner may

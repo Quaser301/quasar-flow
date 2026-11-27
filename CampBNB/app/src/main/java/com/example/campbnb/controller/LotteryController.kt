@@ -344,16 +344,17 @@ class LotteryController(
     }
 
     /**
-     * Saves the campsite list as a joining owner edited it (US 02.04.08): the campsites of
-     * other owners are kept, the campsites of [editorId] become exactly
-     * [selectedCampsiteIds], and everything else about the lottery, its dates, winner
-     * settings, invited and joining owners, is copied unchanged, which is what keeps a
-     * joining owner from changing the parameters. A campsite the editor does not own is
-     * refused, and so is an edit that would leave the lottery with no campsite.
+     * Adds a joining owner's campsites to the lottery they were invited to (US 02.04.08,
+     * US 02.08.02): the lottery on file keeps EVERY campsite it already covers, its
+     * primary owner, and every parameter, and [selectedCampsiteIds] are added to it. A
+     * joining owner only ever adds — taking a campsite out or changing a parameter is the
+     * primary owner's control, and belongs to the owner's own edit path. A campsite the
+     * editor does not own is refused, and so is an edit that would leave the lottery with
+     * no campsite.
      *
      * @param editorId The joining owner whose selection is saved.
      * @param lottery The lottery as it is now.
-     * @param selectedCampsiteIds The editor's campsites the edited lottery will cover.
+     * @param selectedCampsiteIds The editor's own campsites to add to that lottery.
      * @param onSuccess Called once the edited lottery is stored.
      * @param onFailure Receives the store's error or a refusal.
      */
@@ -373,8 +374,7 @@ class LotteryController(
                         IllegalArgumentException("Only your own campsites can be added to a lottery")
                     )
                 } else {
-                    val keptByOthers = lottery.campsiteIds.filterNot { it in ownedIds }
-                    val editedCampsiteIds = (keptByOthers + selectedCampsiteIds).distinct()
+                    val editedCampsiteIds = (lottery.campsiteIds + selectedCampsiteIds).distinct()
                     if (editedCampsiteIds.isEmpty()) {
                         onFailure(
                             IllegalArgumentException("A lottery must cover at least one campsite")

@@ -467,7 +467,8 @@ line each; `nav` is the app controller, `homeNav` the nested one, all calls as s
   (viewModels.md) that the app root builds once and passes into `lotteryGraph`. The cross-screen
   carry: Monitor's ctor calls `lottery.updateLottery(null)` before opening edit, and
   `lottery.updateLottery(newLottery)` before opening details — there is no graph-local var any
-  more. Edit mode
+  more. The card's `lottery_add_campsite` control (ui.md) uses that same details carry, so a
+  joined owner's add reaches the record they joined rather than a fresh one. Edit mode
   offers the lottery's own admin (its creator, never a joining owner) a Force Close button
   calling `controller.forceCloseLottery(initialLottery, nameOfCampsite resolved from the
   loaded owner campsites)` — controller.md owns the draw (feature 1).

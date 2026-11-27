@@ -224,7 +224,8 @@ class LotteryInvitationsTest {
         assertEquals("This lottery does not invite you", model.statusMessage)
     }
 
-    /** A joining owner's edit keeps every other owner's campsites and every parameter. */
+    /** A joining owner only ADDS: the lottery keeps every campsite it already covers,
+     * its primary owner, and every parameter, and gains the editor's selection. */
     @Test
     fun a_joining_owner_edit_keeps_other_owners_campsites() {
         val repository = mockk<LotteryRepository>()
@@ -266,10 +267,54 @@ class LotteryInvitationsTest {
             onFailure = {}
         )
 
-        assertEquals(listOf("camp-one", "own-two"), saved.captured.campsiteIds)
+        assertEquals(listOf("camp-one", "own-one", "own-two"), saved.captured.campsiteIds)
         assertEquals(lottery.id, saved.captured.id)
         assertEquals(listOf("co-1"), saved.captured.joinedOwnerIds)
         assertEquals(lottery.numberOfWinners, saved.captured.numberOfWinners)
+    }
+
+    /** Checking nothing changes nothing: a joining owner cannot take a campsite out, and
+     * no second lottery is written. */
+    @Test
+    fun a_joining_owner_cannot_take_a_campsite_out() {
+        val repository = mockk<LotteryRepository>()
+        val notifications = mockk<NotificationController>(relaxed = true)
+        val controller = controllerOn(repository, notifications)
+
+        val onOwned = slot<Function1<List<Campsite>, Unit>>()
+        every {
+            repository.loadCampsitesByOwner(capture(onOwned), any(), any())
+        } answers {
+            onOwned.captured.invoke(
+                listOf(Campsite(ownerId = "co-1").also { it.id = "own-one" })
+            )
+        }
+
+        val saved = slot<Lottery>()
+        val onSaved = slot<Function0<Unit>>()
+        val onFailed = slot<Function1<Exception, Unit>>()
+        every {
+            repository.save(capture(saved), capture(onSaved), capture(onFailed))
+        } answers {
+            onSaved.captured.invoke()
+        }
+
+        val lottery = shareableLottery(
+            "owner-1",
+            emptyList(),
+            listOf("co-1"),
+            campsiteIds = listOf("camp-one", "own-one")
+        )
+        controller.saveCampsitesEditedBy(
+            editorId = "co-1",
+            lottery = lottery,
+            selectedCampsiteIds = emptyList(),
+            onSuccess = {},
+            onFailure = {}
+        )
+
+        assertEquals(listOf("camp-one", "own-one"), saved.captured.campsiteIds)
+        assertEquals(lottery.ownerId, saved.captured.ownerId)
     }
 
     /** A campsite the editor does not own cannot be added, and nothing is saved. */
@@ -356,8 +401,8 @@ class LotteryInvitationsTest {
         verify(exactly = 0) { repository.save(any(), any(), any()) }
     }
 
-    // An edit that empties the selection is refused by name: a lottery must still
-    // cover at least one campsite, and nothing is saved.
+    // A lottery left covering nothing is refused by name: an add never empties one, but a
+    // record that covers no campsite at all cannot be saved, and nothing is written.
     @Test
     fun an_empty_campsite_edit_is_refused_by_name() {
         val repository = mockk<LotteryRepository>()
@@ -379,7 +424,7 @@ class LotteryInvitationsTest {
         var failure: Exception? = null
         controller.saveCampsitesEditedBy(
             editorId = "co-1",
-            lottery = shareableLottery("owner-1", emptyList(), listOf("co-1"), campsiteIds = listOf("own-one")),
+            lottery = shareableLottery("owner-1", emptyList(), listOf("co-1"), campsiteIds = emptyList()),
             selectedCampsiteIds = emptyList(),
             onSuccess = {},
             onFailure = { error -> failure = error }

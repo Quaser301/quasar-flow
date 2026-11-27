@@ -227,7 +227,9 @@ fields, except `invitedOwnerIds` minus that user and `joinedOwnerIds` plus them 
 accepting never changes the parameters.
 
 `withCampsiteIds(chosen: List<String>): Lottery` — copy with ONLY `campsiteIds` changed,
-id preserved (a joining owner edits their own campsites, never the parameters).
+id preserved (a joining owner ADDS their own campsites to the lottery through controller.md;
+they never take one out and never change a parameter — the primary owner who created the
+lottery holds full control of it).
 
 ## Availability — which dates a campsite is open (pre-reservation)
 
