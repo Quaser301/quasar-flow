@@ -29,6 +29,18 @@ open class UserRepository {
         Database.Users.writeEngine().delete(userId, onComplete)
     }
 
+    /**
+     * Writes only one user's profile image text (US 01.08.02), so nothing else on the profile
+     * is touched. Empty [image] removes the picture.
+     */
+    open fun saveProfileImage(
+        userId: String,
+        image: String,
+        onComplete: (Result<Exception?>) -> Unit
+    ) {
+        Database.Users.writeEngine().update(userId, mapOf(User::profileImg.name to image), onComplete)
+    }
+
     /** Reads every user (admin browsing, US 03.05.01). */
     open fun getAll(onSuccess: (List<User>) -> Unit, onFailure: (Exception) -> Unit) {
         Database.Users.readEngine().query().execute(onSuccess, onFailure)

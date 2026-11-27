@@ -12,6 +12,8 @@ import com.example.campbnb.database.Identifiable
  * @property phone The user's phone number (optional).
  * @property roles The roles this user holds.
  * @property notificationsEnabled False if the user opted out of notifications (US 01.10.01).
+ * @property profileImg The profile image as Base64 text of JPEG bytes (US 01.08.02); empty
+ * means the user has none. See ImageRepository.
  */
 data class User(
     val deviceId: String = "",
@@ -19,7 +21,8 @@ data class User(
     val email: String = "",
     val phone: String = "",
     val roles: List<Role> = emptyList(),
-    val notificationsEnabled: Boolean = true
+    val notificationsEnabled: Boolean = true,
+    val profileImg: String = ""
 ) : Identifiable() {
 
     init {

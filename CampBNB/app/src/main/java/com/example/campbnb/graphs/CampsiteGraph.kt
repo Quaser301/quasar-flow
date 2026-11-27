@@ -111,7 +111,7 @@ fun NavGraphBuilder.campsiteGraph(
 
             CampsiteRegistrationForm(
                 onBack = onNavBack,
-                onUpload = { campsite, uri ->
+                onUpload = { campsite ->
                     controller.registerCampsite(campsite, deviceID) { success ->
                         if (success) {
                             onNavBack()
@@ -158,9 +158,9 @@ fun NavGraphBuilder.campsiteGraph(
                 CampsiteRegistrationForm(
                     existingCampsite = campsite,
                     onBack = onNavBack,
-                    onUpload = { updated, uri ->
-                        controller.updateCampsite(
-                            updated,
+                    onUpload = { updated ->
+                        controller.updateCampsite((
+                            updated),
                             deviceID
                         ) { success ->
                             if (success) {
