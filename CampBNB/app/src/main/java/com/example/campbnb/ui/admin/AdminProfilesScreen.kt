@@ -49,6 +49,8 @@ import com.example.campbnb.ui.shared.StoredImage
  * their settings do not offer the Delete Profile button.
  * @property profileImg The user's profile picture as stored text; empty if none. The admin
  * can click it to remove it (US 03.03.01).
+ * @property isOwner True if this user holds the OWNER role; owners get the extra "Remove
+ * Profile for App Policy Violation" setting (US 03.07.01).
  */
 class ProfileRow(
     val nameLabel: String,
@@ -56,7 +58,8 @@ class ProfileRow(
     val rolesLabel: String,
     val userId: String = "",
     val isAdmin: Boolean = false,
-    val profileImg: String = ""
+    val profileImg: String = "",
+    val isOwner: Boolean = false
 ) {}
 
 /**
@@ -135,7 +138,7 @@ private fun roleLabelOf(user: User): String {
  */
 fun profileRowsFor(users: List<User>): List<ProfileRow> =
     users.sortedBy { user -> profileSortKeyOf(user) }
-        .map { user -> ProfileRow(nameLabelOf(user), emailLabelOf(user), roleLabelOf(user), user.id, user.hasRole(Role.ADMIN), user.profileImg) }
+        .map { user -> ProfileRow(nameLabelOf(user), emailLabelOf(user), roleLabelOf(user), user.id, user.hasRole(Role.ADMIN), user.profileImg, user.hasRole(Role.OWNER)) }
 
 /**
  * The one-line text of a browsed profile row: name, email and roles, in the
@@ -171,6 +174,7 @@ fun AdminProfilesScreen(back: () -> Unit, userModel: UserModel, adminController:
     val rows = profileRowsFor(userModel.allUsers)
     var openRowId by remember { mutableStateOf("") }
     var rowToDelete by remember { mutableStateOf<ProfileRow?>(null) }
+    var ownerToRemove by remember { mutableStateOf<ProfileRow?>(null) }
     var imageRow by remember { mutableStateOf<ProfileRow?>(null) }
     var notice by remember { mutableStateOf("") }
 
@@ -202,6 +206,7 @@ fun AdminProfilesScreen(back: () -> Unit, userModel: UserModel, adminController:
                             }
                         },
                         onDelete = { rowToDelete = row },
+                        onRemoveOwner = { ownerToRemove = row },
                         onImageClick = { imageRow = row }
                     )
                 }
@@ -243,6 +248,28 @@ fun AdminProfilesScreen(back: () -> Unit, userModel: UserModel, adminController:
             onDismiss = { rowToDelete = null }
         )
     }
+
+    val ownerTarget = ownerToRemove
+    if (ownerTarget != null) {
+        ConfirmRemovalDialog(
+            title = "Remove this campsite owner?",
+            message = ownerTarget.nameLabel + " will be permanently deleted, along with their campsites " +
+                    "and lotteries. Entrants with a lottery entry or reservation at their campsites " +
+                    "will be told. This cannot be undone.",
+            confirmLabel = "Remove",
+            reasonRequired = true,
+            onConfirm = { reason ->
+                ownerToRemove = null
+                adminController.removeOwner(ownerTarget.userId, reason) { success, message ->
+                    notice = message
+                    if (success) {
+                        openRowId = ""
+                    }
+                }
+            },
+            onDismiss = { ownerToRemove = null }
+        )
+    }
 }
 
 @Composable
@@ -251,6 +278,7 @@ private fun ProfileEntry(
     settingsOpen: Boolean,
     onToggleSettings: () -> Unit,
     onDelete: () -> Unit,
+    onRemoveOwner: () -> Unit,
     onImageClick: () -> Unit
 ) {
     Box(
@@ -306,6 +334,16 @@ private fun ProfileEntry(
                         fontSize = 14.sp,
                         modifier = Modifier.testTag("admin_not_deletable_" + row.userId)
                     )
+                }
+                else if (row.isOwner) {
+                    GradientButton(
+                        text = "Remove Owner Profile",
+                        onClick = onRemoveOwner,
+                        brush = DeleteGradient,
+                        modifier = Modifier
+                            .fillMaxWidth(0.75f)
+                            .testTag("remove_owner_" + row.userId)
+                    )
                 } else {
                     GradientButton(
                         text = "Delete Profile",
@@ -315,6 +353,7 @@ private fun ProfileEntry(
                             .fillMaxWidth(0.75f)
                             .testTag("delete_profile_" + row.userId)
                     )
+
                 }
             }
         }
