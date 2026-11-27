@@ -16,6 +16,7 @@ import com.example.campbnb.data.ReservationRepository
 import com.example.campbnb.models.Campsite
 import com.example.campbnb.models.ReservationModel
 import com.example.campbnb.ui.screens.ReservationScreen
+import com.example.campbnb.controller.ReservationController
 
 /**
  * The reservations view, opened by a notification tap, the owner's My Campsites link and
@@ -45,6 +46,7 @@ fun ReservationsPanel(
     userId: String,
     campsiteRepo: CampsiteRepository,
     reservationRepo: ReservationRepository,
+    reservationController: ReservationController,
     notificationPreferencesService: NotificationPreferencesService,
     currentUserID: String,
     fileDownloadWriter: FileDownloadWriter,
@@ -71,6 +73,11 @@ fun ReservationsPanel(
     // Reservations loaded for the currently selected campsite and filter.
     var reservations by remember {
         mutableStateOf<List<ReservationModel>>(emptyList())
+    }
+
+    // Triggers a reload after a reservation is rejected.
+    var reservationRefreshKey by remember {
+        mutableStateOf(0)
     }
 
     // Tracks whether this viewer is browsing as a campsite owner.
@@ -177,7 +184,8 @@ fun ReservationsPanel(
     LaunchedEffect(
         selectedCampsiteId,
         selectedFilter,
-        viewerIsOwner
+        viewerIsOwner,
+        reservationRefreshKey
     ) {
         val campsiteId = selectedCampsiteId
 
@@ -283,6 +291,31 @@ fun ReservationsPanel(
         selectedCampsiteId = selectedCampsiteId,
         selectedFilter = selectedFilter,
         reservations = reservations,
+        viewerIsOwner = viewerIsOwner,
+
+        onRejectReservation = { reservation ->
+            reservationController.rejectReservation(
+                reservationId = reservation.lotteryEntryId,
+                requesterId = currentUserID,
+                onSuccess = {
+                    Toast.makeText(
+                        context,
+                        "Reservation rejected successfully.",
+                        Toast.LENGTH_SHORT
+                    ).show()
+
+                    // Reload the currently selected reservation list.
+                    reservationRefreshKey++
+                },
+                onFailure = { error ->
+                    Toast.makeText(
+                        context,
+                        "Could not reject reservation: ${error.message}",
+                        Toast.LENGTH_LONG
+                    ).show()
+                }
+            )
+        },
 
         // Update the campsite selection and let the loading effect refresh the list.
         onCampsiteSelected = { campsiteId ->

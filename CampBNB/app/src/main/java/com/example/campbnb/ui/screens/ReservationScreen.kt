@@ -43,6 +43,13 @@ import com.example.campbnb.models.NotificationSettings
 import com.example.campbnb.models.ReservationModel
 import com.example.campbnb.models.reservationCsvBytesOf
 import com.example.campbnb.models.reservationCsvFileName
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 
 private val CampGreen = Color(0xFF64A83F)
 private val CampDarkGreen = Color(0xFF397C28)
@@ -55,6 +62,8 @@ fun ReservationScreen(
     selectedCampsiteId: String?,
     selectedFilter: ReservationFilter,
     reservations: List<ReservationModel>,
+    viewerIsOwner: Boolean = false,
+    onRejectReservation: (ReservationModel) -> Unit = {},
     onCampsiteSelected: (String) -> Unit,
     onFilterSelected: (ReservationFilter) -> Unit,
     onBack: () -> Unit,
@@ -117,6 +126,8 @@ fun ReservationScreen(
         ReservationList(
             reservations = reservations,
             filter = selectedFilter,
+            viewerIsOwner = viewerIsOwner,
+            onRejectReservation = onRejectReservation,
             campsitesById = campsites.groupBy { campsite -> campsite.id },
             csvPreferences = csvPreferences,
             currentUserId = currentUserId,
@@ -283,6 +294,8 @@ private fun ReservationTab(
 private fun ReservationList(
     reservations: List<ReservationModel>,
     filter: ReservationFilter,
+    viewerIsOwner: Boolean = false,
+    onRejectReservation: (ReservationModel) -> Unit = {},
     campsitesById: Map<String, List<Campsite>> = emptyMap(),
     csvPreferences: NotificationPreferencesService = NoNotificationPreferencesService(),
     currentUserId: String = "",
@@ -353,7 +366,9 @@ private fun ReservationList(
                 reservation = reservation,
                 campsite = campsite,
                 csvAllowed = csvAllowed,
-                fileDownloadWriter = fileDownloadWriter
+                fileDownloadWriter = fileDownloadWriter,
+                showRejectButton = viewerIsOwner && filter == ReservationFilter.PENDING,
+                onRejectReservation = onRejectReservation
             )
         }
     }
@@ -365,8 +380,13 @@ private fun ReservationCard(
     campsite: Campsite? = null,
     csvAllowed: Boolean = false,
     fileDownloadWriter: FileDownloadWriter = NoFileDownloadWriter(),
+    showRejectButton: Boolean = false,
+    onRejectReservation: (ReservationModel) -> Unit = {},
 ) {
     val context = LocalContext.current
+    var showRejectConfirmation by remember(reservation.lotteryEntryId) {
+        mutableStateOf(false)
+    }
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(12.dp),
@@ -448,6 +468,55 @@ private fun ReservationCard(
                     "Refund Status: N/A",
                 fontSize = 10.sp
             )
+
+            if (showRejectButton) {
+                Button(
+                    onClick = {
+                        showRejectConfirmation = true
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("reservation_reject")
+                ) {
+                    Text("Reject Reservation")
+                }
+            }
+
+            if (showRejectConfirmation) {
+                AlertDialog(
+                    onDismissRequest = {
+                        showRejectConfirmation = false
+                    },
+                    title = {
+                        Text("Reject Reservation?")
+                    },
+                    text = {
+                        Text(
+                            "Are you sure you want to reject this reservation? " +
+                                    "The selected dates will be released."
+                        )
+                    },
+                    confirmButton = {
+                        TextButton(
+                            onClick = {
+                                showRejectConfirmation = false
+                                onRejectReservation(reservation)
+                            }
+                        ) {
+                            Text("Reject")
+                        }
+                    },
+                    dismissButton = {
+                        TextButton(
+                            onClick = {
+                                showRejectConfirmation = false
+                            }
+                        ) {
+                            Text("Keep Reservation")
+                        }
+                    }
+                )
+            }
 
             // CSV download is optional and depends on the user's preferences.
             // The file writer handles the actual file creation/download.

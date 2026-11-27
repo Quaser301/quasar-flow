@@ -17,8 +17,9 @@ import com.example.campbnb.data.ReservationRepository
 import com.example.campbnb.data.UserRepository
 import com.example.campbnb.models.UserModel
 import com.example.campbnb.viewModels.AppViewSettingController
-import com.example.campbnb.Screen
-
+import com.example.campbnb.controller.ReservationController
+import com.example.campbnb.controller.LotteryController
+import com.example.campbnb.models.Availability
 /**
  * Contract for services and session state that live for the whole app run.
  *
@@ -62,6 +63,15 @@ interface Dependencies {
 
     /** Shared boundary for reservation data. */
     val reservationRepository: ReservationRepository
+
+    /** Shared service for campsite availability. */
+    val availability: Availability
+
+    /** Shared lottery behavior used by reservation workflows. */
+    val lotteryController: LotteryController
+
+    /** Shared reservation workflow actions, including owner rejection. */
+    val reservationController: ReservationController
 
     /** Shared boundary for message data. */
     val messageRepository: MessageRepository
