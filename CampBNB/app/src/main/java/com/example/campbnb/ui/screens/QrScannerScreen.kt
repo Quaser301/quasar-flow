@@ -34,20 +34,23 @@ import com.example.campbnb.controller.CampsiteController
 import com.example.campbnb.models.Campsite
 import com.example.campbnb.models.QRCode
 import com.example.campbnb.models.qrTextOfImageBytes
+import com.example.campbnb.ui.shared.cameraFrameAnalysis
 import com.example.campbnb.ui.shared.CameraFrameSource
 import com.example.campbnb.ui.shared.NoCameraFrame
 import com.example.campbnb.ui.theme.FieldGrey
 
 /**
  * Camera scanner (US 01.12.01). When this device's camera can be opened, the frame
- * area shows what the camera sees, live (US 01.05.02, live scanner); what the camera
- * sees is handed back as one picture frame, which the app reads a code out of (the
- * frame adapter, ui.md's CameraFrameSource seam); what the camera sees still never
- * answers for a device that gave no camera frame, so the code itself arrives
- * through the typed text or the picture-file paths. Tapping the camera button asks
- * the frame source for one frame, and the app reads a code out of the picture it
- * gets back. A device with no camera, or a camera that cannot be opened, says so and
- * the screen keeps working on what the user typed. Text a scan produced can also be
+ * area shows what the camera sees, live (US 01.05.02, live scanner), and the camera's
+ * own frames are read for a code as they come: the analysis node this app binds to the
+ * session (ui.md's CameraFrameReader adapter) reads each frame's pixels and the text it
+ * finds arrives here as scanned text. What the camera sees still never answers for a
+ * device that gave no camera frame, so a code also arrives through the typed text or
+ * the picture-file paths. Tapping the camera button asks the frame source for one
+ * picture frame, which is the path a test provider and a real picture file use; on a
+ * device that hands no picture bytes it says so and the screen keeps working on what
+ * the user typed. A device with no camera, or a camera that cannot be opened, says so
+ * and the screen keeps working on what the user typed. Text a scan produced can also be
  * typed into the field, and a picture on this device can be scanned straight from its
  * file. Whichever way a code is read, a code that names a registered campsite opens
  * its campsite through [onOpenCampsite]; text that is not a CampBNB code, or names a
@@ -85,8 +88,8 @@ fun QrScannerScreen(
     // and the effect re-runs when that answer arrives, so the preview starts as soon
     // as the user has allowed it. A device that shows no dialog and never answers is
     // not a refusal: its camera is opened, and if it cannot start, the failure below
-    // says so. This device's camera path hands no byte frames, so the frame-reading
-    // flow below is untouched and still reads typed text.
+    // says so. The camera's own frames are read here too, so a code the user holds
+    // up is read without pressing anything.
     val context = LocalContext.current
     val lifecycleOwner = rememberLifecycleOwner()
 
@@ -108,10 +111,17 @@ fun QrScannerScreen(
             if (deviceLens == null) {
                 notice = "This device lists no camera that can be opened. Type the code instead."
             } else {
+                // The frames the same camera sees are read for a code as they come
+                // (US 01.12.01): the analysis node is the device's frame interface, and
+                // the adapter behind it turns each frame's pixels into the flat grey
+                // buffer the code reader takes, so the two can talk. A frame that holds
+                // no code answers nothing and the preview keeps running.
+                val frameReader = cameraFrameAnalysis { readText -> scannedText = readText }
                 cameraProvider.bindToLifecycle(
                     lifecycleOwner,
                     androidx.camera.core.CameraSelector.of(deviceLens),
-                    preview
+                    preview,
+                    frameReader
                 )
             }
         } catch (failure: Exception) {

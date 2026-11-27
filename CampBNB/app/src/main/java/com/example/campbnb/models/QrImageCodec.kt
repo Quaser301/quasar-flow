@@ -282,6 +282,35 @@ fun qrTextOfImageBytes(imageBytes: ByteArray): String? {
 }
 
 /**
+ * The text held by the first QR Code in the grey pixels of one camera frame. Unlike the
+ * two paths above, this one needs no image codec: the reader takes the flat grey buffer
+ * and the frame's own width and height, so it runs on the device as well as on the JVM
+ * host. Reading is allowed to find nothing: pixels that hold no code, a buffer that does
+ * not match the given size, or a picture with no readable QR all answer with null, the
+ * same as an unscannable input elsewhere in this app.
+ *
+ * @param framePixels The frame's grey pixels, row after row, as the device gave them.
+ * @param frameWidth The width of one row of those pixels.
+ * @param frameHeight The number of those rows.
+ * @return The text the QR pixels hold, or null when they name no readable QR.
+ */
+fun qrTextOfFramePixels(framePixels: ByteArray, frameWidth: Int, frameHeight: Int): String? {
+    if (frameWidth <= 0 || frameHeight <= 0 || framePixels.size < frameWidth * frameHeight) {
+        return null
+    }
+    val hits = BarcodeReader.sequential().read(
+        framePixels,
+        frameWidth,
+        frameHeight,
+        ReadOptions.fast().symbologies(Symbology.QR_CODE)
+    )
+    if (hits.isEmpty()) {
+        return null
+    }
+    return hits[0].text()
+}
+
+/**
  * The text held by the first QR Code image in a real image file. Reading is allowed to
  * find nothing: a file that cannot be opened, a file with no picture in it, or a
  * picture with no readable QR all answer with null, the same as an unscannable input

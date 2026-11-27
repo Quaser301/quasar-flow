@@ -63,24 +63,48 @@ These four are exhaustive-total by fallback (the `when`-style maps in ui.compone
 exhaustive by case) — treat both spellings as ONE contract; a test may target either, and
 they agree on every enum value.
 
-`ui.shared/CameraFrame.kt` (US 01.12.01 provider seam):
+`ui.shared/CameraFrame.kt` (US 01.12.01 provider seam and the frame-to-code adapter):
 - `interface CameraFrameSource { fun requestFrame(onFrame: (ByteArray?) -> Unit) }`
 - `class NoCameraFrame : CameraFrameSource` — every request answers `onFrame(null)`.
-JVM-reachable: construct `NoCameraFrame()` and assert the callback receives null. The
-in-source note records why a real provider cannot be written HERE, and that was re-read
-off the compiler this round — do not try to build a camera provider in a test or in app
-code. What the platform DOES resolve: `Preview.Builder`, `CameraSelector.of`,
-`ImageProcessor.Builder` (so the live preview works, US 01.05.02). What it does NOT:
-`androidx.camera.core.ImageAnalysis.Builder` (the class resolves, its nested Builder does
-not), `androidx.camera.core.ImageSource` (absent), `ImageAnalysis.processWithProcessor`
-and `ImageAnalysis.attachImageProcessor` (absent) — so no analyzed frame can be started,
-which is the whole reason the seam stays frameless. (The older camera2/`java.io.ByteBuffer`
-wording below is the OTHER dead path, kept for history: `CameraManager` is a final class
-with a package-private constructor and frame planes keep bytes in a buffer type this
-runtime no longer exposes.) A QR DECODER over pixels is separately absent: Barleader's
-`BarcodeReader.read` accepts only the unnameable `BufferedImage!` that `javax.imageio.ImageIO`
-returns, and that runtime is not on the device, so a frame's bytes could not be read even
-if a frame could be had.
+- `class CameraFrameReader(private val onText: (String) -> Unit) : androidx.camera.core.ImageAnalysis.Analyzer`
+  — the ADAPTER over the two interfaces: the device calls it once per frame with an
+  `ImageProxy`, it copies that frame's first plane into a flat grey buffer and hands
+  it to `qrTextOfFramePixels`; each code's text answers through `onText`. A frame
+  holding no readable code answers nothing.
+- `fun cameraFrameAnalysis(onText: (String) -> Unit): androidx.camera.core.ImageAnalysis`
+  — the analysis node with that reader attached, built in one step so a screen only
+  binds what it gets.
+- `private fun frameGreyPixelsOf(plane, frameWidth, frameHeight): ByteArray?` — the
+  plane's own `rowStride`/`pixelStride` are honoured, so a padded row does not skew
+  the picture; a plane that does not cover the frame answers with no pixels.
+JVM-reachable: construct `NoCameraFrame()` and assert the callback receives null; the
+adapter's own pixel path is tested through `qrTextOfFramePixels` (models.md), which
+needs no device. The in-source note records what the platform can and cannot hand back,
+re-read off the compiler rather than assumed. What the platform DOES resolve, and what
+the adapter is built from: `androidx.camera.core.ImageAnalysis.Builder().build()`, the
+`ImageAnalysis.Analyzer` interface (`analyze(ImageProxy)`), `ImageProxy.imagePlanes`
+/`width`/`height`, and the planes themselves through `androidx.camera.common.ImagePlane`
+(`buffer`, `rowStride`, `pixelStride`) — which is why `androidx.camera:camera-common:1.7.0`
+is now a dependency: those plane types are NOT in camera-core. Barleader's reader also
+takes a raw buffer: `BarcodeReader.read(byte[], int, int, ReadOptions)` (width then
+height) is accepted, so pixels can be read with no image codec at all. What still does
+NOT resolve: a frame as the BYTES OF AN ENCODED PICTURE — that needs `javax.imageio`
+over `java.awt`, which is not on the device runtime — so `CameraFrameSource` keeps no
+device provider and `NoCameraFrame` stays the default; the device's frames are read
+through the adapter instead, which answers a code's TEXT, not picture bytes. Also still
+absent: `androidx.camera.core.ImageSource`, `ImageAnalysis.processWithProcessor`,
+`ImageAnalysis.attachImageProcessor`, and `androidx.camera:camera-image` at ANY version
+(404 on Google's and Maven Central's mirrors — the package no longer exists). `setAnalyzer`
+takes a NON-NULL `java.util.concurrent.Executor` (Kotlin rejects `null` there), so the
+app supplies its own one-method executor that runs the frame's work where it was handed;
+note the Kotlin builtin packages `java.concurrent`/`java.thread`/`java.function`/`java.pool`
+are NOT nameable in this toolchain — only jar-qualified names are (`java.util.concurrent.Executor`,
+`java.lang.Runnable`, `java.nio.ByteBuffer`). `ImageProcessor.Builder` does NOT resolve
+(`ImageProcessor` is an interface with only `process(Request)`); the earlier wording had
+that pair reversed and is corrected here. (The older camera2/`java.io.ByteBuffer` wording
+is the OTHER dead path, kept for history: `CameraManager` is a final class with a
+package-private constructor and frame planes keep bytes in a buffer type this runtime
+no longer exposes.)
 
 `ui.shared/DeviceId.kt`: `object DeviceId { fun get(context, src: () -> String = { …ANDROID_ID… }): String = src() }` —
 returns whatever `src()` returns (the real source is `Settings.Secure.getString(context.contentResolver, ANDROID_ID)`).
@@ -193,11 +217,15 @@ NOT `DEFAULT_BACK_CAMERA`: a lens-facing selector asks for a back-facing lens, a
 camera reports no lens category at all (a chromebook's does — its own error names
 `LensCategory:null` while naming `Cams:1`) matches no lens filter, so the bind throws
 "No available camera can be found" on a device that has a camera. A device that lists no camera
-names that in its notice instead. The in-app image-file scan (the `image_path_field`
+names that in its notice instead. The SAME session also carries the frame reader: `cameraFrameAnalysis
+{ readText -> … }` (ui.md's adapter) is bound beside the preview, so the camera's own frames are
+read for a code as they come and the text it finds arrives as the screen's scanned text — the user
+holding a code up needs no button press (US 01.12.01). The in-app image-file scan (the `image_path_field`
 text field and its `image_scan` button) is GONE: the user called it bulky and the phone's own
 camera opens a code's link instead (the registered `campbnb` scheme, app.md); the screen keeps
 its live preview, the typed-code field, the frame-reading seam and the Open button. Screen-internal
-wiring only — no parameter or call-site change, and the frame-reading seam is untouched. A code
+wiring only — no parameter or call-site change, and the frame-reading seam (the picture-bytes
+path a test provider and a real picture file use) is untouched. A code
 that names a registered campsite opens it through `onOpenCampsite`; text that is not code text,
 or names a campsite that is not registered, says so in the notice — there is no expired arm and
 no "that code stopped working" message any more, since a code carries no expiry (models.md). `ui.screens/messagesScreen.kt` (package **ui.inbox**): private

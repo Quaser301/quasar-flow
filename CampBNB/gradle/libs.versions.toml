@@ -19,6 +19,7 @@ runtime = "1.12.1"
 cameraCamera2 = "1.7.0"
 cameraCompose = "1.7.0"
 cameraCore = "1.7.0"
+cameraCommon = "1.7.0"
 cameraLifecycle = "1.7.0"
 viewfinderCompose = "1.7.0"
 viewfinderCore = "1.7.0"
@@ -53,6 +54,7 @@ androidx-ui-test-junit4 = { group = "androidx.compose.ui", name = "ui-test-junit
 androidx-compose-runtime = { group = "androidx.compose.runtime", name = "runtime", version.ref = "runtime" }
 androidx-camera-camera2 = { group = "androidx.camera", name = "camera-camera2", version.ref = "cameraCamera2" }
 androidx-camera-compose = { group = "androidx.camera", name = "camera-compose", version.ref = "cameraCompose" }
+androidx-camera-common = { group = "androidx.camera", name = "camera-common", version.ref = "cameraCommon" }
 androidx-camera-core = { group = "androidx.camera", name = "camera-core", version.ref = "cameraCore" }
 androidx-camera-lifecycle = { group = "androidx.camera", name = "camera-lifecycle", version.ref = "cameraLifecycle" }
 androidx-camera-viewfinder-compose = { group = "androidx.camera.viewfinder", name = "viewfinder-compose", version.ref = "viewfinderCompose" }

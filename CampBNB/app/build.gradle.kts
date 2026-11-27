@@ -59,6 +59,7 @@ dependencies {
     implementation(libs.androidx.navigation.compose)
     implementation(libs.androidx.navigation.runtime.ktx)
     implementation(libs.androidx.camera.camera2)
+    implementation(libs.androidx.camera.common)
     implementation(libs.androidx.camera.compose)
     implementation(libs.androidx.camera.core)
     implementation(libs.androidx.camera.lifecycle)

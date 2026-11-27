@@ -309,6 +309,7 @@ fun qrScreenOfLinkPayload(payload: String): Screen?
 fun qrImageFileBytes(qrCode: QRCode): ByteArray          // the real PNG bytes of this code's grid
 fun qrTextOfImageBytes(imageBytes: ByteArray): String?   // first QR's text in image bytes, or null
 fun qrTextOfImageFile(imageFilePath: String): String?    // same through a real file path
+fun qrTextOfFramePixels(framePixels: ByteArray, frameWidth: Int, frameHeight: Int): String?  // first QR's text in a frame's grey pixels
 ```
 - Write path (pure Kotlin, runs anywhere): the code is encoded with Barleader
   (`BarleaderQrCode.encode(payload, QrOptions.defaults())`) and its module grid is drawn
@@ -323,6 +324,17 @@ fun qrTextOfImageFile(imageFilePath: String): String?    // same through a real 
   `89 50 4E 47 0D 0A 1A 0A`.
 - Read path uses the JDK image codecs and ONLY RUNS ON THE JVM TEST HOST (the Android
   runtime has no java.awt — this is why the write path avoids image classes).
+- FRAME read path (`qrTextOfFramePixels`) needs NO image codec and RUNS ON THE DEVICE too:
+  Barleader's own raw-buffer entry `BarcodeReader.read(byte[], int, int, ReadOptions)` takes
+  the flat grey pixels plus the frame's width THEN height — the two are not interchangeable,
+  a swapped size does not decode. Guard first: `frameWidth <= 0 || frameHeight <= 0 ||
+  framePixels.size < frameWidth * frameHeight` → `null`; then the same
+  `ReadOptions.fast().symbologies(QR_CODE)` as the other read paths, and no hit → `null`.
+  The practical contract a test drives: grey pixels drawn from
+  `BarleaderQrCode.encode(payload, QrOptions.defaults())` (dark = `0`, light = `0xFF`, one
+  byte per pixel, rows packed, Barleader's `QUIET_ZONE` of light modules around the grid)
+  read back as `payload`; the drawn frame is deliberately NOT square (extra light columns
+  on the right) so a swapped size cannot pass by accident.
 - The practical contract a test drives is the ROUND TRIP:
   `qrTextOfImageBytes(qrImageFileBytes(code)) == code.payload()`, plus `null` for
   unscannable inputs (no image, unreadable bytes). The byte-level detail above is the
