@@ -10,7 +10,7 @@ import com.example.campbnb.models.UserModel
 
 /**
  * Control: identifies the user by device, signs them up, grants roles, and manages the
- * profile (US 01.09.01, 01.07.03, 01.08.01, 01.10.01, 03.05.01). It is also the
+ * profile (US 01.09.01, 01.07.03, 01.08.01, 01.08.02, 01.10.01, 03.05.01). It is also the
  * notification opt-out check.
  */
 class UserController(
@@ -114,6 +114,40 @@ class UserController(
         }
         val updated = user.copy(name = name.trim(), email = email.trim(), phone = phone.trim())
         saveUser(updated, "Profile saved", "Could not save your profile", onDone)
+    }
+
+    /**
+     * Adds, replaces or removes the signed-in user's profile image (US 01.08.02). Only the
+     * image is written, nothing else on the profile.
+     *
+     * @param image The picture as stored text (see ImageRepository). Empty removes it.
+     * @param onDone Called with true once the image is saved.
+     */
+    fun setProfileImage(image: String, onDone: (Boolean) -> Unit) {
+        val user = model.currentUser
+        if (user == null) {
+            model.setStatusMessage("Please start again")
+            onDone(false)
+            return
+        }
+        repo.saveProfileImage(
+            user.id,
+            image,
+            onComplete = { result ->
+                if (result.isSuccess) {
+                    model.setCurrentUser(user.copy(profileImg = image))
+                    if (image.isEmpty()) {
+                        model.setStatusMessage("Profile image removed")
+                    } else {
+                        model.setStatusMessage("Profile image saved")
+                    }
+                    onDone(true)
+                } else {
+                    model.setStatusMessage("Could not save your profile image")
+                    onDone(false)
+                }
+            }
+        )
     }
 
     /** Turns notifications on or off for the signed-in user (US 01.10.01). */

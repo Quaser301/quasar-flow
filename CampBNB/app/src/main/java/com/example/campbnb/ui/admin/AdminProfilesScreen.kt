@@ -27,6 +27,10 @@ import com.example.campbnb.ui.components.BackArrow
 import com.example.campbnb.ui.components.GradientButton
 import com.example.campbnb.ui.theme.DeleteGradient
 import com.example.campbnb.ui.shared.BarWithBackChevronAndHeaderCentered
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.layout.ContentScale
+import com.example.campbnb.models.ImageKind
+import com.example.campbnb.ui.shared.StoredImage
 
 /**
  * One browsed profile row: the three fields the admin sees, each already turned
@@ -41,13 +45,21 @@ import com.example.campbnb.ui.shared.BarWithBackChevronAndHeaderCentered
  * the row (such as deleting the profile) are addressed to it.
  * @property isAdmin True if this user is an admin; admin profiles cannot be deleted, so
  * their settings do not offer the Delete Profile button.
+ * @property isAdmin True if this user is an admin; admin profiles cannot be deleted, so
+ * their settings do not offer the Delete Profile button.
+ * @property profileImg The user's profile picture as stored text; empty if none. The admin
+ * can click it to remove it (US 03.03.01).
+ * @property isOwner True if this user holds the OWNER role; owners get the extra "Remove
+ * Profile for App Policy Violation" setting (US 03.07.01).
  */
 class ProfileRow(
     val nameLabel: String,
     val emailLabel: String,
     val rolesLabel: String,
     val userId: String = "",
-    val isAdmin: Boolean = false
+    val isAdmin: Boolean = false,
+    val profileImg: String = "",
+    val isOwner: Boolean = false
 ) {}
 
 /**
@@ -126,7 +138,7 @@ private fun roleLabelOf(user: User): String {
  */
 fun profileRowsFor(users: List<User>): List<ProfileRow> =
     users.sortedBy { user -> profileSortKeyOf(user) }
-        .map { user -> ProfileRow(nameLabelOf(user), emailLabelOf(user), roleLabelOf(user), user.id, user.hasRole(Role.ADMIN)) }
+        .map { user -> ProfileRow(nameLabelOf(user), emailLabelOf(user), roleLabelOf(user), user.id, user.hasRole(Role.ADMIN), user.profileImg, user.hasRole(Role.OWNER)) }
 
 /**
  * The one-line text of a browsed profile row: name, email and roles, in the
@@ -162,6 +174,8 @@ fun AdminProfilesScreen(back: () -> Unit, userModel: UserModel, adminController:
     val rows = profileRowsFor(userModel.allUsers)
     var openRowId by remember { mutableStateOf("") }
     var rowToDelete by remember { mutableStateOf<ProfileRow?>(null) }
+    var ownerToRemove by remember { mutableStateOf<ProfileRow?>(null) }
+    var imageRow by remember { mutableStateOf<ProfileRow?>(null) }
     var notice by remember { mutableStateOf("") }
 
     Column {
@@ -191,11 +205,27 @@ fun AdminProfilesScreen(back: () -> Unit, userModel: UserModel, adminController:
                                 openRowId = row.userId
                             }
                         },
-                        onDelete = { rowToDelete = row }
+                        onDelete = { rowToDelete = row },
+                        onRemoveOwner = { ownerToRemove = row },
+                        onImageClick = { imageRow = row }
                     )
                 }
             }
         }
+    }
+
+    val imageTarget = imageRow
+    if (imageTarget != null) {
+        AdminImageRemoval(
+            title = imageTarget.nameLabel,
+            stored = imageTarget.profileImg,
+            onRemove = { reason ->
+                adminController.removeImage(ImageKind.PROFILE, imageTarget.userId, reason) { _, message ->
+                    notice = message
+                }
+            },
+            onDismiss = { imageRow = null }
+        )
     }
 
     val target = rowToDelete
@@ -218,6 +248,28 @@ fun AdminProfilesScreen(back: () -> Unit, userModel: UserModel, adminController:
             onDismiss = { rowToDelete = null }
         )
     }
+
+    val ownerTarget = ownerToRemove
+    if (ownerTarget != null) {
+        ConfirmRemovalDialog(
+            title = "Remove this campsite owner?",
+            message = ownerTarget.nameLabel + " will be permanently deleted, along with their campsites " +
+                    "and lotteries. Entrants with a lottery entry or reservation at their campsites " +
+                    "will be told. This cannot be undone.",
+            confirmLabel = "Remove",
+            reasonRequired = true,
+            onConfirm = { reason ->
+                ownerToRemove = null
+                adminController.removeOwner(ownerTarget.userId, reason) { success, message ->
+                    notice = message
+                    if (success) {
+                        openRowId = ""
+                    }
+                }
+            },
+            onDismiss = { ownerToRemove = null }
+        )
+    }
 }
 
 @Composable
@@ -225,7 +277,9 @@ private fun ProfileEntry(
     row: ProfileRow,
     settingsOpen: Boolean,
     onToggleSettings: () -> Unit,
-    onDelete: () -> Unit
+    onDelete: () -> Unit,
+    onRemoveOwner: () -> Unit,
+    onImageClick: () -> Unit
 ) {
     Box(
         modifier = Modifier
@@ -245,6 +299,19 @@ private fun ProfileEntry(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
             ) {
+                // Clicking the picture opens the admin's image settings (US 03.03.01).
+                if (row.profileImg.isNotBlank()) {
+                    StoredImage(
+                        stored = row.profileImg,
+                        contentDescription = row.nameLabel,
+                        modifier = Modifier
+                            .size(44.dp)
+                            .clip(CircleShape)
+                            .testTag("profile_image_" + row.userId)
+                            .clickable(onClick = onImageClick),
+                        contentScale = ContentScale.Crop
+                    )
+                }
                 Text(
                     profileRowText(row),
                     fontSize = 16.sp,
@@ -267,6 +334,16 @@ private fun ProfileEntry(
                         fontSize = 14.sp,
                         modifier = Modifier.testTag("admin_not_deletable_" + row.userId)
                     )
+                }
+                else if (row.isOwner) {
+                    GradientButton(
+                        text = "Remove Owner Profile",
+                        onClick = onRemoveOwner,
+                        brush = DeleteGradient,
+                        modifier = Modifier
+                            .fillMaxWidth(0.75f)
+                            .testTag("remove_owner_" + row.userId)
+                    )
                 } else {
                     GradientButton(
                         text = "Delete Profile",
@@ -276,6 +353,7 @@ private fun ProfileEntry(
                             .fillMaxWidth(0.75f)
                             .testTag("delete_profile_" + row.userId)
                     )
+
                 }
             }
         }

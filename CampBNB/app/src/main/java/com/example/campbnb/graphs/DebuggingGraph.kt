@@ -12,7 +12,7 @@ import com.example.campbnb.models.UserModel
 import com.example.campbnb.ui.admin.AdminProfilesScreen
 import com.example.campbnb.ui.components.profileLabelOf
 import com.example.campbnb.ui.notification.NotificationLogScreen
-
+import com.example.campbnb.ui.admin.AdminImagesScreen
 
 fun NavGraphBuilder.DebugGraph(
     onNavBack: () -> Unit,
@@ -74,6 +74,15 @@ fun NavGraphBuilder.DebugGraph(
             },
             savedUsers = userModel,
             deleteNotice = removeNotice
+        )
+    }
+
+    // The admin's Images tab: every uploaded picture, tap one to remove it
+    // (US 03.06.01, US 03.03.01).
+    composable<Screen.AdminImages> {
+        AdminImagesScreen(
+            back = onNavBack,
+            adminController = adminController
         )
     }
 }

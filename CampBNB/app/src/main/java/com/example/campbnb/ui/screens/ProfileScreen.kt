@@ -1,4 +1,4 @@
-package com.example.campbnb.ui.profile
+package com.example.campbnb.ui.screens
 
 import android.util.Patterns
 import androidx.compose.foundation.background
@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -33,6 +34,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -52,7 +55,10 @@ import com.example.campbnb.viewModels.EntrantSettingsController
 import com.example.campbnb.viewModels.OwnerSettingsController
 import com.example.campbnb.viewModels.SettingsDisplayController
 import com.example.campbnb.ui.components.GradientBarButton
+import com.example.campbnb.data.ImageRepository
 import com.example.campbnb.ui.components.UserRole
+import com.example.campbnb.ui.shared.StoredImage
+import com.example.campbnb.ui.shared.rememberImagePicker
 
 private val CampGreen = Color(0xFF3B6D11)
 private val CampGreenDark = Color(0xFF27500A)
@@ -63,7 +69,9 @@ private const val DELETE_PHRASE = "DELETE"
 
 /**
  * Profile tab for campers (entrants), owners and admins. Lets the user edit their name, email
- * and phone number (US 01.05.02) and delete their profile (US 01.07.03).
+ * and phone number (US 01.05.02) and delete their profile (US 01.07.03). They can also add,
+ * change or remove their profile image (US 01.08.02): the screen picks the picture and turns
+ * it into text, then reports it through [onImageChanged].
  * The screen only validates and reports; saving and deleting are done by the caller.
  *
  * @param role Decides the role chip and whether the owner row is shown.
@@ -82,6 +90,10 @@ private const val DELETE_PHRASE = "DELETE"
  * @param viewSettings The app view switch, drawn here for an admin: the settings are all
  *     read from one place, so the switch is not left behind on a second screen.
  * @param appSettings The storage that keeps the chosen view between app lifetimes.
+ * @param profileImage The user's profile image as stored text; empty if there is none. Shown
+ * in the round avatar, over the initials.
+ * @param onImageChanged Called with the new picture as stored text after the user adds or
+ * changes it, or with an empty string after they remove it. The caller saves it.
  *
  * @author Zino
  */
@@ -102,6 +114,8 @@ fun ProfileScreen(
     userIdForSettings: String = "",
     viewSettings: AppViewSettingController,
     appSettings: AppSettingsService = NoAppSettingsService(),
+    profileImage: String = "",
+    onImageChanged: (String) -> Unit = {}
 ) {
     // The app view switch keeps its own expansion state, so the Profile view holds a
     // display controller of its own rather than sharing the Settings screen's.
@@ -114,6 +128,18 @@ fun ProfileScreen(
     var emailError by remember { mutableStateOf<String?>(null) }
     var phoneError by remember { mutableStateOf<String?>(null) }
     var showDeleteDialog by remember { mutableStateOf(false) }
+    var imageError by remember { mutableStateOf("") }
+
+    val pickImage = rememberImagePicker(
+        maxEdge = ImageRepository.PROFILE_EDGE,
+        onPicked = { text ->
+            imageError = ""
+            onImageChanged(text)
+        },
+        onFailed = {
+            imageError = "That image could not be used. Please pick a different one."
+        }
+    )
 
     val initials = name.split(" ")
         .filter { it.isNotBlank() }
@@ -141,6 +167,13 @@ fun ProfileScreen(
             contentAlignment = Alignment.Center
         ) {
             Text(initials, fontSize = 22.sp, fontWeight = FontWeight.Medium, color = CampGreenDark)
+            // Drawn over the initials once decoded; draws nothing when there is no image.
+            StoredImage(
+                stored = profileImage,
+                contentDescription = "Profile image",
+                modifier = Modifier.fillMaxSize().testTag("profile_image"),
+                contentScale = ContentScale.Crop
+            )
         }
         Spacer(Modifier.height(8.dp))
         Text(name, fontSize = 16.sp, fontWeight = FontWeight.Medium)
@@ -154,6 +187,32 @@ fun ProfileScreen(
                 .background(CampGreenLight)
                 .padding(horizontal = 10.dp, vertical = 2.dp)
         )
+
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            TextButton(
+                onClick = { pickImage() },
+                modifier = Modifier.testTag("profile_image_change")
+            ) {
+                Text(if (profileImage.isEmpty()) "Add photo" else "Change photo", color = CampGreen)
+            }
+            if (profileImage.isNotEmpty()) {
+                TextButton(
+                    onClick = {
+                        imageError = ""
+                        onImageChanged("")
+                    },
+                    modifier = Modifier.testTag("profile_image_remove")
+                ) {
+                    Text("Remove photo", color = DeleteRed)
+                }
+            }
+        }
+        if (imageError.isNotEmpty()) {
+            Text(imageError, fontSize = 12.sp, color = DeleteRed)
+        }
 
         Spacer(Modifier.height(24.dp))
         Text(

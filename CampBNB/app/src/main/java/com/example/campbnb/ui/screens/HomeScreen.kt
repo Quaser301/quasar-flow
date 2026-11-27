@@ -61,7 +61,7 @@ fun tabsFor(role: UserRole): List<HomeTab> = when (role) {
         HomeTab("Messages", Screen.Messages),
         HomeTab("Inbox", Screen.Inbox),
         HomeTab("Reports", Screen.Reports),
-        HomeTab("Flagged", Screen.Flagged),
+        HomeTab("Images", Screen.AdminImages),
         HomeTab("Profiles", Screen.AdminProfileView),
         HomeTab("Notifications", Screen.AdminNotificationView),
         HomeTab("Profile", Screen.Profile)

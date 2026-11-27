@@ -1,14 +1,12 @@
 package com.example.campbnb.ui.campsite
 
-import android.net.Uri
 import androidx.activity.compose.BackHandler
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
@@ -26,21 +24,30 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import com.example.campbnb.data.ImageRepository
 import com.example.campbnb.models.Campsite
+import com.example.campbnb.ui.shared.StoredImage
+import com.example.campbnb.ui.shared.rememberImagePicker
 
 /**
  * Displays the Form for Campsite Registration
  * the campsite registration form includes the Camp Name, location, description, amenities,
- * maximum occupancy, geo location, tags, cancel policy, and price
+ * maximum occupancy, geo location, tags, cancel policy, price, and an optional image
+ * (US 02.01.02).
+ *
+ * The picked image is shrunk and turned into text by ImageRepository straight away, so the
+ * Campsite handed to [onUpload] already carries it in campImg; an empty campImg means no
+ * image. Removing the image of an existing campsite hands over an empty campImg.
  */
 @Composable
 fun CampsiteRegistrationForm(
     existingCampsite: Campsite? = null,
     onBack: () -> Unit,
-    onUpload: (Campsite, Uri?) -> Unit
+    onUpload: (Campsite) -> Unit
 ) {
     var CampName by remember(existingCampsite) {
         mutableStateOf(existingCampsite?.campName ?: "")
@@ -72,7 +79,11 @@ fun CampsiteRegistrationForm(
         mutableStateOf(existingCampsite?.tags ?: emptyList<String>())
     }
 
-    var CampImg by remember { mutableStateOf<Uri?>(null) }
+    // The image as stored text (see ImageRepository); empty means no image.
+    var CampImg by remember(existingCampsite) {
+        mutableStateOf(existingCampsite?.campImg ?: "")
+    }
+    var ImageError by remember { mutableStateOf("") }
     var BackConfirmation by remember { mutableStateOf(false) }
 
     var cancelPolicy by remember(existingCampsite) {
@@ -83,12 +94,14 @@ fun CampsiteRegistrationForm(
         mutableStateOf(existingCampsite?.campPrice?.toString() ?: "")
     }
 
-    val imagePicker = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.GetContent(),
-        onResult = { uri ->
-            if (uri != null) {
-                CampImg = uri
-            }
+    val pickImage = rememberImagePicker(
+        maxEdge = ImageRepository.CAMPSITE_EDGE,
+        onPicked = { text ->
+            CampImg = text
+            ImageError = ""
+        },
+        onFailed = {
+            ImageError = "That image could not be used. Please pick a different one."
         }
     )
 
@@ -114,7 +127,7 @@ fun CampsiteRegistrationForm(
                 geoLocation.isNotBlank() ||
                 tagInput.isNotBlank() ||
                 tags.isNotEmpty() ||
-                CampImg != null
+                CampImg.isNotEmpty()
 
     BackHandler {
         if (Owner_PutInput) {
@@ -246,12 +259,27 @@ fun CampsiteRegistrationForm(
         Button(
             modifier = Modifier.testTag("image_upload").fillMaxWidth(),
             onClick = {
-                imagePicker.launch("image/*")
+                pickImage()
             }
         ) {
-            Text("Upload Image")
+            Text(
+                if (CampImg.isEmpty()) {"Upload Image"}
+                else {"Change Image"}
+            )
         }
-        if (CampImg != null) {
+        if (ImageError.isNotEmpty()) {
+            Text(
+                text = ImageError,
+                color = MaterialTheme.colorScheme.error
+            )
+        }
+        if (CampImg.isNotEmpty()) {
+            StoredImage(
+                stored = CampImg,
+                contentDescription = "Campsite image preview",
+                modifier = Modifier.testTag("image_preview").fillMaxWidth().height(160.dp),
+                contentScale = ContentScale.Crop
+            )
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -261,7 +289,8 @@ fun CampsiteRegistrationForm(
                 TextButton(
                     modifier = Modifier.testTag("image_remove"),
                     onClick = {
-                        CampImg = null
+                        CampImg = ""
+                        ImageError = ""
                     }
                 ) {
                     Text("Remove Image")
@@ -282,7 +311,7 @@ fun CampsiteRegistrationForm(
                     cancelPolicy = cancelPolicy.trim(),
                     campPrice = CampPrice.toDoubleOrNull() ?: 0.0,
                     ownerId = existingCampsite?.ownerId ?: "",
-                    campImg = existingCampsite?.campImg ?: "",
+                    campImg = CampImg,
                     availableStartDate = existingCampsite?.availableStartDate ?: "",
                     availableEndDate = existingCampsite?.availableEndDate ?: "",
                     blockedDates = existingCampsite?.blockedDates ?: emptyList()
@@ -291,7 +320,7 @@ fun CampsiteRegistrationForm(
                 if (existingCampsite != null) {
                     campsite.id = existingCampsite.id
                 }
-                onUpload(campsite, CampImg)
+                onUpload(campsite)
             },
             enabled = Validation
         ) {

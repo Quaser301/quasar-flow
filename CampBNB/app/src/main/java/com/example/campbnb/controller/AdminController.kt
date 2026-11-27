@@ -6,10 +6,9 @@ package com.example.campbnb.controller
 /*
  * AdminController.kt
  *
- * Role: controller for admin removals (US 03.02.01 so far; 03.07.01, 03.01.01, 03.03.01,
- * 03.09.01 and 03.10.01 are meant to be added here the same way) and for the policy
- * actions over someone else's listing. Role checks are not repeated here for the
- * deletions: it asks UserController whether the caller is an admin.
+ * Role: controller for admin removals (US 03.02.01, 03.07.01, 03.01.01, 03.03.01,
+ * 03.09.01, 03.10.01 and for the policy actions over someone else's listing. Role checks are
+ * not repeated here for the deletions: it asks UserController whether the caller is an admin.
  */
 
 import com.example.campbnb.controller.NotificationController
@@ -26,6 +25,9 @@ import com.example.campbnb.models.RemovalReason
 import com.example.campbnb.models.ReservationModel
 import com.example.campbnb.models.Role
 import com.example.campbnb.models.WaitingListEntry
+import com.example.campbnb.models.ImageKind
+import com.example.campbnb.models.UploadedImage
+import com.example.campbnb.models.uploadedImagesFor
 
 
 /**
@@ -173,7 +175,57 @@ class AdminController(
                 } else if (target.hasRole(Role.ADMIN)) {
                     onDone(false, "Admin profiles cannot be deleted")
                 } else {
-                    deleteChecked(userId, reason, onDone)
+                    deleteChecked(userId, target.hasRole(Role.OWNER), reason, onDone)
+                }
+            },
+            onFailure = { onDone(false, "Could not check the profile, so it was not deleted") }
+        )
+    }
+
+    /**
+     * Removes a campsite owner who violates app policy (US 03.07.01): their lotteries and
+     * campsites are removed with them, and every entrant connected to those is told.
+     *
+     * Same checks as [deleteProfile], plus: a reason is required, and the profile must be a
+     * campsite owner's. Nothing is changed if a check fails.
+     *
+     * @param userId The id of the owner's profile.
+     * @param reason The app policy violation the admin picked; required.
+     * @param onDone Called once with whether it worked and a message the screen can show.
+     */
+    fun removeOwner(
+        userId: String,
+        reason: RemovalReason?,
+        onDone: (Boolean, String) -> Unit
+    ) {
+        if (!userController.isAdmin()) {
+            onDone(false, "Only an admin can remove campsite owners")
+            return
+        }
+        if (userId.isBlank()) {
+            onDone(false, "No profile selected")
+            return
+        }
+        if (userId == userController.currentUserId()) {
+            onDone(false, "You cannot delete your own profile here")
+            return
+        }
+        if (reason == null) {
+            onDone(false, "Pick the app policy that was violated first")
+            return
+        }
+
+        userRepo.findByDeviceId(
+            userId,
+            onSuccess = { target ->
+                if (target == null) {
+                    onDone(false, "That profile no longer exists")
+                } else if (target.hasRole(Role.ADMIN)) {
+                    onDone(false, "Admin profiles cannot be deleted")
+                } else if (!target.hasRole(Role.OWNER)) {
+                    onDone(false, "That profile is not a campsite owner")
+                } else {
+                    deleteChecked(userId, true, reason, onDone)
                 }
             },
             onFailure = { onDone(false, "Could not check the profile, so it was not deleted") }
@@ -261,6 +313,119 @@ class AdminController(
         )
     }
 
+    /**
+     * Reads every uploaded picture, campsite and profile, for the admin to browse (US 03.06.01).
+     *
+     * @param onDone Called once with the pictures, or with the reason it could not load.
+     */
+    fun loadUploadedImages(onDone: (List<UploadedImage>, String?) -> Unit) {
+        if (!userController.isAdmin()) {
+            onDone(emptyList(), "Only an admin can browse uploaded images")
+            return
+        }
+        campsiteRepo.getAll(
+            onSuccess = { campsites ->
+                userRepo.getAll(
+                    onSuccess = { users -> onDone(uploadedImagesFor(campsites, users), null) },
+                    onFailure = { onDone(emptyList(), "Could not load the profile pictures") }
+                )
+            },
+            onFailure = { onDone(emptyList(), "Could not load the campsite pictures") }
+        )
+    }
+
+    /**
+     * Removes one uploaded picture that breaks app policy (US 03.03.01): the picture text is
+     * emptied, so it is gone for entrants and owners alike, and whoever uploaded it is told why.
+     * The campsite or profile itself is kept.
+     *
+     * Refused (nothing is changed) if the signed-in user is not an admin, the id is blank, the
+     * campsite or profile no longer exists, or it has no picture.
+     *
+     * @param kind Whether it is a campsite's picture or a profile's.
+     * @param sourceId The id of that campsite or profile.
+     * @param reason Why it is being removed; shown in the notice.
+     * @param onDone Called once with whether it worked and a message the screen can show.
+     */
+    fun removeImage(
+        kind: ImageKind,
+        sourceId: String,
+        reason: RemovalReason?,
+        onDone: (Boolean, String) -> Unit
+    ) {
+        if (!userController.isAdmin()) {
+            onDone(false, "Only an admin can remove images")
+            return
+        }
+        if (sourceId.isBlank()) {
+            onDone(false, "No image selected")
+            return
+        }
+        // Read fresh from the database: we need the uploader to send the notice, and the
+        // picture may already be gone.
+        if (kind == ImageKind.CAMPSITE) {
+            campsiteRepo.getById(
+                sourceId,
+                onSuccess = { campsite ->
+                    if (campsite == null) {
+                        onDone(false, "That campsite no longer exists")
+                    } else if (campsite.campImg.isBlank()) {
+                        onDone(false, "That image was already removed")
+                    } else {
+                        campsiteRepo.saveCampsiteImage(sourceId, "") { result ->
+                            if (result.isSuccess) {
+                                notifier.sendNotice(
+                                    campsite.ownerId,
+                                    "Your campsite image was removed",
+                                    imageRemovalText("the image of your campsite \"" + campsite.campName + "\"", reason)
+                                )
+                                onDone(true, "Image removed")
+                            } else {
+                                onDone(false, "Could not remove the image")
+                            }
+                        }
+                    }
+                },
+                onFailure = { onDone(false, "Could not check the image, so it was not removed") }
+            )
+        } else {
+            userRepo.findByDeviceId(
+                sourceId,
+                onSuccess = { user ->
+                    if (user == null) {
+                        onDone(false, "That profile no longer exists")
+                    } else if (user.profileImg.isBlank()) {
+                        onDone(false, "That image was already removed")
+                    } else {
+                        userRepo.saveProfileImage(sourceId, "") { result ->
+                            if (result.isSuccess) {
+                                notifier.sendNotice(
+                                    sourceId,
+                                    "Your profile picture was removed",
+                                    imageRemovalText("your profile picture", reason)
+                                )
+                                userController.loadAllUsers()
+                                onDone(true, "Image removed")
+                            } else {
+                                onDone(false, "Could not remove the image")
+                            }
+                        }
+                    }
+                },
+                onFailure = { onDone(false, "Could not check the image, so it was not removed") }
+            )
+        }
+    }
+
+    /** The message the uploader receives; [what] finishes "An admin removed ...". */
+    private fun imageRemovalText(what: String, reason: RemovalReason?): String {
+        val base = "An admin removed " + what + " for violating the app policy."
+        if (reason == null) {
+            return base
+        }
+        return base + " Reason: " + reason.label + "."
+    }
+
     /** The deletion itself, once the rating is known to exist. */
     private fun deleteRatingChecked(
         rating: Rating,
@@ -323,19 +488,23 @@ class AdminController(
         reason: RemovalReason?,
         onDone: (Boolean, String) -> Unit
     ) {
-        val job = RemovalJob(campsite, reason, onDone)
+        startCampsiteJob(RemovalJob(campsite, reason, onDone))
+    }
+
+    /** Step 1: removes the campsite's ratings, then carries on with its reservations. */
+    private fun startCampsiteJob(job: RemovalJob) {
         campsiteRepo.getRatingsByCampsite(
-            campsite.id,
+            job.campsite.id,
             onSuccess = { ratings ->
                 deleteRatings(ratings, 0) { ratingsGone ->
                     if (!ratingsGone) {
-                        onDone(false, "Could not remove this campsite's ratings, so it was not deleted")
+                        job.onDone(false, "Could not remove this campsite's ratings, so it was not deleted")
                     } else {
                         cancelReservationsOf(job)
                     }
                 }
             },
-            onFailure = { onDone(false, "Could not remove this campsite's ratings, so it was not deleted") }
+            onFailure = { job.onDone(false, "Could not remove this campsite's ratings, so it was not deleted") }
         )
     }
 
@@ -362,8 +531,7 @@ class AdminController(
                         reservation.entrantId,
                         "Your reservation was cancelled",
                         "Your reservation at " + job.campsite.campName + " (" + reservation.startDate +
-                                " to " + reservation.endDate + ") was cancelled because an admin " +
-                                "removed the campsite from the app."
+                                " to " + reservation.endDate + ") was cancelled because " + job.cause + "."
                     )
                 )
                 cancelReservations(job, reservations, index + 1)
@@ -426,14 +594,14 @@ class AdminController(
             } else {
                 removalRepo.deleteLottery(lottery.id) { result ->
                     if (result.isSuccess) {
-                        for (entry in entries) {
+                        for (entrantId in entrantIdsOf(lottery, entries)) {
                             job.notices.add(
                                 PendingNotice(
-                                    entry.userId,
+                                    entrantId,
                                     "Your lottery entry was removed",
                                     "The lottery for " + job.campsite.campName + " was cancelled " +
-                                            "because an admin removed the campsite from the app. " +
-                                            "You are no longer on its waiting list."
+                                            "because " + job.cause + ". Your entry or selection in " +
+                                            "it no longer applies."
                                 )
                             )
                         }
@@ -466,14 +634,14 @@ class AdminController(
 
         removalRepo.saveLottery(updated) { result ->
             if (result.isSuccess) {
-                for (entry in entries) {
+                for (entrantId in entrantIdsOf(lottery, entries)) {
                     job.notices.add(
                         PendingNotice(
-                            entry.userId,
+                            entrantId,
                             "A campsite was removed from your lottery",
-                            "An admin removed " + job.campsite.campName + " from the app, so it is no " +
-                                    "longer part of the lottery you entered. The lottery is still " +
-                                    "open for its other campsites."
+                            job.campsite.campName + " is no longer part of the lottery you entered " +
+                                    "because " + job.cause + ". The lottery is still open for its " +
+                                    "other campsites."
                         )
                     )
                 }
@@ -484,7 +652,7 @@ class AdminController(
         }
     }
 
-    /** Last step: delete the campsite itself, then send the owner's notice and every queued notice. */
+    /** Last step: delete the campsite itself, then send the owner's notice (if wanted) and every queued notice. */
     private fun finishCampsiteDeletion(job: RemovalJob) {
         // Every notice below is the admin's own action, so each record names the admin as
         // its cause: a listing of the notices a viewer caused must not read an action the
@@ -492,12 +660,14 @@ class AdminController(
         val causedBy = userController.currentUserId()
         campsiteRepo.deleteCampsite(job.campsite.id) { result ->
             if (result.isSuccess) {
-                notifier.sendNotice(
-                    job.campsite.ownerId,
-                    "Your campsite was removed",
-                    campsiteRemovalText(job.campsite, job.reason),
-                    actorId = causedBy
-                )
+                if (job.notifyOwner) {
+                    notifier.sendNotice(
+                        job.campsite.ownerId,
+                        "Your campsite was removed",
+                        campsiteRemovalText(job.campsite, job.reason),
+                        actorId = causedBy
+                    )
+                }
                 for (notice in job.notices) {
                     notifier.sendNotice(notice.recipientId, notice.title, notice.text, actorId = causedBy)
                 }
@@ -518,9 +688,33 @@ class AdminController(
         return base + " Reason: " + reason.label + "."
     }
 
-    /** The deletion itself, once the profile is known to exist and not to be an admin's. */
+    /**
+     * The deletion itself, once the profile is known to exist and not to be an admin's. An
+     * owner's lotteries and campsites are removed first, so nothing is left without an owner.
+     */
     private fun deleteChecked(
         userId: String,
+        isOwner: Boolean,
+        reason: RemovalReason?,
+        onDone: (Boolean, String) -> Unit
+    ) {
+        if (!isOwner) {
+            removeProfileAndData(userId, false, reason, onDone)
+            return
+        }
+        removeOwnerData(userId) { ownerDataRemoved ->
+            if (!ownerDataRemoved) {
+                onDone(false, "Could not remove this owner's campsites and lotteries, so the profile was not deleted")
+            } else {
+                removeProfileAndData(userId, true, reason, onDone)
+            }
+        }
+    }
+
+    /** Removes what the profile did as an entrant, then the profile itself, then tells its owner. */
+    private fun removeProfileAndData(
+        userId: String,
+        wasOwner: Boolean,
         reason: RemovalReason?,
         onDone: (Boolean, String) -> Unit
     ) {
@@ -533,7 +727,7 @@ class AdminController(
                         notifier.sendNotice(
                             userId,
                             "Your profile was removed",
-                            removalText(reason),
+                            removalText(reason, wasOwner),
                             actorId = userController.currentUserId()
                         )
                         userController.loadAllUsers()
@@ -547,12 +741,145 @@ class AdminController(
     }
 
     /** The message the removed user receives. */
-    private fun removalText(reason: RemovalReason?): String {
-        val base = "An admin removed your profile for violating the app policy."
+    private fun removalText(reason: RemovalReason?, wasOwner: Boolean): String {
+        var base = "An admin removed your profile for violating the app policy."
+        if (wasOwner) {
+            base = base + " Your campsites and lotteries were removed too."
+        }
         if (reason == null) {
             return base
         }
         return base + " Reason: " + reason.label + "."
+    }
+
+    /**
+     * Owner step 1: finds the owner's campsites (their names go in the lottery notices), then
+     * deletes the owner's lotteries, then the campsites. [onDone] gets true if all of it worked.
+     */
+    private fun removeOwnerData(userId: String, onDone: (Boolean) -> Unit) {
+        campsiteRepo.getByOwner(
+            userId,
+            onSuccess = { campsites -> removeOwnedLotteries(userId, campsites, onDone) },
+            onFailure = { onDone(false) }
+        )
+    }
+
+    private fun removeOwnedLotteries(userId: String, campsites: List<Campsite>, onDone: (Boolean) -> Unit) {
+        lotteryRepo.getAllLotteries(
+            onSuccess = { allLotteries ->
+                val owned = mutableListOf<Lottery>()
+                for (lottery in allLotteries) {
+                    if (lottery.ownerId == userId) {
+                        owned.add(lottery)
+                    }
+                }
+                deleteOwnedLotteries(userId, campsites, owned, 0, onDone)
+            },
+            onFailure = { onDone(false) }
+        )
+    }
+
+    /**
+     * Deletes owned[index] onward, each with its waiting list, telling every entrant once the
+     * lottery is really gone. Carries on to the campsites when none are left.
+     */
+    private fun deleteOwnedLotteries(
+        userId: String,
+        campsites: List<Campsite>,
+        owned: List<Lottery>,
+        index: Int,
+        onDone: (Boolean) -> Unit
+    ) {
+        if (index >= owned.size) {
+            removeOwnedCampsites(userId, campsites, 0, onDone)
+            return
+        }
+        val lottery = owned[index]
+        lotteryRepo.getEntries(
+            lottery.id,
+            onSuccess = { entries ->
+                deleteEntries(entries, 0) { entriesGone ->
+                    if (!entriesGone) {
+                        onDone(false)
+                    } else {
+                        removalRepo.deleteLottery(lottery.id) { result ->
+                            if (result.isSuccess) {
+                                for (entrantId in entrantIdsOf(lottery, entries)) {
+                                    notifier.sendNotice(
+                                        entrantId,
+                                        "Your lottery entry was removed",
+                                        "The lottery for " + campsiteNamesOf(lottery, campsites) +
+                                                " was cancelled because " + OWNER_REMOVED +
+                                                ". Your entry or selection in it no longer applies."
+                                    )
+                                }
+                                deleteOwnedLotteries(userId, campsites, owned, index + 1, onDone)
+                            } else {
+                                onDone(false)
+                            }
+                        }
+                    }
+                }
+            },
+            onFailure = { onDone(false) }
+        )
+    }
+
+    /** Runs the campsite deletion for campsites[index] onward, one after another; stops on the first failure. */
+    private fun removeOwnedCampsites(
+        userId: String,
+        campsites: List<Campsite>,
+        index: Int,
+        onDone: (Boolean) -> Unit
+    ) {
+        if (index >= campsites.size) {
+            onDone(true)
+            return
+        }
+        val job = RemovalJob(
+            campsites[index],
+            null,
+            { ok, _ ->
+                if (ok) {
+                    removeOwnedCampsites(userId, campsites, index + 1, onDone)
+                } else {
+                    onDone(false)
+                }
+            },
+            OWNER_REMOVED,
+            false
+        )
+        startCampsiteJob(job)
+    }
+
+    /** Everyone to tell about a lottery going away: its waiting list plus any winners already drawn, each once. */
+    private fun entrantIdsOf(lottery: Lottery, entries: List<WaitingListEntry>): List<String> {
+        val ids = mutableListOf<String>()
+        for (entry in entries) {
+            if (entry.userId !in ids) {
+                ids.add(entry.userId)
+            }
+        }
+        for (winnerId in lottery.winnerIds) {
+            if (winnerId !in ids) {
+                ids.add(winnerId)
+            }
+        }
+        return ids
+    }
+
+    /** The names of the lottery's campsites that are known here, or "a campsite" if none are. */
+    private fun campsiteNamesOf(lottery: Lottery, campsites: List<Campsite>): String {
+        val names = mutableListOf<String>()
+        for (campsite in campsites) {
+            if (campsite.id in lottery.campsiteIds) {
+                names.add(campsite.campName)
+            }
+        }
+        if (names.isEmpty()) {
+            return "a campsite"
+        }
+        return names.joinToString(", ")
     }
 
     /** Deletes the user's ratings, then their waiting-list entries. [onDone] gets true if both worked. */
@@ -651,11 +978,17 @@ class AdminController(
 /** A notice waiting to be sent once the campsite has actually been deleted. */
 private class PendingNotice(val recipientId: String, val title: String, val text: String)
 
+/** Why a campsite is going, as it reads in "... was cancelled because <cause>." */
+private const val ADMIN_REMOVED_CAMPSITE = "an admin removed the campsite from the app"
+private const val OWNER_REMOVED = "its owner was removed from the app, so the campsite no longer has an owner"
+
 /** Everything the steps of one campsite deletion share. */
 private class RemovalJob(
     val campsite: Campsite,
     val reason: RemovalReason?,
-    val onDone: (Boolean, String) -> Unit
+    val onDone: (Boolean, String) -> Unit,
+    val cause: String = ADMIN_REMOVED_CAMPSITE,
+    val notifyOwner: Boolean = true
 ) {
     val notices = mutableListOf<PendingNotice>()
 }

@@ -23,11 +23,13 @@ import junit.framework.TestCase.assertEquals
 import junit.framework.TestCase.assertTrue
 
 /**
- * AdminController's profile deletion (US 03.02.01) is tested with fake repositories, so
- * nothing touches Firebase. The cases are the ones the story leaves open or that could do
- * damage: a non-admin trying it, an admin deleting themselves, the profile's ratings and
- * waiting-list entries going with it, the notice reaching the removed user (with and
- * without a reason), and a failed cleanup keeping the profile.
+ * AdminController's profile deletion (US 03.02.01), campsite deletion (US 03.01.01) and
+ * campsite-owner removal (US 03.07.01) are tested with fake repositories, so nothing touches
+ * Firebase. The cases are the ones the stories leave open or that could do damage: a
+ * non-admin trying it, an admin deleting themselves, the data going with a profile or
+ * campsite, an owner's campsites and lotteries going with the owner, every connected entrant
+ * being told, the notice reaching the removed user (with and without a reason), and a failed
+ * cleanup keeping what was to be deleted.
  */
 
 
@@ -90,6 +92,14 @@ class AdminControllerTest {
             onFailure: (Exception) -> Unit
         ) {
             onSuccess(ratings.filter { it.userId == userId })
+        }
+
+        override fun getByOwner(
+            ownerId: String,
+            onSuccess: (List<Campsite>) -> Unit,
+            onFailure: (Exception) -> Unit
+        ) {
+            onSuccess(campsites.filter { it.ownerId == ownerId })
         }
 
         override fun deleteRating(ratingId: String, onComplete: (Result<Exception?>) -> Unit) {
@@ -176,13 +186,19 @@ class AdminControllerTest {
             onComplete(Result.success(Unit))
         }
 
+        // Lets a test mirror what the real database does: a deleted lottery is gone, a saved one replaces the old.
+        var onLotteryDeleted: (String) -> Unit = {}
+        var onLotterySaved: (Lottery) -> Unit = {}
+
         override fun deleteLottery(lotteryId: String, onComplete: (Result<Exception?>) -> Unit) {
             deletedLotteryIds.add(lotteryId)
+            onLotteryDeleted(lotteryId)
             onComplete(Result.success(null))
         }
 
         override fun saveLottery(lottery: Lottery, onComplete: (Result<Exception?>) -> Unit) {
             savedLotteries.add(lottery)
+            onLotterySaved(lottery)
             onComplete(Result.success(null))
         }
 
@@ -238,6 +254,11 @@ class AdminControllerTest {
 
         init {
             userModel.setCurrentUser(admin)
+            removalRepo.onLotteryDeleted = { id -> lotteryRepo.lotteries.removeAll { it.id == id } }
+            removalRepo.onLotterySaved = { saved ->
+                lotteryRepo.lotteries.removeAll { it.id == saved.id }
+                lotteryRepo.lotteries.add(saved)
+            }
         }
 
         fun delete(userId: String, reason: RemovalReason?) {
@@ -635,5 +656,199 @@ class AdminControllerTest {
         assertEquals("the request reports failure", false, s.success)
         assertTrue("the profile is kept so the admin can try again", s.userRepo.users.any { it.id == "user-9" })
         assertEquals("nothing was announced", 0, s.notificationRepo.saved.size)
+    }
+
+    // ---- US 03.07.01: an admin removes a campsite owner ----
+
+    private fun addOwner(s: Setup) {
+        s.userRepo.users.add(User(deviceId = "owner-1", name = "Olive", roles = listOf(Role.OWNER)))
+    }
+
+    private fun removeOwner(s: Setup, userId: String, reason: RemovalReason?) {
+        s.controller.removeOwner(userId, reason) { ok, text ->
+            s.success = ok
+            s.message = text
+        }
+    }
+
+    @Test
+    fun test_RemovingAnOwnerNeedsAReason() {
+        val s = Setup(listOf(Role.ADMIN))
+        addOwner(s)
+
+        removeOwner(s, "owner-1", null)
+
+        assertEquals("the request is refused", false, s.success)
+        assertTrue("the owner is still there", s.userRepo.users.any { it.id == "owner-1" })
+        assertTrue("their campsite is still there", s.campsiteRepo.campsites.any { it.id == "camp-1" })
+    }
+
+    @Test
+    fun test_OnlyAnOwnerCanBeRemovedThisWay() {
+        val s = Setup(listOf(Role.ADMIN))
+
+        removeOwner(s, "user-9", RemovalReason.FRAUD)
+
+        assertEquals("the request is refused", false, s.success)
+        assertTrue("the entrant is still there", s.userRepo.users.any { it.id == "user-9" })
+    }
+
+    @Test
+    fun test_ANonAdminCannotRemoveAnOwner() {
+        val s = Setup(listOf(Role.OWNER))
+        addOwner(s)
+
+        removeOwner(s, "owner-1", RemovalReason.FRAUD)
+
+        assertEquals("the request is refused", false, s.success)
+        assertTrue("the owner is still there", s.userRepo.users.any { it.id == "owner-1" })
+    }
+
+    @Test
+    fun test_RemovingAnOwnerDeletesTheirCampsitesOnly() {
+        val s = Setup(listOf(Role.ADMIN))
+        addOwner(s)
+
+        removeOwner(s, "owner-1", RemovalReason.SPAM_OR_FAKE)
+
+        assertEquals("the removal worked", true, s.success)
+        Assert.assertFalse("the owner is gone", s.userRepo.users.any { it.id == "owner-1" })
+        assertEquals(
+            "only the other owner's campsite remains",
+            listOf("camp-2"),
+            s.campsiteRepo.campsites.map { it.id }
+        )
+        assertTrue(
+            "the other campsite's ratings are untouched",
+            s.campsiteRepo.ratings.any { it.campsiteId == "camp-2" }
+        )
+    }
+
+    @Test
+    fun test_RemovingAnOwnerDeletesTheirLotteriesAndTellsEveryEntrantOnce() {
+        val s = Setup(listOf(Role.ADMIN))
+        addOwner(s)
+        s.lotteryRepo.lotteries.add(
+            Lottery(ownerId = "owner-1", campsiteIds = listOf("camp-1")).apply { id = "lot-1" }
+        )
+
+        removeOwner(s, "owner-1", RemovalReason.FRAUD)
+
+        assertEquals("the removal worked", true, s.success)
+        assertEquals("the lottery was deleted once", listOf("lot-1"), s.removalRepo.deletedLotteryIds)
+        assertTrue("its waiting list is gone", s.lotteryRepo.entries.none { it.lotteryId == "lot-1" })
+        assertEquals("the first entrant was told once", 1, noticesTo(s, "user-9").size)
+        assertEquals("the second entrant was told once", 1, noticesTo(s, "user-2").size)
+        assertTrue(
+            "and it says why the site is gone",
+            noticesTo(s, "user-9")[0].message.contains("no longer has an owner")
+        )
+    }
+
+    @Test
+    fun test_ADrawnLotterysWinnersAreToldEvenWithoutAWaitingListEntry() {
+        val s = Setup(listOf(Role.ADMIN))
+        addOwner(s)
+        s.lotteryRepo.lotteries.add(
+            Lottery(
+                ownerId = "owner-1",
+                campsiteIds = listOf("camp-1"),
+                winnerIds = listOf("user-7")
+            ).apply { id = "lot-w" }
+        )
+
+        removeOwner(s, "owner-1", RemovalReason.FRAUD)
+
+        assertEquals("the removal worked", true, s.success)
+        assertEquals("the winner was told once", 1, noticesTo(s, "user-7").size)
+    }
+
+    @Test
+    fun test_RemovingAnOwnerCancelsReservationsAtTheirCampsitesAndTellsTheEntrants() {
+        val s = Setup(listOf(Role.ADMIN))
+        addOwner(s)
+        s.removalRepo.reservations.add(
+            ReservationModel(
+                lotteryEntryId = "entry-1", campsiteId = "camp-1", entrantId = "user-5",
+                startDate = "2026-12-01", endDate = "2026-12-03"
+            )
+        )
+        s.removalRepo.reservations.add(
+            ReservationModel(lotteryEntryId = "entry-2", campsiteId = "camp-2", entrantId = "user-6")
+        )
+
+        removeOwner(s, "owner-1", RemovalReason.FRAUD)
+
+        assertEquals(
+            "only the owner's campsite reservation was cancelled",
+            listOf("entry-1"),
+            s.removalRepo.cancelled
+        )
+        val notices = noticesTo(s, "user-5")
+        assertEquals("the entrant was told once", 1, notices.size)
+        assertTrue("and it names the campsite", notices[0].message.contains("Lakeside"))
+        assertEquals("the other campsite's entrant was not told", 0, noticesTo(s, "user-6").size)
+    }
+
+    @Test
+    fun test_AnotherOwnersLotteryOnlyLosesTheRemovedOwnersCampsite() {
+        val s = Setup(listOf(Role.ADMIN))
+        addOwner(s)
+        s.lotteryRepo.lotteries.add(
+            Lottery(ownerId = "owner-2", campsiteIds = listOf("camp-1", "camp-2")).apply { id = "lot-multi" }
+        )
+        s.lotteryRepo.entries.add(WaitingListEntry("lot-multi", "user-5"))
+
+        removeOwner(s, "owner-1", RemovalReason.FRAUD)
+
+        assertTrue("the lottery was not deleted", s.removalRepo.deletedLotteryIds.isEmpty())
+        assertEquals("it was saved once", 1, s.removalRepo.savedLotteries.size)
+        assertEquals(
+            "with only the other campsite",
+            listOf("camp-2"),
+            s.removalRepo.savedLotteries[0].campsiteIds
+        )
+        assertEquals("its entrant was told once", 1, noticesTo(s, "user-5").size)
+    }
+
+    @Test
+    fun test_TheRemovedOwnerIsToldTheirCampsitesAndLotteriesWentToo() {
+        val s = Setup(listOf(Role.ADMIN))
+        addOwner(s)
+
+        removeOwner(s, "owner-1", RemovalReason.HARASSMENT)
+
+        val notices = noticesTo(s, "owner-1")
+        assertEquals("the owner got one notice, not one per campsite", 1, notices.size)
+        assertTrue("it says their campsites went too", notices[0].message.contains("campsites and lotteries"))
+        assertTrue("and states the reason", notices[0].message.contains(RemovalReason.HARASSMENT.label))
+    }
+
+    @Test
+    fun test_AFailedCancelKeepsTheOwnerAndTheirCampsite() {
+        val s = Setup(listOf(Role.ADMIN))
+        addOwner(s)
+        s.removalRepo.reservations.add(
+            ReservationModel(lotteryEntryId = "entry-1", campsiteId = "camp-1", entrantId = "user-5")
+        )
+        s.removalRepo.failCancel = true
+
+        removeOwner(s, "owner-1", RemovalReason.FRAUD)
+
+        assertEquals("the request reports failure", false, s.success)
+        assertTrue("the owner is kept so the admin can try again", s.userRepo.users.any { it.id == "owner-1" })
+        assertTrue("their campsite is kept", s.campsiteRepo.campsites.any { it.id == "camp-1" })
+        assertEquals("nobody was told anything", 0, s.notificationRepo.saved.size)
+    }
+
+    @Test
+    fun test_TheGenericDeleteProfileButtonAlsoCleansUpAnOwner() {
+        val s = Setup(listOf(Role.ADMIN))
+        addOwner(s)
+
+        s.delete("owner-1", null)
+
+        assertEquals("the deletion worked", true, s.success)
+        Assert.assertFalse("their campsite went with them", s.campsiteRepo.campsites.any { it.id == "camp-1" })
     }
 }

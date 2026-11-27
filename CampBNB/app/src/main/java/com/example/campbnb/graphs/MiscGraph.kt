@@ -11,18 +11,19 @@ import androidx.navigation.NavGraphBuilder
 import androidx.navigation.compose.composable
 import androidx.navigation.toRoute
 import com.example.campbnb.Screen
+import com.example.campbnb.controller.UserController
 import com.example.campbnb.database.Database
 import com.example.campbnb.data.AppSettingsService
 import com.example.campbnb.data.NotificationPreferencesService
+import com.example.campbnb.data.UserRepository
 import com.example.campbnb.models.Role
-import com.example.campbnb.models.User
 import com.example.campbnb.models.UserModel
 import com.example.campbnb.ui.components.UserRole
-import com.example.campbnb.ui.profile.ProfileScreen
+import com.example.campbnb.ui.screens.ProfileScreen
 import com.example.campbnb.ui.screens.PlaceholderTab
 import com.example.campbnb.ui.screens.QrOldCodeNoticeScreen
+import com.example.campbnb.ui.shared.observeModel
 import com.example.campbnb.ui.shared.toUserRole
-import com.example.campbnb.viewModels.AppViewSetting
 import com.example.campbnb.viewModels.AppViewSettingController
 import com.example.campbnb.viewModels.EntrantSettingsController
 import com.example.campbnb.viewModels.OwnerSettingsController
@@ -58,6 +59,9 @@ fun NavGraphBuilder.MiscGraph(
         val context = LocalContext.current
         var isSaving by remember { mutableStateOf(false) }
         var isDeleting by remember { mutableStateOf(false) }
+        val userController = remember { UserController(userModel, UserRepository()) }
+        // Redraw when the model changes, so a new or removed profile image shows right away.
+        observeModel(userModel)
         val privileges = userModel.currentUser?.roles ?: emptyList()
         val role = when {
             Role.ADMIN in privileges -> Role.ADMIN
@@ -69,6 +73,7 @@ fun NavGraphBuilder.MiscGraph(
             initialName = userModel.currentUser?.name ?: "",
             initialEmail = userModel.currentUser?.email ?: "",
             initialPhone = userModel.currentUser?.phone ?: "",
+            profileImage = userModel.currentUser?.profileImg ?: "",
             isSaving = isSaving,
             isDeleting = isDeleting,
             onSave = { name, email, phone ->
@@ -90,14 +95,9 @@ fun NavGraphBuilder.MiscGraph(
                         Database.Users.writeEngine().update(current.id, changes) { result ->
                             isSaving = false
                             if (result.isSuccess) {
+                                // copy() keeps every other field, such as the profile image
                                 userModel.setCurrentUser(
-                                    User(
-                                        deviceId = current.deviceId,
-                                        name = name,
-                                        email = email,
-                                        phone = phone,
-                                        roles = current.roles
-                                    )
+                                    current.copy(name = name, email = email, phone = phone)
                                 )
                                 Toast.makeText(context, "Profile saved", Toast.LENGTH_SHORT).show()
                             } else {
@@ -136,7 +136,18 @@ fun NavGraphBuilder.MiscGraph(
             },
             viewSettings = appViewSettings,
             appSettings = appSettings,
-            onManageCampsites = { navToMyCampsites() }
+            onManageCampsites = { navToMyCampsites() },
+            onImageChanged = { image ->
+                userController.setProfileImage(image) { saved ->
+                    if (!saved) {
+                        Toast.makeText(
+                            context,
+                            "Couldn't save your photo. Try again.",
+                            Toast.LENGTH_SHORT
+                        ).show()
+                    }
+                }
+            }
         )
     }
 
@@ -144,10 +155,6 @@ fun NavGraphBuilder.MiscGraph(
 
     composable<Screen.Reports> {
         PlaceholderTab("Reports")
-    }
-
-    composable<Screen.Flagged> {
-        PlaceholderTab("Flagged")
     }
 
     // The phone's own camera opens a CampBNB code's link here: MainActivity has
