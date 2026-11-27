@@ -62,7 +62,9 @@ fun loadCampsitesByOwner(onSuccess: (List<Campsite>) -> Unit,
 fun save(lottery: Lottery, onSuccess: () -> Unit, onFailure: (Exception) -> Unit)  // NOT open
 open fun getAllLotteries(onSuccess: (List<Lottery>) -> Unit, onFailure: (Exception) -> Unit)
 open fun getEntries(lotteryId: String, onSuccess: (List<WaitingListEntry>) -> Unit, onFailure: (Exception) -> Unit)
+open fun getEntriesByUser(userId: String, onSuccess: (List<WaitingListEntry>) -> Unit, onFailure: (Exception) -> Unit)
 open fun addEntry(entry: WaitingListEntry, onComplete: (Result<Exception?>) -> Unit)
+open fun updateEntry(entry: WaitingListEntry, onComplete: (Result<Exception?>) -> Unit)
 open fun removeEntry(lotteryId: String, userId: String, onComplete: (Result<Exception?>) -> Unit)
 open fun deleteLottery(lotteryId: String, onComplete: (Result<Exception?>) -> Unit)
 ```
@@ -73,6 +75,15 @@ Contracts:
 - `save` assumes the lottery is already validated. Its `onSuccess` takes no value. A write
   failure with no exception payload reports `Exception("Unknown error")`.
 - `getEntries` filters by `WaitingListEntry.lotteryId == lotteryId`.
+- `getEntriesByUser` filters by `WaitingListEntry.userId == userId` — every list an entrant is
+  on, across lotteries. It is what an admin's cascade reads before deleting a profile, and what
+  the bookings view and `checkEntrantAccepted` read to find one entrant's entry in a named
+  lottery.
+- `addEntry` and `updateEntry` are the SAME write (`writeEngine().save(entry, …)`) under two
+  names — main's US 02.08.02 added the second one so a draw can rewrite an entrant's `status`
+  without implying a new place on the list. Because the id is derived from `lotteryId`+`userId`,
+  both names address the SAME document: updating an entry never creates a second one, and it
+  cannot change which list an entrant is on.
 - `removeEntry` deletes the entry whose id is `WaitingListEntry.makeId(lotteryId, userId)`
   (see `models.md` for the id format) — removing an entrant never deletes another user's
   entry.
@@ -220,6 +231,26 @@ fun getPast(campsiteId, onSuccess, onFailure, today: String = DateUtils.today())
 - Same filters but `endDate < today`; ordered `endDate` ascending (oldest first).
 
 ```kotlin
+fun getPending(campsiteId, onSuccess, onFailure)
+```
+- filter: `campsiteId` equals; `status == ReservationStatus.PENDING.name`. Order: `startDate`
+  ascending. (main's US 02.08.02 addition: a reservation the entrant has created but whose dates
+  have not started yet is its own state, which is what the bookings screen's PENDING half and
+  `activateDueReservations` need.)
+
+```kotlin
+fun activateDueReservations(today: String = DateUtils.today(), onComplete: (Result<Int>) -> Unit)
+```
+- Reads every PENDING reservation across ALL campsites, keeps those whose `startDate` is nonblank
+  and `<= today`, and rewrites each to ACTIVE one at a time; `onComplete` receives
+  `Result.success(count)` of how many were moved, or `Result.failure(exception)` when the read
+  fails. This is the clock half: a reservation becomes due when its start date arrives.
+  The private walker `updateDueReservationStatuses` also carries an `ACTIVE → PAST` branch
+  (`endDate < today`), but this entry point only ever hands it PENDING records, so that branch
+  is unreachable here — `getPast` reads `status == ACTIVE` with `endDate < today` instead, and
+  nothing in this app ever writes `PAST` by hand.
+
+```kotlin
 fun getCancelled(campsiteId, onSuccess, onFailure)
 ```
 - filter: `campsiteId` equals; `status in {CANCELLED.name, REJECTED.name}`. No order stated.
@@ -227,7 +258,9 @@ fun getCancelled(campsiteId, onSuccess, onFailure)
 ```kotlin
 fun getBookedDates(campsiteId, onSuccess: (Set<String>) -> Unit, onFailure)
 ```
-- filter: `campsiteId` equals, `status == ACTIVE.name`; onSuccess receives the SET of
+- filter: `campsiteId` equals; `status in {PENDING.name, ACTIVE.name}` — a stay that has been
+  booked but has not started yet still holds its dates, so both states block them (main's US 02.08.02;
+  the branch blocked only ACTIVE). `onSuccess` receives the SET of
   every date across those reservations' `dates` fields.
 
 ```kotlin
@@ -243,7 +276,9 @@ Commands — these carry the storage rules:
 fun save(reservation: ReservationModel, onSuccess: () -> Unit, onFailure: (Exception) -> Unit)
 ```
 1. `reservation.id` is set to `reservation.lotteryEntryId` — one reservation per lottery
-   entry, mutated on the object itself.
+   entry, mutated on the object itself. `save` then mutates `reservation.status` to `PENDING`
+   as well (main's US 02.08.02): whatever state the caller built is overwritten, so the store
+   cannot be handed a reservation that claims to be ACTIVE before its dates have started.
 2. If `CheckIfReserved(lotteryEntryId)` is true:
    `onFailure(IllegalStateException("Entry already has a reservation"))`, nothing written.
 3. Otherwise dates are claimed ONE AT A TIME in order. Each claim writes a `BookedDate`
@@ -264,8 +299,10 @@ fun markRejected(reservationId, onSuccess, onFailure)                // == close
 ```
 `close` steps, in order:
 1. Read the reservation by id. Absent → `NoSuchElementException("No reservation $reservationId")`.
-2. `status != ACTIVE` → `IllegalStateException("Reservation is already ${status}")`
-   (the enum name is interpolated).
+2. `status` is NEITHER `PENDING` nor `ACTIVE` → `IllegalStateException("Reservation is already ${status}")`
+   (the enum name is interpolated). A stay that has not started yet can still be cancelled or
+   rejected — main's US 02.08.02 widened this from `status != ACTIVE`, because PENDING is now a
+   state a real reservation can be in.
 3. Write fields `{"status": newStatus.name, "refundRecorded": true}` FIRST. If that write
    fails, `onFailure` answers and the status change has still been attempted.
 4. Only after the status write succeeds are the reservation's dates released (one at a

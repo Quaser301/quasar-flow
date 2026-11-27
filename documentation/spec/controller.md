@@ -387,19 +387,48 @@ class LotteryController(private val model: LotteryModel, private val repo: Lotte
   status message + `onDone(false)`, nothing drawn); the draw = up to `numberOfWinners` of
   the DISTINCT entrant userIds in arbitrary order; closed =
   `lottery.copy(drawn = true, winnerIds = the draw, registrationStart = min(existing, now),
-  registrationEnd = now, bookingStart = now, bookingEnd = today's UTC-midnight + 86_399_999)`
+  registrationEnd = now, bookingStart = min(existing, now), bookingEnd = the LATER of the existing
+  end and today's UTC-midnight + 86_399_999)`
   with `now = clock()` (the windows a picker wrote are UTC-midnight based, so "today" is
-  taken on that basis too — ui.md). Save closed (failure → status message +
-  `onDone(false)`); ONLY on success notify one `LotteryDrawn(closed.id,
+  taken on that basis too — ui.md; the id is preserved explicitly). Save closed (failure → status
+  message + `onDone(false)`, nothing else runs). THEN, before anything is reported, every entrant's
+  waiting-list entry is rewritten one at a time (`updateDrawnEntryStatuses`, main's US 02.08.02): a
+  winner's entry becomes `LotteryEntryStatus.WON_AWAITING_RESPONSE`, every other entry
+  `NOT_SELECTED`, each keeping its own `lotteryId`/`userId`/`joinedAt` and so its deterministic id.
+  If any update fails, the status message is `"Lottery was drawn, but some entrant statuses could
+  not be updated: " + <msg>` (`"Unknown error"` when the failure names none) and `onDone(false)` —
+  the lottery IS drawn and saved, only the entrants' half of it did not land. Only when every entry
+  is updated does it notify one `LotteryDrawn(closed.id,
   `closed.campsiteIds.map(nameOfCampsite).joinToString(", ")`, winnerIds,
   loserIds = entrants minus winners)`, set the status message
-  `"The lottery was closed and drawn"`, and `onDone(true)`. The rewritten window is
+  `"The lottery was closed and drawn"`, and answer `onDone(true)`. The rewritten window is
   exactly what makes `closed.statusAt(clock()) == BOOKING` at models.md's boundaries.
 - `toggleEntrantMembership(userId)`: reads `model.entrantLottery`; no open lottery → does
   NOTHING; on the list → `leave`, else `join`.
 - `loadOwnerCampsites(ownerId, onResult: (List<Campsite>) -> Unit)` and
   `loadWaitlistEntries(lotteryId, onResult: (List<WaitingListEntry>) -> Unit)`: boundary
   helpers that SWALLOW read failures — a failure delivers the EMPTY list, not an error.
+- The entrant's OWN side of a draw (main's US 02.08.02, what the bookings flow now hangs off):
+  - `getLottery(lotteryId, onSuccess: (Lottery?), onFailure)` — the ONE record behind an id, or
+    `null`; a plain `getById`, added so `ReservationController` can read a lottery's booking window
+    and `maxBookingDays` without listing every lottery.
+  - `loadEntrantEntries(userId, onSuccess, onFailure)` — every waiting-list entry belonging to that
+    entrant (`getEntriesByUser`); blank userId → `onFailure(IllegalArgumentException("A valid user ID is required"))`.
+  - `checkEntrantAccepted(lotteryId, userId, onSuccess: (Boolean), onFailure)` — true only when the
+    entrant has an entry for THAT lottery whose id is `WaitingListEntry.makeId(lotteryId, userId)`
+    AND whose `status == ACCEPTED`. The entry id and the lottery id are different keys; both are checked.
+  - `acceptLotteryWin(lotteryId, userId, onSuccess: (), onFailure)` — blank either id →
+    `IllegalArgumentException("Invalid lottery or user ID")`; the booking window not open →
+    `IllegalStateException("The booking window is not open")`; otherwise rewrite the entry to
+    `ACCEPTED`. It creates NO reservation — the entrant still selects dates.
+  - `declineLotteryWin(lotteryId, userId, onSuccess: (), onFailure)` — the same rewrite to
+    `DECLINED`, with NO booking-window check (declining is allowed whenever the window is not).
+  - both go through `updateEntrantWinStatus` (private): no such entry →
+    `IllegalStateException("Your lottery entry could not be found")`; an entry that is not
+    `WON_AWAITING_RESPONSE` → `IllegalStateException("This lottery entry is no longer awaiting a response")`
+    — so a win can be answered exactly once; the rewrite keeps `lotteryId`/`userId`/`joinedAt` and
+    so the deterministic id; a failed write routes `Exception("Could not update your lottery entry")`
+    to `onFailure` when the store names no cause.
 
 ## ReservationController — the booking flow
 
@@ -411,35 +440,66 @@ class ReservationController(private val lotteryController: LotteryController,
 
 Holds `policiesConfirmed: mutableSetOf<String>` in memory — session state, reset on restart.
 
-- `checkEligibility` (private, via `getAvailableDates`): not a winner →
-  `IllegalStateException("Entrant did not win this lottery for this campsite")`; booking
-  not open → `IllegalStateException("Booking period is not open")`; lookup errors pass
-  straight to `onFailure`.
-- `getAvailableDates(lotteryEntryId, entrantId, campsiteId, onSuccess: (Set<String>), onFailure)`:
-  eligible → `openDates − bookedDates` (`models.md` Availability minus `data.md`
-  getBookedDates).
+Private helpers (main's US 02.08.02 rewrite, which made the date rules checkable): `dateFormatter()`
+is a `SimpleDateFormat("yyyy-MM-dd", Locale.US)`, NOT lenient, pinned to UTC; `dateStartMillis(date)`
+is the first millisecond of that UTC day, or `IllegalArgumentException("Invalid date: $date")` when it
+will not parse; `isInsideBookingWindow(date, start, end)` compares those milliseconds against the
+lottery's own window; `areConsecutive(dates)` is true only when the sorted dates step one day at a
+time.
+
+- `checkEligibility(lotteryId, lotteryEntryId, entrantId, campsiteId, onEligible: (), onFailure)`
+  (private, reached only via `getAvailableDates`), in order: the entrant has not accepted their own
+  win (`lotteryController.checkEntrantAccepted`) OR `lotteryEntryId` is not
+  `WaitingListEntry.makeId(lotteryId, entrantId)` →
+  `onFailure(IllegalStateException("You must accept your lottery win before selecting dates"))`;
+  not a winner for this campsite (`checkIfWon`) →
+  `onFailure(IllegalStateException("You did not win this lottery for this campsite"))`; booking not
+  open (`isBookingOpen`) → `onFailure(IllegalStateException("Booking period is not open"))`;
+  otherwise `onEligible()`. Every lookup error goes straight to `onFailure`.
+- `getAvailableDates(lotteryId, lotteryEntryId, entrantId, campsiteId, onSuccess: (Set<String>),
+  onFailure)` — NOTE `lotteryId` and `lotteryEntryId` are DIFFERENT things (the lottery, and that
+  entrant's entry in it): the entry id is what policies and reservations are keyed by, the lottery
+  id is what the window and the win are read from. `getLottery` null →
+  `onFailure(NoSuchElementException("Lottery not found"))`; `bookingStart <= 0L` or
+  `bookingEnd < bookingStart` → `onFailure(IllegalStateException("This lottery has an invalid booking
+  window"))`; then `checkEligibility` → `openDates` kept only INSIDE the lottery's booking window,
+  MINUS `bookedDates` (`models.md` Availability minus `data.md` getBookedDates).
 - `confirmPolicies(lotteryEntryId)`: records acceptance; no callbacks, no store.
-- `createReservation(lotteryEntryId, entrantId, ownerId, campsiteId, dates: Set<String>,
+- `createReservation(lotteryId, lotteryEntryId, entrantId, ownerId, campsiteId, dates: Set<String>,
   onSuccess: (ReservationModel), onFailure: (Exception), guests: Int, refundRecorded: Boolean,
   createdAt: Long = System.currentTimeMillis(), rules: Boolean)` — NOTE the parameter order:
-  callbacks sit BEFORE the trailing data parameters; call with named arguments.
-  1. `lotteryEntryId` not in `policiesConfirmed` → `IllegalStateException("Policies must be confirmed before reserving")`, nothing runs.
-  2. `dates.isEmpty()` → `IllegalArgumentException("Select at least one date")`.
-  3. re-check at booking time: available set missing ANY requested date →
-  `IllegalStateException("One or more dates are no longer available")`.
-  4. build the model: `dates` = the set SORTED (ISO text order), `startDate` first,
-  `endDate` last, status ACTIVE; then `reservations.save` (whose own rules are `data.md`'s:
-  duplicate entry, per-date claim conflicts, rollback). Save success → report
-  `ReservationConfirmed(reservation)` THEN `onSuccess(reservation)`; failure → `onFailure`.
-- `cancelReservation(reservationId, requesterId, onSuccess: (), onFailure)`: absent →
+  callbacks sit BEFORE the trailing data parameters; call with named arguments. In order, each
+  failure goes to `onFailure` and NOTHING else runs:
+  1. `lotteryEntryId` not in `policiesConfirmed` → `IllegalStateException("Policies must be confirmed before reserving")`.
+  2. `!rules` → `IllegalStateException("You must accept the campsite rules and policies")`.
+  3. `dates.isEmpty()` → `IllegalArgumentException("Select at least one date")`.
+  4. `getLottery(lotteryId)`: null → `NoSuchElementException("Lottery not found")`;
+     `maxBookingDays < 1` → `IllegalStateException("This lottery has an invalid maximum booking length")`.
+  5. `availability.getCampsite(campsiteId)`: null → `NoSuchElementException("Campsite not found")`;
+     `campsite.ownerId != ownerId` → `SecurityException("The selected owner does not own this campsite")`.
+  6. more sorted dates than `lottery.maxBookingDays` →
+     `IllegalArgumentException("You can select at most ${lottery.maxBookingDays} consecutive days")`;
+     not consecutive (`areConsecutive`) → `IllegalArgumentException("Your reservation dates must be consecutive")`.
+  7. `getAvailableDates`: the available set missing ANY requested date →
+     `IllegalStateException("One or more selected dates are no longer available")`.
+  8. build the model: `dates` = the set SORTED (ISO text order), `startDate` first, `endDate` last,
+     status **PENDING** — main's change: a reservation is NOT active when it is made; `data.md`'s
+     `activateDueReservations` moves it to ACTIVE once its `startDate` arrives. Then `reservations.save`
+     (whose own rules are `data.md`'s: duplicate entry, per-date claim conflicts, rollback). Save
+     success → report `ReservationConfirmed(reservation)` THEN `onSuccess(reservation)`; failure → `onFailure`.
+- `cancelReservation(reservationId, requesterId, onSuccess: (), onFailure)`: the record is read with
+  `getByLotteryEntry` (the id IS the lottery-entry id); absent →
   `NoSuchElementException("No reservation $reservationId")`; `entrantId != requesterId` →
   `SecurityException("Only the entrant can cancel this reservation")`; else `markCancelled`
   → on success report `ReservationCancelled` + `onSuccess()`. `rejectReservation` mirrors it
-  with `SecurityException("Only the campsite owner can reject this reservation")`,
-  `markRejected`, `ReservationRejected`.
+  against `ownerId` with `SecurityException("Only the campsite owner can reject this reservation")`,
+  `markRejected`, `ReservationRejected` — main keeps it as the LEGACY owner rejection ("the current
+  owner workflow is read-only for pending reservations"), so it stays callable and tested.
 - `listReservations(entrantId, onSuccess, onFailure)` = `getForEntrant`; the owner overload
-  dispatches `ReservationFilter`: ACTIVE→`getActive`, PAST→`getPast`,
-  CANCELLED→`getCancelled` (orders as `data.md` states).
+  `listReservations(campsiteId, filter: ReservationFilter, onSuccess, onFailure)` dispatches
+  `enum class ReservationFilter { PENDING, ACTIVE, PAST, CANCELLED }` (public vocabulary in this
+  file): PENDING→`getPending`, ACTIVE→`getActive`, PAST→`getPast`, CANCELLED→`getCancelled`
+  (orders as `data.md` states).
 - `generateReceiptCsv(reservation): String` — a second CSV shape, its OWN contract (do not
   confuse with `models.md`'s reservationCsvText): header line
   `reservationId,campsiteId,entrantId,ownerId,startDate,endDate,nights,status,refundRecorded,generatedOn`

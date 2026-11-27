@@ -19,7 +19,8 @@ enum class Role { ENTRANT, OWNER, ADMIN }                       // users may hol
 enum class NotificationSettings { PUSH, CSV }
 enum class NotificationStatus { UNREAD, READ }
 enum class MessageStatus { UNREAD, READ }
-enum class ReservationStatus { ACTIVE, CANCELLED, REJECTED }
+enum class ReservationStatus { PENDING, ACTIVE, PAST, CANCELLED, REJECTED }
+enum class LotteryEntryStatus { WAITING_FOR_DRAW, WON_AWAITING_RESPONSE, ACCEPTED, DECLINED, NOT_SELECTED }
 enum class LotteryStatus { UPCOMING, OPEN, DRAWN, BOOKING, CLOSED }
 enum class NotificationType { WIN, LOSE, CANCELLATION, REJECTION, OWNER_NOTICE, MESSAGE, INVITE }
 enum class LogLineStyle { DROPDOWN, RECIPIENT, NOTICE_TITLE, NOTICE_BODY }
@@ -63,10 +64,15 @@ class Rating(campsiteId, userId: String = "", stars: Int = 0) : Identifiable()
   (its parameter is generically named; used here with the campsite id).
 
 ```kotlin
-class WaitingListEntry(lotteryId, userId: String = "", joinedAt: Long = 0) : Identifiable()
+class WaitingListEntry(lotteryId, userId: String = "", joinedAt: Long = 0,
+                      status: LotteryEntryStatus = WAITING_FOR_DRAW) : Identifiable()
 // init: id = WaitingListEntry.makeId(lotteryId, userId) — "<lotteryId>_<userId>"
 ```
 - The same id rule is what makes "one entrant, one entry per lottery" and what `removeEntry` deletes.
+- `status` is main's addition (US 02.08.02): it tracks an entrant's progress through a lottery —
+  `WAITING_FOR_DRAW` until the draw, `WON_AWAITING_RESPONSE` once they have won and not yet
+  answered, `ACCEPTED`/`DECLINED` for that answer, `NOT_SELECTED` for an entrant the draw did
+  not pick. The bookings screen reads it to split the PENDING half of its cards.
 
 ```kotlin
 data class User(deviceId, name, email, phone: String = "",
@@ -115,7 +121,10 @@ data class ReservationModel(
     var lotteryEntryId, campsiteId, entrantId, ownerId: String = "",
     var guests: Int = 1, var dates: List<String> = [],
     var startDate, endDate: String = "",                       // ISO yyyy-MM-dd; dates sort as text
-    var status: ReservationStatus = ACTIVE,
+    var status: ReservationStatus = PENDING,                 // main's US 02.08.02: a reservation
+                                                            // is NOT active when made; data.md's
+                                                            // activateDueReservations moves it once
+                                                            // its startDate arrives
     var refundRecorded: Boolean = false,
     var createdAt: Long = <now at construction>,
     var rules: Boolean = false) : Identifiable()               // NO init: id is the caller's to set
@@ -125,6 +134,11 @@ data class ReservationModel(
   `ReservationRepository.save` (see `data.md`), never by the class.
 - `status`/`refundRecorded` are `var` because close-commands patch the fields through a
   field map (`update`) — see `data.md` for the exact patch.
+- The status vocabulary is now FIVE-wide (main's US 02.08.02): `PENDING` (made, its dates have
+  not started — what `createReservation` writes), `ACTIVE` (its dates are in progress — what
+  `activateDueReservations` moves it to once `startDate <= today`), `PAST` (its dates have gone —
+  what `getPast` and the bookings screen's Past tab read), `CANCELLED`, `REJECTED`. The three
+  live states are a clock, not a command: nothing "cancels" a finished stay.
 
 ```kotlin
 class BookedDate(campsiteId, reservationId: String = "") : Identifiable()
@@ -197,7 +211,8 @@ data class Lottery(
     waitlistCapacity: Int? = null,          // null = UNLIMITED
     drawn: Boolean = false, winnerIds: List<String> = [],
     invitedOwnerIds: List<String> = [],     // selected, not yet accepted
-    joinedOwnerIds: List<String> = []       // accepted sharers; the creator is in NEITHER
+    joinedOwnerIds: List<String> = [],      // accepted sharers; the creator is in NEITHER
+    maxBookingDays: Int = 1                 // main's US 02.08.02: how long a winner's stay may be
 ) : Identifiable()
 ```
 
@@ -209,14 +224,20 @@ data class Lottery(
 - otherwise → CLOSED
 
 `isValid(now: Long): Boolean` — false when ANY rule below fails:
-1. `campsiteIds` empty; 2. `numberOfWinners < 1`; 3. `waitlistCapacity != null && waitlistCapacity < numberOfWinners`;
-4. any of the four boundary stamps is `0L` (a range must be chosen);
-5. `registrationEnd < now` (registration may not already have passed);
-6. `bookingStart <= registrationEnd` (booking must start strictly after registration ends);
-7. `bookingEnd < bookingStart`;
-8. invitation hygiene (US 02.04.08): a blank name in either owner list; `ownerId` in
-   either list (an owner cannot invite themselves); any name both invited and joined;
-   duplicates within either list.
+1. `campsiteIds` EMPTY, any id blank, or the ids not all distinct (main's US 02.08.02 fix made
+   this read "one OR MORE campsites": a lottery covering several campsites is valid, and the only
+   thing a blank or repeated id can mean is a malformed record); 2. `numberOfWinners < 1`;
+3. `waitlistCapacity != null && waitlistCapacity < numberOfWinners`;
+4. `maxBookingDays < 1` (main's US 02.08.02: a lottery must be able to offer a stay of at
+   least one day, and `ReservationController.createReservation` reads this same field to bound
+   how many dates a winner may select);
+5. any of the four boundary stamps is `0L` (a range must be chosen);
+6. `registrationEnd < now` (registration may not already have passed);
+7. `bookingStart <= registrationEnd` (booking must start strictly after registration ends);
+8. `bookingEnd < bookingStart`;
+9. invitation hygiene (US 02.04.08): `ownerId` blank; a blank name in either owner list;
+   `ownerId` in either list (an owner cannot invite themselves); any name both invited and
+   joined; duplicates within either list.
 
 `visibleTo(userId): Boolean = userId == ownerId || userId in joinedOwnerIds` — invited-but-not-accepted
 owners and outsiders may NOT see it.
@@ -236,12 +257,16 @@ lottery holds full control of it).
 ```kotlin
 class Availability(private val campsites: QueryEngine<Campsite>)
 fun getOpenDates(campsiteId: String, onSuccess: (Set<String>) -> Unit, onFailure: (Exception) -> Unit)
+fun getCampsite(campsiteId: String, onSuccess: (Campsite?) -> Unit, onFailure: (Exception) -> Unit)
 ```
 - Campsite absent, or either availability bound empty → `onSuccess(emptySet())`.
 - Otherwise: `DateUtils.datesBetween(availableStartDate, availableEndDate)` kept only where
   `date >= today` and `date not in blockedDates`, as a SET.
 - A malformed stored range routes the `ParseException` to `onFailure` (not a silent empty).
 - Subtracting already-booked dates is NOT here — ReservationController's job (`controller.md`).
+- `getCampsite` answers the ONE campsite record behind an id, or `null` when there is none —
+  a plain `campsites.getById`, added so a caller that has an id and needs the record does not
+  read the whole list to find one.
 
 ## QR codes — the entity, the codec, and reading scanned text
 
@@ -307,8 +332,7 @@ fun qrScreenOfLinkPayload(payload: String): Screen?
 
 ```kotlin
 fun qrImageFileBytes(qrCode: QRCode): ByteArray          // the real PNG bytes of this code's grid
-fun qrTextOfImageBytes(imageBytes: ByteArray): String?   // first QR's text in image bytes, or null
-fun qrTextOfImageFile(imageFilePath: String): String?    // same through a real file path
+fun qrTextOfImageFile(imageFilePath: String): String?    // first QR's text in the picture at that path
 fun qrTextOfFramePixels(framePixels: ByteArray, frameWidth: Int, frameHeight: Int): String?  // first QR's text in a frame's grey pixels
 ```
 - Write path (pure Kotlin, runs anywhere): the code is encoded with Barleader
@@ -322,8 +346,10 @@ fun qrTextOfFramePixels(framePixels: ByteArray, frameWidth: Int, frameHeight: In
   the type is part of that checksum, and a chunk CRC'd over its data alone is rejected by
   every real PNG reader (IEND's own CRC is then the constant `AE 42 60 82`). The file starts with the PNG signature
   `89 50 4E 47 0D 0A 1A 0A`.
-- Read path uses the JDK image codecs and ONLY RUNS ON THE JVM TEST HOST (the Android
-  runtime has no java.awt — this is why the write path avoids image classes).
+- Read path (`qrTextOfImageFile`) uses the JDK image codecs and ONLY RUNS ON THE JVM TEST
+  HOST (the Android runtime has no java.awt — this is why the write path avoids image classes).
+  There is no separate bytes-taking entry point: the file path reads its own bytes and decodes
+  in one step, so nothing in this app hands raw picture bytes to a reader.
 - FRAME read path (`qrTextOfFramePixels`) needs NO image codec and RUNS ON THE DEVICE too:
   Barleader's own raw-buffer entry `BarcodeReader.read(byte[], int, int, ReadOptions)` takes
   the flat grey pixels plus the frame's width THEN height — the two are not interchangeable,
@@ -335,10 +361,10 @@ fun qrTextOfFramePixels(framePixels: ByteArray, frameWidth: Int, frameHeight: In
   byte per pixel, rows packed, Barleader's `QUIET_ZONE` of light modules around the grid)
   read back as `payload`; the drawn frame is deliberately NOT square (extra light columns
   on the right) so a swapped size cannot pass by accident.
-- The practical contract a test drives is the ROUND TRIP:
-  `qrTextOfImageBytes(qrImageFileBytes(code)) == code.payload()`, plus `null` for
-  unscannable inputs (no image, unreadable bytes). The byte-level detail above is the
-  format's derivation, not required assertions.
+- The practical contract a test drives is the ROUND TRIP: write `qrImageFileBytes(code)` to a
+  real file, then `qrTextOfImageFile(thatPath) == code.payload()`, plus `null` for a file that
+  is not a picture, a missing file, and a PNG signature over bytes too short to hold an image.
+  The byte-level detail above is the format's derivation, not required assertions.
 - Grid note for anyone hand-checking a symbol: `isDark(y, x)` is the order that scans
   rows; a transposed grid does not decode.
 
@@ -467,8 +493,12 @@ fun activeCount(): Int   // counts location (non-blank), startDate (non-empty), 
 
 ## Display data and placeholders
 
-- `data class BookingCardData(id, lotteryId: String, campsiteNames: List<String>, status: String, startDate = "", endDate = "", guests = 0)` —
-  NOT Identifiable, pure display data (bookings screen).
+- `data class BookingCardData(id, lotteryId: String, lotteryEntryId = "", campsiteId = "",
+  campsiteNames: List<String>, status: String, startDate = "", endDate = "", guests = 0,
+  canSelectDates = false, maxBookingDays = 1)` —
+  NOT Identifiable, pure display data (bookings screen). `status` is the display half of which
+  tab a card belongs to (`"Confirmed"`/`"Pending"`/`"Past"`, main's three-way split); `canSelectDates`
+  is what the PAST tab's cards set false, and `maxBookingDays` is the range a card may offer.
 - `Location`, `NotificationModel`, `Reservation` (marked `// DELETE`) are empty
   placeholder classes — no behavior; tests do not stand them up. (`Image.kt` was deleted
   upstream: a picture is stored as text inside the record that owns it, and what the

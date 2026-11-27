@@ -33,6 +33,12 @@ opens it), `var currentUserId: String`, `currentUserIsOwner: Boolean`,
 `userController`, `messageNotificationAdapter`, `appViewSettings: AppViewSettingController`,
 `entrantSettings: EntrantSettingsController`, `ownerSettings: OwnerSettingsController`,
 `notificationPreferencesService`, `appSettingsService`, `fileDownloadWriter: FileDownloadWriter`.
+Main's US 02.08.02 added three more to this seam — `availability: Availability`,
+`lotteryController: LotteryController`, `reservationController: ReservationController` — because
+the bookings and reservations views now read bookings through the controllers rather than
+reaching the repositories themselves (see the BOOKINGS and RESERVATIONS mounts below). The
+session values the app itself owns (`cameraRefused`, `homeTab`, `openChatReservationId`,
+`openChatHere`) are specified in the passages that use them, not here.
 
 Contract text (verbatim in spirit): "A provider supplies one stable value for each
 member. Screens and activities must receive or read the supplied value instead of
@@ -56,6 +62,17 @@ file's ctor exactly — these calls are the authoritative seam record):
   fakes: these need live engines, which is why the house's unit tests construct fakes instead).
 - `reservationRepository = ReservationRepository(Database.Reservations.readEngine(),
   Database.Reservations.writeEngine(), Database.BookedDates.writeEngine())`.
+- `availability = Availability(Database.Campsites.readEngine())` — main's US 02.08.02 made the
+  open-date half a shared service rather than something a screen builds, because the booking flow
+  needs it alongside the lottery.
+- `lotteryController = LotteryController(LotteryModel(), LotteryRepository(),
+  Database.Lotteries.readEngine(), notificationController) { System.currentTimeMillis() }` —
+  the trailing `{ … }` is the injected `clock` seam (models.md/controller.md), so a test can pin
+  time while the app reads the wall clock.
+- `reservationController = ReservationController(lotteryController, availability,
+  reservationRepository, notificationController)` — one instance for the whole app, handed to the
+  reservations mount through `Dependencies`; the bookings and reservations views never build their
+  own.
 - `notificationController = NotificationController(notificationRepository, userController)` —
   the UserController IS the opt-out check (US 01.10.01: users who turned notifications
   off still get the in-app record but no banner).
@@ -304,8 +321,9 @@ line each; `nav` is the app controller, `homeNav` the nested one, all calls as s
   Explore→`NavGraphNodes.ExploreGraph`, MyCampsites→`NavGraphNodes.CampsiteGraph`,
   Messages/Bookings/Inbox→`NavGraphNodes.CorrespondenceGraph`,
   Reservations→`NavGraphNodes.ReservationGraph`, the admin's Profiles/Notifications
-  tabs→`NavGraphNodes.DebugGraph`; the Misc tabs Profile/Reports/Flagged open on the
-  screen itself, being bare direct children). The `initialTab` seed is a SCREEN, never an
+  tabs→`NavGraphNodes.DebugGraph`; the Misc tabs Profile/Reports open on the
+  screen itself, being bare direct children (`Flagged` is named in the bar's comment but
+  no longer registered, so no tab asks for it)). The `initialTab` seed is a SCREEN, never an
   index: callers that NAME a tab land the bar there — the root passes `campsiteGraph`'s
   `onNavHome` as `nav.goHome(currentRole(), Screen.MyCampsites)` so the campsite
   monitor's back names My Campsites (reported regression 9: a bare Home pop re-entered
@@ -347,19 +365,74 @@ line each; `nav` is the app controller, `homeNav` the nested one, all calls as s
     to it (`screenFor` → `Notifications`, and a MESSAGE with no reservation id →
     `Screen.Messages`); it opens `CorrespondenceDestination(RECEIVED_TAB)` for an owner
     else `NOTIFICATIONS_TAB`.
-  - BOOKINGS→`CorrespondenceGraph`'s `Screen.Bookings` node: `BookingsScreen` reading the
-    node's own values — `reservationRepo.getForEntrant(entrantId = userId, …)` then keep
-    `status == ReservationStatus.ACTIVE` only, mapped to `BookingCardData` with
-    `status = "Confirmed"`, `campsiteNames = listOf(found name or "Campsite")` (names from
-    a nested `campsiteRepo.getAll`), `lotteryEntryId` as id, dates/guests copied; a second
-    top-level `getAll` maps `CampsiteCardData` cards (the node's `pendingBookings` stays
-    empty); tab selection kept in the node's `selectedBookingTab` var (`onTabSelected`
-    mutates it). Failure Toasts, exact: `"Could not load bookings: ${error.message}"`,
-    `"Could not load campsite details: …"`, `"Could not load campsites: …"` — Toast copy is
-    integration text, NOT unit assertions.
+  - BOOKINGS→`CorrespondenceGraph`'s `Screen.Bookings` node. Unlike every other node, this one
+    OWNS its services: it `remember`s a fresh `LotteryRepository()`, `LotteryModel()`,
+    `LotteryController(…, notifControl)`, `Availability(Database.Campsites.readEngine())` and
+    `ReservationController(…)` of its own, because the bookings flow needs a lottery and a booking
+    engine and the app-level seam only carries them for the reservations mount. (The `clock` seam
+    is NOT re-supplied here, so this node's controller reads the wall clock.) Everything else it
+    reads — `reservationRepo`, `campsiteRepo`, `notifControl` — is the shared instance.
+    `BookingsScreen` reads the node's remembered `confirmedBookings`/`pendingBookings`/`pastBookings`
+    plus `selectedBookingTab` (`onTabSelected` mutates it), all recomputed under
+    `LaunchedEffect(userId, bookingsRefreshKey)`; the key is bumped when a win is accepted, when one
+    is declined, and when a reservation is created, so the lists re-derive after any of the screen's
+    own controls acts. A blank `userId` Toasts `"Unable to load bookings: user ID is missing."` and
+    stops the load.
+    The load, in order: `reservationRepo.getForEntrant(entrantId = userId, …)` splits the viewer's
+    reservations — `PENDING` and `ACTIVE` → CONFIRMED cards (`status = "Confirmed"`), `PAST` → PAST
+    cards (`status = "Past"`); both take `id`/`lotteryEntryId` = the reservation's `lotteryEntryId`,
+    its `campsiteId`, `campsiteNames = listOf(name)` for that one campsite (falling back to
+    `"Campsite"`), and its `startDate`/`endDate`/`guests`. Then a nested `campsiteRepo.getAll` and
+    `lotteryRepo.getAllLotteries` (kept as `lotteriesForBookings`) and `getEntriesByUser(userId)`
+    build the PENDING half: only entries in `WAITING_FOR_DRAW`, `WON_AWAITING_RESPONSE` or
+    `ACCEPTED` are considered, and each contributes at most one card — `id`/`lotteryEntryId` = the
+    ENTRY's id, `lotteryId` = the entry's, `campsiteId` = the lottery's FIRST campsite id,
+    `campsiteNames` = the names of ALL the lottery's campsites (again falling back to
+    `"Campsite"`), `status` read off the entry (`"Waiting for draw"` / `"Won — response needed"` /
+    `"Select dates"`), `canSelectDates` true ONLY for `ACCEPTED`, `maxBookingDays` = the lottery's.
+    An ACCEPTED entry whose reservation ALREADY exists contributes nothing (a nested
+    `getByLotteryEntry` answers that; its failure Toasts `"Could not check an existing reservation:
+    <msg>"` and drops the card) — an accepted win stays in Pending only until a booking exists.
+    The cards are assembled one entry at a time and only assigned once every entry has finished.
+    `onMessageOwnerClick` opens `Screen.ChatReservationEntry(reservationID = booking.id)` for a
+    non-blank id, else `"Unable to open chat: booking ID is missing."`. `onAcceptWin`/`onDeclineWin`
+    call the node's `lotteryController.acceptLotteryWin(lotteryId = booking.lotteryId, userId =
+    userId, …)`/`declineLotteryWin(…)`; success Toasts `"Lottery win accepted! You can now select
+    your dates."`/`"Lottery win declined."` and bumps the refresh key, failure
+    `"Could not accept lottery win: <msg>"`/`"Could not decline lottery win: <msg>"`.
+    `onSelectDates` finds the booking's lottery in `lotteriesForBookings` (none →
+    `"Could not find the lottery for this booking."`) and otherwise seeds the node's date-picker
+    state (`selectedBookingForDates`, `selectedBookingOwnerId` = the LOTTERY's `ownerId`, empty
+    date sets, guest count `"1"`, both acceptance flags false) and asks
+    `reservationController.getAvailableDates(…)` for the dates, which arrive as `availableBookingDates`
+    (empty → `"There are currently no available dates for this campsite."`, read failure →
+    `"Could not load available dates: <msg>"`). `onBookingClick` is a NO-OP at this mount — tapping
+    a card opens nothing, on both the branch and main.
+    The picker itself is drawn by the NODE, not the screen: while `selectedBookingForDates` is set,
+    an `AlertDialog` titled `Select Reservation Dates` offers the period, the guest count, and two
+    checkboxes — `I acknowledge the reservation and refund policies.` and `I agree to the campsite
+    rules.` — whose state feeds `createReservation`'s `refundRecorded`/`rules`. Confirm is enabled only
+    once dates are loaded, none are being created, dates are selected, the guest count is a positive
+    integer and both boxes are checked; it then calls `confirmPolicies(booking.lotteryEntryId)`
+    IMMEDIATELY before `createReservation(…)` (the policies gate is the controller's own in-memory
+    set, so the two calls belong together) and on success Toasts `"Your reservation has been
+    created!"`, clears the selection and bumps the refresh key; on failure the controller's own
+    message becomes the dialog's error text and the Toast is `"Could not create reservation:
+    <msg>"`. The dates come from a `DateRangePickerModal` while `showBookingDatePicker` is set: its
+    range is rejected with `"Please select both a start and end date."` when either end is missing,
+    `"You can select at most ${maxBookingDays} days."` when it is longer than the card allows, and
+    `"Some dates in that range are unavailable. Please choose another range."` when any date in it
+    is outside `availableBookingDates`; otherwise the whole inclusive range becomes `selectedBookingDates`
+    and the period text reads `"<start> to <end>"`. A range it cannot read is
+    `"Could not read the selected dates."`. Cancel closes the dialog and leaves the booking unmade.
+    Load failures Toast, exact: `"Could not load bookings: ${error.message}"`,
+    `"Could not load campsite details: …"`, `"Could not load lotteries: …"`,
+    `"Could not load your lottery entries: …"` — plus `"Unable to load bookings: user ID is missing."`
+    for a blank viewer. Toast copy is integration text, NOT unit assertions.
   - RESERVATIONS→`ReservationGraph`'s start node hosts the view itself:
     `ReservationsPanel(userID = deps.deviceID, campsiteRepo, reservationRepo,
-    notificationPreferences, currentUserId, fileDownloadWriter, goBack = onNavBack)` —
+    reservationController, notificationPreferences, currentUserId, fileDownloadWriter,
+    goBack = onNavBack)` —
     pressing the tab lands in the view itself, no second button asking again; the panel's
     back is that mount's `onNavBack` = `homeNav.navigateUp()` (pops the tab's own frame;
     Explore stays under every other tab — the same net effect as the old
@@ -367,8 +440,10 @@ line each; `nav` is the app controller, `homeNav` the nested one, all calls as s
   - PROFILE/REPORTS/FLAGGED→`MiscGraph`'s nodes; PROFILE is `ProfileScreen`, which now
     carries the whole settings surface (see the Profile node below). There is NO Settings
     node: the member and the mount were removed once every setting was read from the Profile
-    view, so `MiscGraph` registers bare `Profile`, `Reports`, `Flagged`, `QrLinkRoute` and
-    `OldQRCode` only. The `role` the Profile shows is the role the signed-in profile holds
+    view, so `MiscGraph` registers bare `Profile`, `Reports`, `QrLinkRoute` and
+    `OldQRCode` only. `Screen.Flagged` is still a declared route and the mount comment still
+    names it, but nothing registers or draws it — the flagged view was never built, so the tab
+    is unreachable rather than empty. The `role` the Profile shows is the role the signed-in profile holds
     (`deps.userModel.currentUser`'s roles, ADMIN > OWNER > ENTRANT — the same pick the sign-in
     makes), while its view comes from the shared `AppViewSettingController`. The two are
     different things and the settings surface the Profile draws needs both: a view-derived role
@@ -498,17 +573,23 @@ line each; `nav` is the app controller, `homeNav` the nested one, all calls as s
 - `Screen.Reservations` (`ReservationGraph` start; entered by a notice through its bridge,
   by the My Campsites tab's link, and by the camper's tab) hosts the `ReservationsPanel`
   (panels/) DIRECTLY: `ReservationsPanel(userId = deps.deviceID, campsiteRepo, reservationRepo,
-  notificationPreferencesService = deps.notificationPreferencesService, currentUserID = deps.currentUserId,
+  reservationController = deps.reservationController, notificationPreferencesService = deps.notificationPreferencesService, currentUserID = deps.currentUserId,
   fileDownloadWriter, goBack = onNavBack)`. A user OWNING ANY of the sites (decided
   by the loaded sites: `allCampsites.any { it.ownerId == userId }`, NOT the owner-role
   flag — a plain owner whose profile lacks the flag still auto-populates their sites in the
   top screen, which the role-flag gate had regressed) browses THEIR OWN sites
-  (`ownerId == userId`) and sees EVERY reservation at a site; every other viewer
+  (`ownerId == userId`) and sees EVERY reservation at a site, read through the repository query
+  matching the filter (`reservationRepo.getPending/getActive/getPast/getCancelled(campsiteId, …)`);
+  every other viewer
   browses only sites carrying their own reservations (`getForEntrant` … `any { it.campsiteId == campsite.id }`)
   and gets only `loaded.filter { it.entrantId == userId }`. Filter state is
-  `ReservationFilter.ACTIVE/PAST/CANCELLED` (controller.md); changing campsite/filter
-  re-runs the matching read; Toasts `"Could not load your reservations: …"` / `"Could not load campsites: …"` /
-  `"Could not load reservations: …"`. Hands `ReservationScreen(... csvPreferences = notificationPreferencesService,
+  `ReservationFilter.PENDING/ACTIVE/PAST/CANCELLED` (controller.md); changing campsite/filter
+  re-runs the matching read; an owner's reject re-runs it too. The reject control is offered only
+  while the viewer is an owner AND the PENDING filter is selected (the screen's own rule, ui.md), and
+  it calls `reservationController.rejectReservation(reservationId = reservation.lotteryEntryId,
+  requesterId = currentUserID, …)` — the id a reservation is keyed by IS its lottery-entry id. Toasts `"Could not load your reservations: …"` / `"Could not load campsites: …"` /
+  `"Could not load reservations: …"`. Hands `ReservationScreen(... viewerIsOwner = that same
+  owner decision, csvPreferences = notificationPreferencesService,
   currentUserId = currentUserID, fileDownloadWriter …)` (CSV download ↔ controller.md's `generateReceiptCsv`).
 - NO `Settings` node: the member, the mount and the `SettingsScreen` composable were all
   removed once every setting was readable from the Profile view below (the owner asked for the
@@ -727,9 +808,27 @@ destination owns where back and outward jumps go. Signatures (as declared):
 - `tabs/MessagesTab.kt` — `MessagesTab(openReservationId = null, userId, controller)`:
   chat-tab content (wiring above).
 - `panels/ReservationPanel.kt` — `ReservationsPanel(userId, campsiteRepo, reservationRepo,
-  notificationPreferencesService, currentUserID, fileDownloadWriter, goBack)`: the
-  reservations view; its grouping rules are the `Screen.Reservations` rule above, read
-  against the panel's parameter names.
+  reservationController, notificationPreferencesService, currentUserID, fileDownloadWriter,
+  goBack)`: the reservations view. Since main's US 02.08.02 this panel is a LOADER, not a renderer:
+  it keeps the remembered `campsites`/`reservations`/`selectedCampsiteId`/`selectedFilter` state and
+  the `reservationRefreshKey`, loads an owner's list through the repository query matching the
+  filter (`reservationRepo.getPending/getActive/getPast/getCancelled(campsiteId, …)`) and an
+  entrant's through `reservationRepo.getForEntrant`, then hands all of it to
+  `ui.screens/ReservationScreen.kt` — the screen still owns layout, campsite selection, the filter
+  tabs, the cards, the CSV export and the back button. The panel supplies `viewerIsOwner` and wires
+  `onRejectReservation` to `reservationController.rejectReservation(reservationId = reservation.lotteryEntryId,
+  requesterId = currentUserID, …)`, whose success Toasts `"Reservation rejected successfully."` and bumps
+  the refresh key so the list re-derives, and whose failure Toasts `"Could not reject reservation: <msg>"`;
+  a load failure Toasts `"Could not load reservations: <msg>"`. Toast copy is integration text, NOT
+  unit assertions. Its grouping rules are the `Screen.Reservations` rule above, read against the
+  panel's parameter names. `reservationController` is main's addition (US 02.08.02) and is used
+  for ONE thing only — the owner's reject above. The lists themselves are still read straight
+  from `reservationRepo`; `ReservationController.listReservations` is NOT called here.
+- `panels/BookingPanel.kt` — `BookingsPanel(currentUserId, loadWaitingListEntries, loadReservations,
+  resolveCampsiteName, onBookingClick, onMessageOwnerClick, onError)`: a bookings renderer main
+  brought in that is DEFINED AND CALLED NOWHERE — the live bookings view is still
+  `ui.screens/BookingsScreen.kt` mounted by the correspondence graph (above). It is dead code, not
+  a second renderer; nothing in this app reads it.
 
 ## Test reach (this package)
 

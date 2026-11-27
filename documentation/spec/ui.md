@@ -63,9 +63,8 @@ These four are exhaustive-total by fallback (the `when`-style maps in ui.compone
 exhaustive by case) — treat both spellings as ONE contract; a test may target either, and
 they agree on every enum value.
 
-`ui.shared/CameraFrame.kt` (US 01.12.01 provider seam and the frame-to-code adapter):
-- `interface CameraFrameSource { fun requestFrame(onFrame: (ByteArray?) -> Unit) }`
-- `class NoCameraFrame : CameraFrameSource` — every request answers `onFrame(null)`.
+`ui.shared/CameraFrame.kt` (the frame-to-code adapter; US 01.12.01's provider seam was
+deleted once nothing read it — the file is the adapter alone):
 - `class CameraFrameReader(private val onText: (String) -> Unit) : androidx.camera.core.ImageAnalysis.Analyzer`
   — the ADAPTER over the two interfaces: the device calls it once per frame with an
   `ImageProxy`, it copies that frame's first plane into a flat grey buffer and hands
@@ -77,9 +76,9 @@ they agree on every enum value.
 - `private fun frameGreyPixelsOf(plane, frameWidth, frameHeight): ByteArray?` — the
   plane's own `rowStride`/`pixelStride` are honoured, so a padded row does not skew
   the picture; a plane that does not cover the frame answers with no pixels.
-JVM-reachable: construct `NoCameraFrame()` and assert the callback receives null; the
-adapter's own pixel path is tested through `qrTextOfFramePixels` (models.md), which
-needs no device. The in-source note records what the platform can and cannot hand back,
+JVM-reachable: the adapter's own pixel path is tested through `qrTextOfFramePixels` (models.md),
+which needs no device — the adapter itself has no JVM surface, since nothing constructs it off
+device. The in-source note records what the platform can and cannot hand back,
 re-read off the compiler rather than assumed. What the platform DOES resolve, and what
 the adapter is built from: `androidx.camera.core.ImageAnalysis.Builder().build()`, the
 `ImageAnalysis.Analyzer` interface (`analyze(ImageProxy)`), `ImageProxy.imagePlanes`
@@ -89,9 +88,10 @@ is now a dependency: those plane types are NOT in camera-core. Barleader's reade
 takes a raw buffer: `BarcodeReader.read(byte[], int, int, ReadOptions)` (width then
 height) is accepted, so pixels can be read with no image codec at all. What still does
 NOT resolve: a frame as the BYTES OF AN ENCODED PICTURE — that needs `javax.imageio`
-over `java.awt`, which is not on the device runtime — so `CameraFrameSource` keeps no
-device provider and `NoCameraFrame` stays the default; the device's frames are read
-through the adapter instead, which answers a code's TEXT, not picture bytes. Also still
+over `java.awt`, which is not on the device runtime. There is therefore no frame-as-picture-bytes
+entry point in this app at all: the only picture-bytes reader is models.md's file path, which
+runs only where the JDK codec exists, and the device's frames are read through the adapter
+instead, which answers a code's TEXT. Also still
 absent: `androidx.camera.core.ImageSource`, `ImageAnalysis.processWithProcessor`,
 `ImageAnalysis.attachImageProcessor`, and `androidx.camera:camera-image` at ANY version
 (404 on Google's and Maven Central's mirrors — the package no longer exists). `setAnalyzer`
@@ -160,11 +160,18 @@ data class HomeTab(val label: String, val destination: Screen)
 fun tabsFor(role: UserRole): List<HomeTab>
 ```
 `tabsFor` is PURE and unit-reachable — exact display order and labels:
-- CAMPER: Explore(`Screen.Explore`), Messages(`Screen.Messages`), Bookings(`Screen.Bookings`),
-  Reservations(`Screen.Reservations`), Inbox(`Screen.Inbox`), Profile(`Screen.Profile`).
-- OWNER: Explore, Messages, My Campsites(`Screen.MyCampsites`), Inbox, Profile.
-- ADMIN: Explore, Messages, Reports(`Screen.Reports`), Flagged(`Screen.Flagged`),
-  Profiles(`Screen.AdminProfileView`), Notifications(`Screen.AdminNotificationView`).
+- CAMPER: Explore(`Screen.Explore`), Bookings(`Screen.Bookings`), Inbox(`Screen.Inbox`),
+  Profile(`Screen.Profile`).
+- OWNER: Explore, My Campsites(`Screen.MyCampsites`), Inbox(`Screen.Inbox`), Profile.
+- ADMIN: Explore, Inbox(`Screen.Messages`), Reports(`Screen.Reports`), Images(`Screen.AdminImages`),
+  Profiles(`Screen.AdminProfileView`), Notifications(`Screen.AdminNotificationView`), Profile.
+Explore is always FIRST. The labels and the screens they name are main's (PR #173 removed the
+camper's Messages and Reservations tabs and the owner's Messages tab, and renamed the admin's
+correspondence tab to "Inbox" while pointing it at the MESSAGES screen): the admin's bar therefore
+carries ONE correspondence tab that opens `Screen.Messages`, and the `Screen.Inbox` screen is
+reached from inside the correspondence view's own tabs, not from the bar. The branch had two
+separate correspondence tabs (Messages→`Screen.Messages`, Inbox→`Screen.Inbox`); main's naming
+won that choice.
 Explore is always FIRST. A tab's `destination` is the `Screen` route its content registers
 under Home's nested graph (app.md says which nodes live there) — the bar moves on that
 nested graph, never the app's, and there is no separate destination enum any more: the
@@ -177,8 +184,8 @@ NAMES — `initialTab` is a SCREEN or null, never an index, and the lookup is gr
 graph, so the start names the feature-graph node —
 Explore→`NavGraphNodes.ExploreGraph`, MyCampsites→`CampsiteGraph`, Messages/Bookings/Inbox→
 `CorrespondenceGraph`, Reservations→`ReservationGraph`, the admin debug tabs→`DebugGraph`;
-the Misc tabs Profile/Reports/Flagged start on the screen itself, being bare direct
-children — graphs.md). `goHome` naming a tab (the my-campsites back affordances and the
+the Misc tabs Profile/Reports start on the screen itself, being bare direct
+children — graphs.md; `Screen.Flagged` is declared but registered by no graph, so no tab names it). `goHome` naming a tab (the my-campsites back affordances and the
 details-page picker name it) lands the bar there; naming no tab, or naming a screen the live
 bar does not show, opens the first tab. The bar's
 circles
@@ -193,14 +200,30 @@ graph under its caller, so the caller names the lit `selectedIndex` and gets the
 tab's SCREEN back (`onSelect: (Screen) -> Unit`, called with `tab.destination` — the
 details-page picker needs the Screen to name that tab to Home; the lit position stays an
 index because it is display only, with no graph to name). `NavCircle` is file-PRIVATE. `PlaceholderTab(title)` is the temporary content
-for tabs without screens yet (Profile/Reports/Flagged today).
+for tabs with no screen yet — today only `Reports`, which the Misc mount draws as
+`PlaceholderTab("Reports")` (`Flagged` is not drawn at all, and the Profile view is real).
 
-`ui.screens/BookingsScreen.kt`: `enum class BookingTab { CONFIRMED, PENDING }` (vocabulary;
-public). `ui.screens/ExploreScreen.kt` declares the public `CampsiteCardData` data class —
+`ui.screens/BookingsScreen.kt`: `enum class BookingTab { CONFIRMED, PENDING, PAST }` (vocabulary;
+public) — the PAST tab is main's (PR #173 "Added past tab for entrants"), and its rows are the
+viewer's reservations whose dates have already gone, which the correspondence graph computes
+alongside the other two lists. The screen takes `confirmedBookings/pendingBookings/pastBookings:
+List<BookingCardData>`, `selectedTab`, `onTabSelected: (BookingTab) -> Unit`, and defaulted
+`onBookingClick`/`onMessageOwnerClick`/`onAcceptWin`/`onDeclineWin`/`onSelectDates` (all
+`(BookingCardData) -> Unit = {}`); a card is drawn with `isPast: Boolean`, and a past card offers
+no date selection. `ui.screens/ExploreScreen.kt` declares the public `CampsiteCardData` data class —
 fields used at every call site: `id, name, location, maxOccupancy` (+ optional
 `rating, ratingCount` supplied only by `toCardData`); constructible in tests, defaults
-unasserted (not read off source here). `ui.screens/ReservationScreen.kt` is the
-reservations renderer (params per app.md). `ui.screens/DeviceSignInScreen.kt`, `QrScannerScreen.kt`,
+unasserted (not read off source here). `ui.screens/ReservationScreen.kt` is the reservations RENDERER (main's US 02.08.02 moved the
+rendering back into a screen and left `panels/ReservationPanel.kt` as its loader, so its contract is
+that mount in app.md): it takes `campsites: List<Campsite>`, `selectedCampsiteId: String?`,
+`selectedFilter: ReservationFilter` (controller.md's vocabulary), `reservations: List<ReservationModel>`,
+`viewerIsOwner: Boolean = false`, defaulted `onRejectReservation: (ReservationModel) -> Unit = {}`,
+`onCampsiteSelected: (String) -> Unit`, `onFilterSelected: (ReservationFilter) -> Unit`, `onBack: () -> Unit`,
+and defaulted `csvPreferences`/`currentUserId`/`fileDownloadWriter` (which default to the no-service
+stand-ins). Its private parts are `CampsiteSelector`, `ReservationFilterTabs`, `ReservationTab`,
+`ReservationList`, `ReservationCard`; the reject affordance is drawn only when
+`viewerIsOwner AND selectedFilter == ReservationFilter.PENDING` — an owner may reject a stay whose
+dates have not started, and nothing else. `ui.screens/DeviceSignInScreen.kt`, `QrScannerScreen.kt`,
 `QrOldCodeNoticeScreen.kt` (`back: () -> Unit = {}` fires on its Back button), `SetUpScreens.kt`
 (StartScreen/SignUpScreen/RoleSelectScreen) — Composables, contract = their call sites in app.md.
 `QrScannerScreen` also opens the device camera via androidx.camera when the screen opens and
@@ -231,8 +254,11 @@ provider, while the live reader does strictly more, so the button was weight the
 with no possible effect. The screen keeps its live preview, the typed-code field, and the Open
 button — reading a code and going to what it names are two acts, and the Open button is that
 confirmation (`scannedCode = typedCode` when typed, else the last code the camera read). The
-SEAM itself (`CameraFrameSource`/`NoCameraFrame`, models.md's `qrTextOfImageBytes`) stays and
-stays tested, but NOTHING in the app reads it now — whether to drop it is the owner's call. Its
+SEAM itself was then deleted at the owner&apos;s call: `CameraFrameSource`/`NoCameraFrame` are
+gone from `ui.shared/CameraFrame.kt` (the file is the adapter alone, this section above) and
+models.md's `qrTextOfImageBytes` is gone with its body inlined into `qrTextOfImageFile`, so the
+file path is self-contained and no public signature a test uses moved. Its own test file went
+with it. Its
 parameter was defaulted in the MIDDLE of the signature; the only call site (`ExploreGraph`) names
 its arguments and never passed it, so removing it moved no positional argument. A code
 that names a registered campsite opens it through `onOpenCampsite`; text that is not code text,
@@ -535,10 +561,15 @@ they caused is not reading database keys.
 
 `ui.theme/` (Color/Type tokens: `FieldGrey`, `ButtonGradient`, `DataColor`, `DataColorImportant`,
 `CampBnbTheme`) — visual tokens, no behavior. `ui/booking/*Activity.kt` (3–4 lines) are empty
-placeholder classes — future screen namespaces; today the bookings/reservations renderers are
-`ui.screens` (BookingsScreen) and the app-level `ReservationsPanel` (app.md). (`ui.profile/`
-and the `ui.admin/` + `ui/campsite/` placeholder Activities were deleted upstream: the profile
-renders through `ui/screens/ProfileScreen.kt` and the admin's screens are real now.)
+placeholder classes — future screen namespaces; today the bookings renderer is
+`ui.screens/BookingsScreen.kt` (mounted by the correspondence graph's Bookings node, app.md) and
+the reservations renderer is `panels/ReservationPanel.kt` (`ReservationsPanel`, app.md). The
+`panels/` namespace is NO LONGER only future: main added `panels/BookingPanel.kt` (`BookingsPanel`,
+which loads the viewer's waiting-list entries, reservations and campsite names and builds
+`BookingCardData` through `onBookingClick`/`onMessageOwnerClick`/`onError`) — it is DEFINED AND
+CALLED NOWHERE, so it is dead code that came in with the merge, not a second bookings renderer.
+(`ui.profile/` and the `ui.admin/` + `ui/campsite/` placeholder Activities were deleted upstream: the
+profile renders through `ui/screens/ProfileScreen.kt` and the admin's screens are real now.)
 
 ## Standing ui up in tests
 

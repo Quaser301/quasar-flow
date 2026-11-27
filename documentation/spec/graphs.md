@@ -62,7 +62,7 @@ admin's views map to themselves — a dropped upstream mapping line would not co
 | `LotteryGraph.kt` | `LotteryGraph` (capital) | `NavGraphNodes.LotteryGraph` | `Screen.LotteryMonitor` | `LotteryMonitor`, `LotteryEdit`, `LotteryDetails`, `LotteryWaitlist` |
 | `NotificationGraph.kt` | `CorrespondenceGraph` (capital) | `NavGraphNodes.CorrespondenceGraph` | `Screen.Notifications` | `Notifications`, `Bookings`, `Messages`, `Inbox`, `NotifReservations`, `BookingEntry`, `ChatReservationEntry` |
 | `ReservationGraph.kt` | `ReservationGraph` (capital) | `NavGraphNodes.ReservationGraph` | `Screen.Reservations` | `Reservations` |
-| `MiscGraph.kt` | `MiscGraph` (capital) | NONE — no `navigation<…>` wrapper | n/a | bare `Profile`, `Reports`, `Flagged`, `QrLinkRoute`, `OldQRCode` at the mount site |
+| `MiscGraph.kt` | `MiscGraph` (capital) | NONE — no `navigation<…>` wrapper | n/a | bare `Profile`, `Reports`, `QrLinkRoute`, `OldQRCode` at the mount site (`Screen.Flagged` is declared but registered by NO graph) |
 | `DebuggingGraph.kt` | `DebugGraph` (capital) | `NavGraphNodes.DebugGraph` | `Screen.AdminProfileView` | `AdminProfileView`, `AdminNotificationView`, `AdminImages` |
 
 Name traps (file name ≠ member name, in two files):
