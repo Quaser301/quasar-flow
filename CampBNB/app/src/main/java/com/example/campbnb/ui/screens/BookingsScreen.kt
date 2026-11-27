@@ -1,4 +1,3 @@
-
 package com.example.campbnb.ui.screens
 
 import androidx.compose.foundation.background
@@ -23,13 +22,15 @@ private val BookingGray = Color(0xFFD9D9D9)
 
 enum class BookingTab {
     CONFIRMED,
-    PENDING
+    PENDING,
+    PAST
 }
 
 @Composable
 fun BookingsScreen(
     confirmedBookings: List<BookingCardData>,
     pendingBookings: List<BookingCardData>,
+    pastBookings: List<BookingCardData>,
     selectedTab: BookingTab,
     onTabSelected: (BookingTab) -> Unit,
     onBookingClick: (BookingCardData) -> Unit = {},
@@ -41,6 +42,7 @@ fun BookingsScreen(
     val displayedBookings = when (selectedTab) {
         BookingTab.CONFIRMED -> confirmedBookings
         BookingTab.PENDING -> pendingBookings
+        BookingTab.PAST -> pastBookings
     }
 
     Column(
@@ -67,7 +69,9 @@ fun BookingsScreen(
             BookingTabButton(
                 label = "Confirmed",
                 selected = selectedTab == BookingTab.CONFIRMED,
-                modifier = Modifier.testTag("booking_tab").weight(1f)
+                modifier = Modifier
+                    .testTag("booking_tab")
+                    .weight(1f)
             ) {
                 onTabSelected(BookingTab.CONFIRMED)
             }
@@ -75,9 +79,21 @@ fun BookingsScreen(
             BookingTabButton(
                 label = "Pending",
                 selected = selectedTab == BookingTab.PENDING,
-                modifier = Modifier.testTag("booking_tab").weight(1f)
+                modifier = Modifier
+                    .testTag("booking_tab")
+                    .weight(1f)
             ) {
                 onTabSelected(BookingTab.PENDING)
+            }
+
+            BookingTabButton(
+                label = "Past",
+                selected = selectedTab == BookingTab.PAST,
+                modifier = Modifier
+                    .testTag("booking_tab")
+                    .weight(1f)
+            ) {
+                onTabSelected(BookingTab.PAST)
             }
         }
 
@@ -98,6 +114,7 @@ fun BookingsScreen(
                         text = when (selectedTab) {
                             BookingTab.CONFIRMED -> "No confirmed bookings"
                             BookingTab.PENDING -> "No pending bookings"
+                            BookingTab.PAST -> "No past reservations"
                         },
                         modifier = Modifier.padding(18.dp),
                         fontSize = 13.sp,
@@ -116,6 +133,7 @@ fun BookingsScreen(
                 ) { booking ->
                     BookingCard(
                         booking = booking,
+                        isPast = selectedTab == BookingTab.PAST,
                         onClick = { onBookingClick(booking) },
                         onMessageOwnerClick = {
                             onMessageOwnerClick(booking)
@@ -160,6 +178,7 @@ private fun BookingTabButton(
 @Composable
 private fun BookingCard(
     booking: BookingCardData,
+    isPast: Boolean,
     onClick: () -> Unit,
     onMessageOwnerClick: () -> Unit,
     onAcceptWin: () -> Unit,
@@ -200,52 +219,54 @@ private fun BookingCard(
                 Text("Guests: ${booking.guests}")
             }
 
-            when (booking.status) {
-                "Won — response needed" -> {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
+            if (!isPast) {
+                when (booking.status) {
+                    "Won — response needed" -> {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Button(
+                                onClick = onAcceptWin,
+                                modifier = Modifier.weight(1f),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = BookingGreen
+                                )
+                            ) {
+                                Text("Accept")
+                            }
+
+                            OutlinedButton(
+                                onClick = onDeclineWin,
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Text("Decline")
+                            }
+                        }
+                    }
+
+                    "Select dates" -> {
                         Button(
-                            onClick = onAcceptWin,
-                            modifier = Modifier.weight(1f),
+                            onClick = onSelectDates,
+                            modifier = Modifier.fillMaxWidth(),
                             colors = ButtonDefaults.buttonColors(
                                 containerColor = BookingGreen
                             )
                         ) {
-                            Text("Accept")
-                        }
-
-                        OutlinedButton(
-                            onClick = onDeclineWin,
-                            modifier = Modifier.weight(1f)
-                        ) {
-                            Text("Decline")
+                            Text("Select Dates")
                         }
                     }
                 }
 
-                "Select dates" -> {
-                    Button(
-                        onClick = onSelectDates,
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = BookingGreen
-                        )
-                    ) {
-                        Text("Select Dates")
-                    }
+                Button(
+                    onClick = onMessageOwnerClick,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = BookingGreen
+                    )
+                ) {
+                    Text("Message Owner")
                 }
-            }
-
-            Button(
-                onClick = onMessageOwnerClick,
-                modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = BookingGreen
-                )
-            ) {
-                Text("Message Owner")
             }
         }
     }

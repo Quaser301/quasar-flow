@@ -178,6 +178,10 @@ fun NavGraphBuilder.CorrespondenceGraph(
                 mutableStateOf(false)
             }
 
+            var pastBookings by remember(userId) {
+                mutableStateOf<List<BookingCardData>>(emptyList())
+            }
+
             var lotteriesForBookings by remember(userId) {
                 mutableStateOf<List<Lottery>>(emptyList())
             }
@@ -216,6 +220,10 @@ fun NavGraphBuilder.CorrespondenceGraph(
                                     it.status == ReservationStatus.ACTIVE
                         }
 
+                        val pastReservations = reservations.filter {
+                            it.status == ReservationStatus.PAST
+                        }
+
                         campsiteRepo.getAll(
                             onSuccess = { allCampsites ->
 
@@ -233,6 +241,26 @@ fun NavGraphBuilder.CorrespondenceGraph(
                                         campsiteId = reservation.campsiteId,
                                         campsiteNames = listOf(campsiteName),
                                         status = "Confirmed",
+                                        startDate = reservation.startDate,
+                                        endDate = reservation.endDate,
+                                        guests = reservation.guests
+                                    )
+                                }
+
+                                pastBookings = pastReservations.map { reservation ->
+                                    val campsiteName = allCampsites
+                                        .firstOrNull {
+                                            it.id == reservation.campsiteId
+                                        }
+                                        ?.campName ?: "Campsite"
+
+                                    BookingCardData(
+                                        id = reservation.lotteryEntryId,
+                                        lotteryId = "",
+                                        lotteryEntryId = reservation.lotteryEntryId,
+                                        campsiteId = reservation.campsiteId,
+                                        campsiteNames = listOf(campsiteName),
+                                        status = "Past",
                                         startDate = reservation.startDate,
                                         endDate = reservation.endDate,
                                         guests = reservation.guests
@@ -496,7 +524,8 @@ fun NavGraphBuilder.CorrespondenceGraph(
                             }
                         )
                     }
-                }
+                },
+                pastBookings = pastBookings
             )
 
             val booking = selectedBookingForDates

@@ -206,13 +206,37 @@ fun BookingsPanel(
                 guests = reservation.guests
             )
         }
+    // Reservations whose dates have passed appear in the Past.
+    val pastBookings = reservations
+        .filter {
+            it.status == ReservationStatus.PAST
+        }
+        .map { reservation ->
+            BookingCardData(
+                id = reservation.lotteryEntryId,
+                lotteryId = "",
+                lotteryEntryId = reservation.lotteryEntryId,
+                campsiteId = reservation.campsiteId,
+                campsiteNames = listOf(
+                    campsiteNames[reservation.campsiteId] ?: "Campsite"
+                ),
+                status = "Past",
+                startDate = reservation.startDate,
+                endDate = reservation.endDate,
+                guests = reservation.guests
+            )
+        }
 
     BookingsScreen(
         confirmedBookings = confirmedBookings,
         pendingBookings = pendingBookings,
+        pastBookings = pastBookings,
         selectedTab = selectedTab,
         onTabSelected = { selectedTab = it },
         onBookingClick = onBookingClick,
-        onMessageOwnerClick = onMessageOwnerClick
+        onMessageOwnerClick = onMessageOwnerClick,
+        onAcceptWin = {},
+        onDeclineWin = {},
+        onSelectDates = {}
     )
 }
