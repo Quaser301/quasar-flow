@@ -112,7 +112,10 @@ fun NavGraphBuilder.LotteryGraph(
                 LotteryDetailsActivity(
                     returnHome = onGoHome,
                     navigateBackwards = onNavBack,
-                    onEditLottery = { _ -> onNavToEditLottery() },
+                    onEditLottery = { selected ->
+                        lottery.updateLottery(selected)
+                        onNavToEditLottery()
+                    },
                     onViewWaitlist = { _ -> onNavToWaitlist() },
                     appViewSettings = appViewSettings
                 )

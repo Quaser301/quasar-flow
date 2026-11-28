@@ -156,6 +156,13 @@ class LotteryEditActivity(
         var availStart by remember { mutableStateOf("") }
         var availEnd by remember { mutableStateOf("") }
         var blockedDates by remember { mutableStateOf<Set<String>>(emptySet()) }
+        var blockedDatesByCampsite by remember {
+            mutableStateOf<Map<String, Set<String>>>(emptyMap())
+        }
+
+        var blockedDatesCampsiteId by remember {
+            mutableStateOf("")
+        }
 
         var ownerCampsitesList by remember { mutableStateOf<List<Campsite>>(emptyList()) }
 
@@ -177,6 +184,18 @@ class LotteryEditActivity(
                 availStart = initialLottery.availableStartDate
                 availEnd = initialLottery.availableEndDate
                 blockedDates = initialLottery.blockedDates.toSet()
+                blockedDatesByCampsite =
+                    if (initialLottery.blockedDatesByCampsite.isNotEmpty()) {
+                        initialLottery.blockedDatesByCampsite.mapValues { (_, dates) ->
+                            dates.toSet()
+                        }
+                    } else {
+                        // Migrate older lotteries: their shared blocked dates
+                        // apply to every campsite that was selected.
+                        initialLottery.campsiteIds.associateWith {
+                            initialLottery.blockedDates.toSet()
+                        }
+                    }
                 val existingAvailableDays =
                     if (
                         initialLottery.availableStartDate.isNotBlank() &&
@@ -241,6 +260,9 @@ class LotteryEditActivity(
             availableStartDate = availStart,
             availableEndDate = availEnd,
             blockedDates = blockedDates.sorted(),
+            blockedDatesByCampsite = blockedDatesByCampsite.mapValues { (_, dates) ->
+                dates.sorted()
+            },
             drawn = initialLottery?.drawn ?: false,
             winnerIds = initialLottery?.winnerIds.orEmpty(),
             joinedOwnerIds = initialLottery?.joinedOwnerIds.orEmpty(),
@@ -303,6 +325,7 @@ class LotteryEditActivity(
         }
 
         val isEditMode = initialLottery != null
+        val canEditLotteryPeriods = !isEditMode
         // A joining owner edits a lottery owned by someone else: they may only change
         // their own campsites, so the parameter fields stay read-only below and the
         // save takes the joining-owner path that keeps the other owners' campsites.
@@ -603,6 +626,7 @@ class LotteryEditActivity(
                     },
                     onValueChange = {},
                     readOnly = true,
+                    enabled = canEditLotteryPeriods,
                     label = { Text("Registration Period") },
                     isError = registrationError != null,
                     supportingText = {
@@ -614,7 +638,12 @@ class LotteryEditActivity(
                     trailingIcon = {
                         TextButton(
                             modifier = Modifier.testTag("registration_period_open"),
-                            onClick = { showRegDatePicker = true }
+                            enabled = canEditLotteryPeriods,
+                            onClick = {
+                                if (canEditLotteryPeriods) {
+                                    showRegDatePicker = true
+                                }
+                            }
                         ) {
                             Text("Select")
                         }
@@ -623,6 +652,7 @@ class LotteryEditActivity(
                         .fillMaxWidth()
                         .testTag("registration_period_field")
                         .clickable(
+                            enabled = canEditLotteryPeriods,
                             interactionSource = remember { MutableInteractionSource() },
                             indication = null
                         ) {
@@ -641,6 +671,7 @@ class LotteryEditActivity(
                     },
                     onValueChange = {},
                     readOnly = true,
+                    enabled = canEditLotteryPeriods,
                     label = { Text("Booking Period") },
                     isError = bookingError != null,
                     supportingText = {
@@ -656,8 +687,12 @@ class LotteryEditActivity(
                     trailingIcon = {
                         TextButton(
                             modifier = Modifier.testTag("booking_period_open"),
-                            enabled = earliestBooking != null,
-                            onClick = { showBookingDatePicker = true }
+                            enabled = canEditLotteryPeriods && earliestBooking != null,
+                            onClick = {
+                                if (canEditLotteryPeriods && earliestBooking != null) {
+                                    showBookingDatePicker = true
+                                }
+                            }
                         ) {
                             Text("Select")
                         }
@@ -666,7 +701,7 @@ class LotteryEditActivity(
                         .fillMaxWidth()
                         .testTag("booking_period_field")
                         .clickable(
-                            enabled = earliestBooking != null,
+                            enabled = canEditLotteryPeriods && earliestBooking != null,
                             interactionSource = remember { MutableInteractionSource() },
                             indication = null
                         ) {
@@ -778,18 +813,57 @@ class LotteryEditActivity(
                 }
 
                 if (isEditMode && availStart.isNotBlank() && availEnd.isNotBlank()) {
-                    BlockedDatesField(
-                        availableStart = availStart,
-                        availableEnd = availEnd,
-                        blocked = blockedDates,
-                        onChange = { blockedDates = it }
-                    )
+                    selectedCampsites
+                        .sortedBy { it.campName }
+                        .forEach { campsite ->
+
+                            BlockedDatesField(
+                                availableStart = availStart,
+                                availableEnd = availEnd,
+                                blocked = blockedDatesByCampsite[campsite.id].orEmpty(),
+                                campsiteName = campsite.campName,
+                                onChange = { newDates ->
+                                    blockedDatesByCampsite =
+                                        blockedDatesByCampsite.toMutableMap().apply {
+                                            put(campsite.id, newDates)
+                                        }
+                                }
+                            )
+                        }
                 }
             } else {
                 Text(
                     text = "You joined this lottery, so only your own campsites can be changed.",
                     style = MaterialTheme.typography.bodyMedium
                 )
+            }
+
+            val lotteryValidationErrors =
+                lotteryToSave.validationErrors(
+                    System.currentTimeMillis(),
+                    isEditMode = isEditMode
+                )
+
+            if (lotteryValidationErrors.isNotEmpty()) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 12.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    Text(
+                        text = "Please fix the following issues:",
+                        color = MaterialTheme.colorScheme.error
+                    )
+
+                    lotteryValidationErrors.forEach { error ->
+                        Text(
+                            text = "• $error",
+                            color = MaterialTheme.colorScheme.error,
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                    }
+                }
             }
 
             Row(
@@ -805,7 +879,10 @@ class LotteryEditActivity(
                     Text("Cancel")
                 }
                 Button(
-                    enabled = lotteryToSave.isValid(System.currentTimeMillis()),
+                    enabled = lotteryToSave.isValid(
+                        System.currentTimeMillis(),
+                        isEditMode = isEditMode
+                    ),
                     onClick = {
                         if (isJoiningOwnerEdit) {
                             // Joining owners save through the controller path that keeps

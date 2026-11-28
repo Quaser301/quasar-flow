@@ -198,7 +198,7 @@ class ReservationRepository(
                         reservation = reservation,
                         index = 0,
                         onClaimed = {
-                            reservationWriter.save(reservation) { result ->
+                            reservationWriter.create(reservation) { result ->
                                 result.onSuccess {
                                     onSuccess()
                                 }.onFailure { error ->
@@ -206,6 +206,7 @@ class ReservationRepository(
                                     // release the dates claimed by this attempt.
                                     releaseDates(
                                         reservation.campsiteId,
+                                        reservation.lotteryEntryId,
                                         reservation.dates
                                     ) {
                                         onFailure(error.asException())
@@ -279,7 +280,7 @@ class ReservationRepository(
             )
         }
 
-        bookedDateWriter.save(claim) { result ->
+        bookedDateWriter.create(claim) { result ->
             result.onSuccess {
                 claimDates(
                     reservation,
@@ -290,7 +291,8 @@ class ReservationRepository(
             }.onFailure {
                 releaseDates(
                     reservation.campsiteId,
-                    reservation.dates.take(index)
+                    reservation.lotteryEntryId,
+                    reservation.dates
                 ) {
                     onConflict(
                         IllegalStateException(
@@ -303,10 +305,12 @@ class ReservationRepository(
     }
 
     /**
-     * Deletes booked-date documents one at a time.
+     * Deletes booked-date documents one at a time,
+     * but only when they belong to the specified reservation.
      */
     private fun releaseDates(
         campsiteId: String,
+        reservationId: String,
         dates: List<String>,
         onDone: () -> Unit
     ) {
@@ -315,13 +319,31 @@ class ReservationRepository(
             return
         }
 
-        bookedDateWriter.delete(
-            bookedKey(campsiteId, dates.first())
-        ) {
-            releaseDates(campsiteId, dates.drop(1), onDone)
+        bookedDateWriter.deleteIfFieldMatches(
+            id = bookedKey(campsiteId, dates.first()),
+            fieldName = "reservationId",
+            expectedValue = reservationId
+        ) { result ->
+            result
+                .onSuccess {
+                    releaseDates(
+                        campsiteId,
+                        reservationId,
+                        dates.drop(1),
+                        onDone
+                    )
+                }
+                .onFailure { error ->
+                    println("Failed to release booked date: ${error.message}")
+                    releaseDates(
+                        campsiteId,
+                        reservationId,
+                        dates.drop(1),
+                        onDone
+                    )
+                }
         }
     }
-
     /**
      * Changes the reservation status and releases its dates.
      */
@@ -362,6 +384,7 @@ class ReservationRepository(
                             result.onSuccess {
                                 releaseDates(
                                     reservation.campsiteId,
+                                    reservation.lotteryEntryId,
                                     reservation.dates
                                 ) {
                                     onSuccess()

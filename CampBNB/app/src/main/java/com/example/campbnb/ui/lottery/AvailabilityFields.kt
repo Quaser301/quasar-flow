@@ -110,7 +110,8 @@ fun BlockedDatesField(
     availableStart: String,
     availableEnd: String,
     blocked: Set<String>,
-    onChange: (Set<String>) -> Unit
+    onChange: (Set<String>) -> Unit,
+    campsiteName: String = ""
 ) {
     var showPicker by remember { mutableStateOf(false) }
 
@@ -118,7 +119,14 @@ fun BlockedDatesField(
     val hasRoomToBlock = earliest <= availableEnd
 
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text(text = "Blocked Dates", style = MaterialTheme.typography.titleSmall)
+        Text(
+            text = if (campsiteName.isBlank()) {
+                "Blocked Dates"
+            } else {
+                "Blocked Dates — $campsiteName"
+            },
+            style = MaterialTheme.typography.titleSmall
+        )
 
         val ranges = DateUtils.groupIntoRanges(blocked)
         if (ranges.isEmpty()) {

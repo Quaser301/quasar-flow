@@ -414,8 +414,7 @@ class LotteryController(
                     registrationStart = if (lottery.registrationStart > now) now
                     else lottery.registrationStart,
                     registrationEnd = now,
-                    bookingStart = if (lottery.bookingStart > now) now
-                    else lottery.bookingStart,
+                    bookingStart = maxOf(lottery.bookingStart, now + 1),
                     bookingEnd = if (lottery.bookingEnd < now)
                         startOfTodayUtc() + DAY_MILLIS - 1
                     else lottery.bookingEnd

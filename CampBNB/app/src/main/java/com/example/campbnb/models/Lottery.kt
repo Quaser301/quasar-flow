@@ -39,8 +39,10 @@ data class Lottery(
     val availableStartDate: String = "",
     /** Last date winners may stay (yyyy-MM-dd). */
     val availableEndDate: String = "",
-    /** Dates inside the range the owner has closed to winners (yyyy-MM-dd). */
-    val blockedDates: List<String> = emptyList()
+    /** Legacy shared blocked dates, retained for existing Firestore documents. */
+    val blockedDates: List<String> = emptyList(),
+    /** Blocked dates stored separately for each campsite ID (yyyy-MM-dd). */
+    val blockedDatesByCampsite: Map<String, List<String>> = emptyMap()
 ) : Identifiable() {
 
     /**
@@ -54,93 +56,144 @@ data class Lottery(
         else -> LotteryStatus.CLOSED
     }
 
-    /**
-     * Checks whether this lottery is valid for saving.
-     */
-    fun isValid(now: Long): Boolean {
-        // A lottery must cover at least one campsite.
-        // Every campsite ID must be nonblank and unique.
-        if (
-            campsiteIds.isEmpty() ||
-            campsiteIds.any { it.isBlank() } ||
-            campsiteIds.distinct().size != campsiteIds.size
-        ) {
-            return false
+
+    fun validationErrors(
+        now: Long,
+        isEditMode: Boolean = false
+    ): List<String> {
+        val errors = mutableListOf<String>()
+
+        // Campsites
+        if (campsiteIds.isEmpty()) {
+            errors.add("Select at least one campsite.")
         }
 
+        if (campsiteIds.any { it.isBlank() }) {
+            errors.add("One or more campsite IDs are invalid.")
+        }
+
+        if (campsiteIds.distinct().size != campsiteIds.size) {
+            errors.add("The same campsite cannot be selected more than once.")
+        }
+
+        // Owner
         if (ownerId.isBlank()) {
-            return false
+            errors.add("The lottery must have a valid owner.")
         }
 
+        // Winners and waitlist
         if (numberOfWinners < 1) {
-            return false
+            errors.add("The number of winners must be at least 1.")
         }
 
         if (maxBookingDays < 1) {
-            return false
+            errors.add("The maximum booking duration must be at least 1 day.")
         }
 
-        if (waitlistCapacity != null &&
-            waitlistCapacity < numberOfWinners
-        ) {
-            return false
+        if (waitlistCapacity != null && waitlistCapacity < numberOfWinners) {
+            errors.add("Waitlist capacity cannot be smaller than the number of winners.")
         }
 
+        // Registration and booking periods
         if (registrationStart == 0L || registrationEnd == 0L) {
-            return false
+            errors.add("Select both registration start and end dates.")
         }
 
         if (bookingStart == 0L || bookingEnd == 0L) {
-            return false
+            errors.add("Select both booking start and end dates.")
         }
 
-        if (registrationEnd < now) {
-            return false
-        }
-
-        if (bookingStart <= registrationEnd) {
-            return false
-        }
-
-        if (bookingEnd < bookingStart) {
-            return false
-        }
-
-        if (invitedOwnerIds.any { it.isBlank() } ||
-            joinedOwnerIds.any { it.isBlank() }
+        if (!isEditMode &&
+            registrationEnd != 0L &&
+            DateUtils.utcDate(registrationEnd) < DateUtils.dateOf(now)
         ) {
-            return false
+            errors.add("Registration cannot end before today.")
         }
 
-        if (ownerId in invitedOwnerIds ||
-            ownerId in joinedOwnerIds
+        if (registrationEnd != 0L && bookingStart != 0L &&
+            bookingStart <= registrationEnd
         ) {
-            return false
+            errors.add("The booking period must start after registration ends.")
+        }
+
+        if (bookingStart != 0L && bookingEnd != 0L &&
+            bookingEnd < bookingStart
+        ) {
+            errors.add("The booking end date cannot be before its start date.")
+        }
+
+        // Invited and joined owners
+        if (invitedOwnerIds.any { it.isBlank() }) {
+            errors.add("One or more invited owner IDs are invalid.")
+        }
+
+        if (joinedOwnerIds.any { it.isBlank() }) {
+            errors.add("One or more joined owner IDs are invalid.")
+        }
+
+        if (ownerId.isNotBlank() &&
+            (ownerId in invitedOwnerIds || ownerId in joinedOwnerIds)
+        ) {
+            errors.add("The lottery owner cannot invite or join their own lottery.")
         }
 
         if (invitedOwnerIds.any { it in joinedOwnerIds }) {
-            return false
+            errors.add("An owner cannot be both invited and already joined.")
         }
 
-        if (invitedOwnerIds.distinct().size != invitedOwnerIds.size ||
-            joinedOwnerIds.distinct().size != joinedOwnerIds.size
-        ) {
-            return false
+        if (invitedOwnerIds.distinct().size != invitedOwnerIds.size) {
+            errors.add("An owner cannot be invited more than once.")
         }
 
-        // Winners need dates to choose from: a range that starts after the booking period
-        // ends (so never before or overlapping registration and booking) and isn't in the past.
-        if (availableStartDate.isBlank() || availableEndDate.isBlank()) return false
-        if (availableEndDate < availableStartDate) return false
-        if (availableStartDate <= DateUtils.utcDate(bookingEnd)) return false
-        if (availableStartDate < DateUtils.dateOf(now)) return false
+        if (joinedOwnerIds.distinct().size != joinedOwnerIds.size) {
+            errors.add("An owner cannot join more than once.")
+        }
 
-        // Blocked dates must sit inside the range, once each.
-        if (blockedDates.any { it < availableStartDate || it > availableEndDate }) return false
-        if (blockedDates.distinct().size != blockedDates.size) return false
+        // Available dates
+        if (availableStartDate.isBlank() || availableEndDate.isBlank()) {
+            errors.add("Select the available date range for the campsites.")
+        } else {
+            if (availableEndDate < availableStartDate) {
+                errors.add("The available end date cannot be before its start date.")
+            }
 
-        return true
+            if (bookingEnd != 0L &&
+                availableStartDate <= DateUtils.utcDate(bookingEnd)
+            ) {
+                errors.add("Available dates must start after the booking period ends.")
+            }
+
+            if (!isEditMode &&
+                availableStartDate < DateUtils.dateOf(now)
+            ) {
+                errors.add("Available dates cannot start before today.")
+            }
+        }
+
+        // Blocked dates
+        if (availableStartDate.isNotBlank() && availableEndDate.isNotBlank()) {
+            if (blockedDates.any {
+                    it < availableStartDate || it > availableEndDate
+                }
+            ) {
+                errors.add("Blocked dates must fall within the available date range.")
+            }
+        }
+
+        if (blockedDates.distinct().size != blockedDates.size) {
+            errors.add("A date cannot be blocked more than once.")
+        }
+
+        return errors
     }
+
+    fun isValid(
+        now: Long,
+        isEditMode: Boolean = false
+    ): Boolean {
+        return validationErrors(now, isEditMode).isEmpty()
+    }
+
 
     /**
      * Whether a user can see this lottery.
@@ -169,7 +222,11 @@ data class Lottery(
             winnerIds = winnerIds,
             invitedOwnerIds = invitedOwnerIds - userId,
             joinedOwnerIds = joinedOwnerIds + userId,
-            maxBookingDays = maxBookingDays
+            maxBookingDays = maxBookingDays,
+            availableStartDate = availableStartDate,
+            availableEndDate = availableEndDate,
+            blockedDates = blockedDates,
+            blockedDatesByCampsite = blockedDatesByCampsite
         ).also {
             it.id = this.id
         }
@@ -196,7 +253,8 @@ data class Lottery(
             maxBookingDays = maxBookingDays,
             availableStartDate = availableStartDate,
             availableEndDate = availableEndDate,
-            blockedDates = blockedDates
+            blockedDates = blockedDates,
+            blockedDatesByCampsite = blockedDatesByCampsite
         ).also {
             it.id = this.id
         }
