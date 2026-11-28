@@ -52,7 +52,8 @@ import com.example.campbnb.viewModels.AppViewSetting
 import kotlinx.serialization.Serializable
 import com.example.campbnb.models.ImageKind
 import com.example.campbnb.ui.admin.AdminImagesScreen
-
+import com.example.campbnb.models.MapPin
+import com.example.campbnb.models.campsitesToMapPins
 
 /**
  * Registers every campsite screen as one sub-graph, entered from My Campsites.
@@ -208,6 +209,10 @@ fun NavGraphBuilder.campsiteGraph(
                 mutableStateOf<String?>(null)
             }
 
+            var mapPins by remember(route.campsiteId) {
+                mutableStateOf<List<MapPin>>(emptyList())
+            }
+
             LaunchedEffect(route.campsiteId) {
                 isLoading = true
                 errorMessage = null
@@ -216,6 +221,8 @@ fun NavGraphBuilder.campsiteGraph(
                 // First, retrieve the campsite.
                 campsiteRepo.getAll(
                     onSuccess = { allCampsites ->
+
+                        mapPins = campsitesToMapPins(allCampsites)
 
                         val campsite = allCampsites.firstOrNull {
                             it.id == route.campsiteId
@@ -307,6 +314,7 @@ fun NavGraphBuilder.campsiteGraph(
                     CampsiteDetailsScreen(
                         role = shownRole,
                         campsite = shownDetails,
+                        mapPins = mapPins,
                         onBack = onNavBack,
                         onTabSelected = { tab ->
                             onCampsiteDetailsClicked(route.role, tab)
