@@ -23,7 +23,7 @@ import com.example.campbnb.ui.search.SearchScreen
 import com.example.campbnb.ui.shared.observeModel
 import kotlinx.serialization.Serializable
 import com.example.campbnb.models.Campsite
-
+import com.example.campbnb.models.campsitesToMapPins
 
 
 
@@ -91,6 +91,7 @@ fun NavGraphBuilder.exploreGraph(
             ExploreScreen(
                 recommended = cards,
                 newSites = cards,
+                mapPins = campsitesToMapPins(loadedCampsites),
                 onSettingsClick = navToSettings,
                 onCampsiteClick = navToCampsite,
                 onSearch = navToSearch,

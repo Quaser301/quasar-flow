@@ -42,6 +42,9 @@ import kotlin.math.roundToInt
 import com.example.campbnb.models.RemovalReason
 import com.example.campbnb.ui.admin.ConfirmRemovalDialog
 import com.example.campbnb.ui.admin.AdminImageRemoval
+import com.example.campbnb.models.MapPin
+import com.example.campbnb.models.hasPin
+import com.example.campbnb.ui.map.CampsiteMapScreen
 
 // Prompted Claude Sonnet 5.5 for some implementations, especially related to image deletion
 // functionality for admins
@@ -126,6 +129,7 @@ fun CampsiteDetailsScreen(
     onDeleteSite: (RemovalReason?) -> Unit = {},
     onRemoveImage: (RemovalReason?) -> Unit = {},
     onSeeReviews: () -> Unit = {},
+    mapPins: List<MapPin> = emptyList(),
     reviewsContent: @Composable (onClose: () -> Unit) -> Unit = {},
     entrantContent: @Composable () -> Unit = {}
 ) {
@@ -150,13 +154,23 @@ fun CampsiteDetailsScreen(
     // A camper with no active lottery has nothing to put in the Lottery menu, so no strip.
     val showActionStrip = (role == UserRole.CAMPER && lotteryButtonEnabled) || role == UserRole.ADMIN
 
+    var showMap by remember { mutableStateOf(false) }
+
     BackHandler(enabled = showReviews) { showReviews = false }
 
     Scaffold(
         containerColor = Color.White,
         bottomBar = { RoleBottomBar(tabs, selectedIndex = 0, onSelect = onTabSelected) }
     ) { padding ->
-        if (showReviews) {
+        if (showMap) {
+            Box(Modifier.padding(padding).fillMaxSize()) {
+                CampsiteMapScreen(
+                    pins = mapPins,
+                    focusId = campsite.id,
+                    onClose = { showMap = false }
+                )
+            }
+        } else if (showReviews) {
             Box(Modifier.padding(padding).fillMaxSize()) {
                 reviewsContent { showReviews = false }
             }
@@ -196,6 +210,15 @@ fun CampsiteDetailsScreen(
                         ) {
                             InfoCard("Capacity", "${campsite.capacityGuests} guests", Modifier.weight(1f))
                             InfoCard("Location", campsite.location, Modifier.weight(1f))
+                        }
+
+                        if (hasPin(mapPins, campsite.id)) {
+                            TextButton(
+                                modifier = Modifier.testTag("details_view_on_map"),
+                                onClick = { showMap = true }
+                            ) {
+                                Text("View on map")
+                            }
                         }
 
                         TagsSection(campsite.tags, onViewAll = { showAllTags = true })

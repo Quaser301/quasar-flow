@@ -32,6 +32,9 @@ import com.example.campbnb.data.ImageRepository
 import com.example.campbnb.models.Campsite
 import com.example.campbnb.ui.shared.StoredImage
 import com.example.campbnb.ui.shared.rememberImagePicker
+import com.example.campbnb.models.formatLatLng
+import com.example.campbnb.models.parseLatLng
+import com.example.campbnb.ui.map.LocationPickerScreen
 
 /**
  * Displays the Form for Campsite Registration
@@ -113,7 +116,7 @@ fun CampsiteRegistrationForm(
                 CampDesc.trim().isNotEmpty() &&
                 CampAmenities.trim().isNotEmpty() &&
                 (maxOccupancy.toIntOrNull() ?: 0) > 0 &&
-                geoLocation.trim().isNotEmpty()
+                parseLatLng(geoLocation) != null
 
 
     val Owner_PutInput =
@@ -128,6 +131,19 @@ fun CampsiteRegistrationForm(
                 tagInput.isNotBlank() ||
                 tags.isNotEmpty() ||
                 CampImg.isNotEmpty()
+
+    var showMapPicker by remember { mutableStateOf(false) }
+    if (showMapPicker) {
+        LocationPickerScreen(
+            initial = parseLatLng(geoLocation),
+            onPicked = { point ->
+                geoLocation = formatLatLng(point)
+                showMapPicker = false
+            },
+            onCancel = { showMapPicker = false }
+        )
+        return
+    }
 
     BackHandler {
         if (Owner_PutInput) {
@@ -211,9 +227,17 @@ fun CampsiteRegistrationForm(
         OutlinedTextField(
             value = geoLocation,
             onValueChange = { geoLocation = it },
-            label = { Text("Geographical location") },
+            label = { Text("Geographical location (latitude, longitude)") },
+            isError = geoLocation.isNotBlank() && parseLatLng(geoLocation) == null,
+            supportingText = { Text("Pick it on the map, or type e.g. 53.41, -117.58") },
             modifier = Modifier.testTag("geo_field").fillMaxWidth()
         )
+        TextButton(
+            modifier = Modifier.testTag("pick_on_map"),
+            onClick = { showMapPicker = true }
+        ) {
+            Text("Pick on map")
+        }
         Text(
             text = "Tags",
             style = MaterialTheme.typography.bodyMedium,

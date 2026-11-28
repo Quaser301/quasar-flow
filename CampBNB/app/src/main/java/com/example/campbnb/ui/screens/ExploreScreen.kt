@@ -48,6 +48,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.util.Locale
 import kotlin.math.roundToInt
+import com.example.campbnb.models.MapPin
+import com.example.campbnb.ui.map.CampsiteMapScreen
 
 /**
  * What a campsite card in the Explore grid needs to show.
@@ -116,12 +118,29 @@ fun ExploreScreen(
     onFilterClick: () -> Unit = {},
     onOpenHistory: () -> Unit = {},
     onOpenQr: () -> Unit = {},
-    onSearch: (String) -> Unit = {}
+    onSearch: (String) -> Unit = {},
+    mapPins: List<MapPin> = emptyList()
 ) {
     var query by rememberSaveable { mutableStateOf("") }
     var menuOpen by remember { mutableStateOf(false) }
 
     val cards = combineCards(recommended, newSites)
+
+    var showMap by rememberSaveable { mutableStateOf(false) }
+    if (showMap) {
+        CampsiteMapScreen(
+            pins = mapPins,
+            focusId = null,
+            onClose = { showMap = false },
+            onOpenCampsite = { id ->
+                val card = cards.firstOrNull { it.id == id }
+                if (card != null) {
+                    onCampsiteClick(card)
+                }
+            }
+        )
+        return
+    }
 
     LazyColumn(
         Modifier.fillMaxSize(),
@@ -175,7 +194,7 @@ fun ExploreScreen(
                 SettingsButton(onSettingsClick)
             }
         }
-        item { MapPlaceholder() }
+        item { MapPlaceholder(onClick = { showMap = true }) }
         item { CampsiteGrid("Discover campsites", cards, onCampsiteClick) }
     }
 }
@@ -277,18 +296,16 @@ private fun SettingsButton(onClick: () -> Unit) {
     }
 }
 
-/**
- * Stand-in for the map: a soft green panel with faint grid lines and a pin.
- * Swap for Google Maps Compose when you're ready.
- */
 @Composable
-private fun MapPlaceholder() {
+private fun MapPlaceholder(onClick: () -> Unit) {
     Box(
         Modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp)
             .height(190.dp)
             .clip(RoundedCornerShape(24.dp))
+            .clickable(onClick = onClick)
+            .testTag("explore_map_open")
             .background(Brush.verticalGradient(listOf(MapTop, MapBottom))),
         contentAlignment = Alignment.Center
     ) {
@@ -326,7 +343,7 @@ private fun MapPlaceholder() {
                 )
             }
             Spacer(Modifier.height(8.dp))
-            Text("Map", fontSize = 14.sp, fontWeight = FontWeight.Medium, color = ButtonEnd)
+            Text("View campsites on map", fontSize = 14.sp, fontWeight = FontWeight.Medium, color = ButtonEnd)
         }
     }
 }
