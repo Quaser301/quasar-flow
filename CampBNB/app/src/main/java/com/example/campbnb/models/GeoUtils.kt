@@ -216,3 +216,25 @@ fun featureIdFromJson(json: String): String? {
         return null
     }
 }
+
+/** "850 m", "4.3 km" or "128 km". */
+fun formatDistance(km: Double): String {
+    if (km < 1.0) {
+        return String.format(Locale.US, "%d m", Math.round(km * 1000.0))
+    }
+    if (km < 10.0) {
+        return String.format(Locale.US, "%.1f km", km)
+    }
+    return String.format(Locale.US, "%d km", Math.round(km))
+}
+
+/** GeoJSON line between two points, or nothing when either is null. */
+fun lineToGeoJson(from: LatLng?, to: LatLng?): String {
+    if (from == null || to == null) {
+        return EMPTY_GEOJSON
+    }
+    return "{\"type\":\"FeatureCollection\",\"features\":[{\"type\":\"Feature\"," +
+            "\"properties\":{},\"geometry\":{\"type\":\"LineString\",\"coordinates\":[[" +
+            from.longitude + "," + from.latitude + "],[" +
+            to.longitude + "," + to.latitude + "]]}}]}"
+}

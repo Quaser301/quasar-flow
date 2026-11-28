@@ -6,6 +6,7 @@ import com.example.campbnb.models.MapPin
 import com.example.campbnb.models.campsitesToMapPins
 import com.example.campbnb.models.distanceKm
 import com.example.campbnb.models.featureIdFromJson
+import com.example.campbnb.models.formatDistance
 import com.example.campbnb.models.formatLatLng
 import com.example.campbnb.models.parseLatLng
 import com.example.campbnb.models.pinsWithinRadius
@@ -80,5 +81,12 @@ class GeoUtilsTest {
     @Test
     fun test_a_bigger_radius_zooms_further_out() {
         assertTrue(zoomForRadius(53.5, 100.0) < zoomForRadius(53.5, 10.0))
+    }
+
+    @Test
+    fun test_distance_text_switches_units() {
+        assertEquals("850 m", formatDistance(0.85))
+        assertEquals("4.3 km", formatDistance(4.26))
+        assertEquals("128 km", formatDistance(127.6))
     }
 }

@@ -15,6 +15,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.SmallFloatingActionButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -23,6 +24,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -36,13 +38,17 @@ import com.example.campbnb.models.EMPTY_GEOJSON
 import com.example.campbnb.models.LatLng
 import com.example.campbnb.models.MapPin
 import com.example.campbnb.models.circleToGeoJson
-import com.example.campbnb.models.featureIdFromJson
+import com.example.campbnb.models.distanceKm
 import com.example.campbnb.models.findPin
+import com.example.campbnb.models.formatDistance
 import com.example.campbnb.models.formatLatLng
+import com.example.campbnb.models.lineToGeoJson
 import com.example.campbnb.models.pinsToGeoJson
 import com.example.campbnb.models.pinsWithinRadius
 import com.example.campbnb.models.pointToGeoJson
 import com.example.campbnb.models.zoomForRadius
+import kotlinx.coroutines.launch
+import kotlinx.serialization.json.jsonPrimitive
 import org.maplibre.compose.camera.CameraPosition
 import org.maplibre.compose.camera.CameraUpdate
 import org.maplibre.compose.expressions.dsl.const
@@ -57,15 +63,14 @@ import org.maplibre.compose.sources.GeoJsonData
 import org.maplibre.compose.sources.rememberGeoJsonSource
 import org.maplibre.compose.style.BaseStyle
 import org.maplibre.spatialk.geojson.Position
-import kotlinx.serialization.json.jsonPrimitive
 
 /*
- * The campsite map (WOW factor). OpenFreeMap vector tiles drawn by MapLibre.
+ * The campsite map (WOW factor). OpenFreeMap vector tiles drawn by MapLibre: no API key.
  * Map data (c) OpenStreetMap contributors; the map shows its own attribution.
  *
  * Three composables:
- *  - PinMap: the shared map. Draws a radius ring, campsite pins, one highlighted pin and the
- *    user's dot, and reports pin taps and map taps.
+ *  - PinMap: the shared map. Draws a radius ring, a line to the selected pin, campsite pins,
+ *    one highlighted pin and the user's dot, with zoom buttons. Reports pin and map taps.
  *  - CampsiteMapScreen: the screen used from Explore (radius + pins near me) and from the
  *    details page (one campsite highlighted among the others).
  *  - LocationPickerScreen: lets an owner drop a pin when registering a campsite.
@@ -82,19 +87,22 @@ private val RADIUS_CHOICES_KM = listOf(10, 25, 50, 100, 250)
 /** The GeoJSON text of every layer, rebuilt whenever the inputs change. */
 private data class MapJson(
     val ring: String,
+    val link: String,
     val pins: String,
     val highlight: String,
     val user: String
 )
 
 /**
- * The shared map. The camera glides to [cameraCenter] / [cameraZoom] whenever they change.
+ * The shared map. The camera glides to [cameraCenter] / [cameraZoom] whenever they change;
+ * otherwise the user pans and zooms freely (gestures or the + / - buttons).
  *
  * @param pins The campsite pins to draw (green).
  * @param highlightedId The pin drawn larger and orange, or null.
  * @param userLocation The blue "you are here" dot, or null.
  * @param ringCenter Centre of the radius ring, or null for no ring.
  * @param ringKm Radius of the ring in kilometres.
+ * @param linkTo If set, a line is drawn from [ringCenter] to this point.
  * @param onPinClick Called with the campsite id of a tapped pin.
  * @param onMapTap Called with the tapped point; return true if the tap was used.
  */
@@ -109,7 +117,8 @@ fun PinMap(
     ringKm: Double,
     onPinClick: (String) -> Unit,
     onMapTap: (LatLng) -> Boolean,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    linkTo: LatLng? = null
 ) {
     var ringJson = EMPTY_GEOJSON
     if (ringCenter != null) {
@@ -125,6 +134,7 @@ fun PinMap(
     val jsonState = rememberUpdatedState(
         MapJson(
             ring = ringJson,
+            link = lineToGeoJson(ringCenter, linkTo),
             pins = pinsToGeoJson(pins),
             highlight = pinsToGeoJson(highlightList),
             user = pointToGeoJson(userLocation)
@@ -145,6 +155,7 @@ fun PinMap(
     ) {
         val json = jsonState.value
         val ringSource = rememberGeoJsonSource(GeoJsonData.JsonString(json.ring))
+        val linkSource = rememberGeoJsonSource(GeoJsonData.JsonString(json.link))
         val pinSource = rememberGeoJsonSource(GeoJsonData.JsonString(json.pins))
         val highlightSource = rememberGeoJsonSource(GeoJsonData.JsonString(json.highlight))
         val userSource = rememberGeoJsonSource(GeoJsonData.JsonString(json.user))
@@ -160,6 +171,12 @@ fun PinMap(
             source = ringSource,
             color = const(UserBlue),
             width = const(2.dp)
+        )
+        LineLayer(
+            id = "link-line",
+            source = linkSource,
+            color = const(PinHighlight),
+            width = const(3.dp)
         )
         CircleLayer(
             id = "pins",
@@ -209,29 +226,67 @@ fun PinMap(
         )
     }
 
-    MaplibreMap(
-        modifier = modifier,
-        state = mapState,
-        interactions = MapInteractions {
-            callbacks {
-                click {
-                    onEvent { event ->
-                        val position = event.position
-                        var result = ClickResult.Pass
-                        if (position != null) {
-                            val used = mapTapState.value(
-                                LatLng(position.latitude, position.longitude)
-                            )
-                            if (used) {
-                                result = ClickResult.Consume
+    val scope = rememberCoroutineScope()
+
+    Box(modifier) {
+        MaplibreMap(
+            modifier = Modifier.fillMaxSize(),
+            state = mapState,
+            interactions = MapInteractions {
+                camera {
+                    rotate { enabled = false }
+                    pitch { enabled = false }
+                }
+                callbacks {
+                    click {
+                        onEvent { event ->
+                            val position = event.position
+                            var result = ClickResult.Pass
+                            if (position != null) {
+                                val used = mapTapState.value(
+                                    LatLng(position.latitude, position.longitude)
+                                )
+                                if (used) {
+                                    result = ClickResult.Consume
+                                }
                             }
+                            result
                         }
-                        result
                     }
                 }
             }
+        )
+
+        Column(
+            modifier = Modifier.align(Alignment.CenterEnd).padding(8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            SmallFloatingActionButton(
+                modifier = Modifier.testTag("zoom_in"),
+                onClick = {
+                    scope.launch {
+                        mapState.animateCamera(
+                            update = CameraUpdate(zoom = mapState.cameraPosition.zoom + 1.0)
+                        )
+                    }
+                }
+            ) {
+                Text("+")
+            }
+            SmallFloatingActionButton(
+                modifier = Modifier.testTag("zoom_out"),
+                onClick = {
+                    scope.launch {
+                        mapState.animateCamera(
+                            update = CameraUpdate(zoom = mapState.cameraPosition.zoom - 1.0)
+                        )
+                    }
+                }
+            ) {
+                Text("−")
+            }
         }
-    )
+    }
 }
 
 /**
@@ -239,8 +294,8 @@ fun PinMap(
  *
  * With [focusId] null (opened from Explore) it asks for the device location, shows the user's
  * dot, a radius ring the user picks, and only the campsites inside that ring. Tapping a pin
- * highlights it and shows a card; if [onOpenCampsite] is given the card has a "View details"
- * button.
+ * highlights it, draws a line to it from the user's dot and shows a card with the distance;
+ * if [onOpenCampsite] is given the card has a "View details" button.
  *
  * With [focusId] set (opened from a campsite's details) it centres on that campsite, shows
  * every pin, and highlights the campsite.
@@ -301,6 +356,14 @@ fun CampsiteMapScreen(
 
     val cardPin = findPin(shownPins, selectedId) ?: focusPin
 
+    var linkTarget: LatLng? = null
+    var distanceText: String? = null
+    if (exploring && cardPin != null) {
+        val target = LatLng(cardPin.latitude, cardPin.longitude)
+        linkTarget = target
+        distanceText = formatDistance(distanceKm(searchCenter, target)) + " away"
+    }
+
     Box(Modifier.fillMaxSize()) {
         PinMap(
             modifier = Modifier.fillMaxSize().testTag("campsite_map"),
@@ -311,6 +374,7 @@ fun CampsiteMapScreen(
             userLocation = if (exploring) userPos else null,
             ringCenter = if (exploring) searchCenter else null,
             ringKm = radiusKm.toDouble(),
+            linkTo = linkTarget,
             onPinClick = { id -> selectedId = id },
             onMapTap = { tapped ->
                 if (exploring && settingLocation) {
@@ -413,11 +477,18 @@ fun CampsiteMapScreen(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text(
-                            modifier = Modifier.weight(1f),
-                            text = cardPin.name,
-                            style = MaterialTheme.typography.titleMedium
-                        )
+                        Column(Modifier.weight(1f)) {
+                            Text(
+                                text = cardPin.name,
+                                style = MaterialTheme.typography.titleMedium
+                            )
+                            if (distanceText != null) {
+                                Text(
+                                    modifier = Modifier.testTag("pin_distance"),
+                                    text = distanceText
+                                )
+                            }
+                        }
                         if (onOpenCampsite != null) {
                             Button(
                                 modifier = Modifier.testTag("pin_open_details"),
@@ -435,7 +506,7 @@ fun CampsiteMapScreen(
 
 /**
  * Full-screen map where an owner drops a pin for their campsite (tap the map, or use the
- * device location), then confirms.
+ * device location), then confirms. The map pans and zooms freely.
  *
  * @param initial The pin to start from (an existing campsite's location), or null.
  * @param onPicked Called with the chosen point when the owner confirms.
