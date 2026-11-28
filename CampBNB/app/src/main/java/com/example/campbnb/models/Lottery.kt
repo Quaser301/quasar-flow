@@ -34,7 +34,13 @@ data class Lottery(
     val winnerIds: List<String> = emptyList(),
     val invitedOwnerIds: List<String> = emptyList(),
     val joinedOwnerIds: List<String> = emptyList(),
-    val maxBookingDays: Int = 1
+    val maxBookingDays: Int = 1,
+    /** First date winners may stay (yyyy-MM-dd). Always after the booking period ends. */
+    val availableStartDate: String = "",
+    /** Last date winners may stay (yyyy-MM-dd). */
+    val availableEndDate: String = "",
+    /** Dates inside the range the owner has closed to winners (yyyy-MM-dd). */
+    val blockedDates: List<String> = emptyList()
 ) : Identifiable() {
 
     /**
@@ -122,6 +128,17 @@ data class Lottery(
             return false
         }
 
+        // Winners need dates to choose from: a range that starts after the booking period
+        // ends (so never before or overlapping registration and booking) and isn't in the past.
+        if (availableStartDate.isBlank() || availableEndDate.isBlank()) return false
+        if (availableEndDate < availableStartDate) return false
+        if (availableStartDate <= DateUtils.utcDate(bookingEnd)) return false
+        if (availableStartDate < DateUtils.dateOf(now)) return false
+
+        // Blocked dates must sit inside the range, once each.
+        if (blockedDates.any { it < availableStartDate || it > availableEndDate }) return false
+        if (blockedDates.distinct().size != blockedDates.size) return false
+
         return true
     }
 
@@ -176,7 +193,10 @@ data class Lottery(
             winnerIds = winnerIds,
             invitedOwnerIds = invitedOwnerIds,
             joinedOwnerIds = joinedOwnerIds,
-            maxBookingDays = maxBookingDays
+            maxBookingDays = maxBookingDays,
+            availableStartDate = availableStartDate,
+            availableEndDate = availableEndDate,
+            blockedDates = blockedDates
         ).also {
             it.id = this.id
         }

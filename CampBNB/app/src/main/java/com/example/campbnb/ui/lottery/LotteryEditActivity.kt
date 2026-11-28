@@ -48,10 +48,12 @@ import com.example.campbnb.models.LotteryModel
 import com.example.campbnb.models.Role
 import com.example.campbnb.models.User
 import com.example.campbnb.models.ViewObserver
+import com.example.campbnb.models.DateUtils
 import com.example.campbnb.ui.shared.AppViewModificationIsValidForCurrentWindowChecker
 import com.example.campbnb.viewModels.AppView
 import com.example.campbnb.viewModels.AppViewSetting
 import com.google.firebase.auth.FirebaseAuth
+import com.example.campbnb.ui.components.RepeatableArrowButton
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -137,6 +139,10 @@ class LotteryEditActivity(
 
         var numberOfWinners by remember { mutableStateOf("") }
         var waitlistCapacity by remember { mutableStateOf("") }
+        // Maximum consecutive booking days.
+        // When the limit is off, winners can use the full available date range.
+        var limitBookingDays by remember { mutableStateOf(false) }
+        var maxBookingDays by remember { mutableStateOf(1) }
 
         // Date selection state
         var regStartMillis by remember { mutableStateOf<Long?>(null) }
@@ -146,6 +152,10 @@ class LotteryEditActivity(
         var bookingStartMillis by remember { mutableStateOf<Long?>(null) }
         var bookingEndMillis by remember { mutableStateOf<Long?>(null) }
         var showBookingDatePicker by remember { mutableStateOf(false) }
+        // Available dates winners choose from (set on create), and dates the owner has blocked
+        var availStart by remember { mutableStateOf("") }
+        var availEnd by remember { mutableStateOf("") }
+        var blockedDates by remember { mutableStateOf<Set<String>>(emptySet()) }
 
         var ownerCampsitesList by remember { mutableStateOf<List<Campsite>>(emptyList()) }
 
@@ -164,6 +174,28 @@ class LotteryEditActivity(
                 regEndMillis = initialLottery.registrationEnd
                 bookingStartMillis = initialLottery.bookingStart
                 bookingEndMillis = initialLottery.bookingEnd
+                availStart = initialLottery.availableStartDate
+                availEnd = initialLottery.availableEndDate
+                blockedDates = initialLottery.blockedDates.toSet()
+                val existingAvailableDays =
+                    if (
+                        initialLottery.availableStartDate.isNotBlank() &&
+                        initialLottery.availableEndDate.isNotBlank() &&
+                        initialLottery.availableEndDate >= initialLottery.availableStartDate
+                    ) {
+                        DateUtils.datesBetween(
+                            initialLottery.availableStartDate,
+                            initialLottery.availableEndDate
+                        ).size
+                    } else {
+                        0
+                    }
+
+                maxBookingDays = initialLottery.maxBookingDays.coerceAtLeast(1)
+
+                limitBookingDays =
+                    existingAvailableDays > 0 &&
+                            initialLottery.maxBookingDays < existingAvailableDays
             }
         }
 
@@ -171,6 +203,27 @@ class LotteryEditActivity(
             FirebaseAuth
                 .getInstance()
                 .currentUser?.uid ?: deviceID }
+        val availableDaysCount =
+            if (
+                availStart.isNotBlank() &&
+                availEnd.isNotBlank() &&
+                availEnd >= availStart
+            ) {
+                DateUtils.datesBetween(availStart, availEnd).size
+            } else {
+                0
+            }
+
+        // Keep the selected limit inside the current available date range.
+        val safeMaxBookingDays = maxBookingDays.coerceIn(
+            1,
+            availableDaysCount.coerceAtLeast(1)
+        )
+
+        // If the option is off, use the entire available date range.
+        val effectiveMaxBookingDays =
+            if (limitBookingDays) safeMaxBookingDays
+            else availableDaysCount.coerceAtLeast(1)
 
         val lotteryToSave = Lottery(
             ownerId = resolvedOwnerId,
@@ -184,7 +237,14 @@ class LotteryEditActivity(
             registrationStart = regStartMillis ?: 0L,
             registrationEnd = regEndMillis ?: 0L,
             bookingStart = bookingStartMillis ?: 0L,
-            bookingEnd = bookingEndMillis ?: 0L
+            bookingEnd = bookingEndMillis ?: 0L,
+            availableStartDate = availStart,
+            availableEndDate = availEnd,
+            blockedDates = blockedDates.sorted(),
+            drawn = initialLottery?.drawn ?: false,
+            winnerIds = initialLottery?.winnerIds.orEmpty(),
+            joinedOwnerIds = initialLottery?.joinedOwnerIds.orEmpty(),
+            maxBookingDays = effectiveMaxBookingDays
         ).apply {
             if (initialLottery != null && initialLottery.id.isNotBlank()) {
                 id = initialLottery.id
@@ -247,6 +307,73 @@ class LotteryEditActivity(
         // their own campsites, so the parameter fields stay read-only below and the
         // save takes the joining-owner path that keeps the other owners' campsites.
         val isJoiningOwnerEdit = initialLottery != null && initialLottery.ownerId != resolvedOwnerId
+        val today = DateUtils.today()
+
+// Take local snapshots of the delegated Compose state properties.
+        val currentRegStartMillis = regStartMillis
+        val currentRegEndMillis = regEndMillis
+        val currentBookingStartMillis = bookingStartMillis
+        val currentBookingEndMillis = bookingEndMillis
+
+        val bookingEndDate = currentBookingEndMillis
+            ?.takeIf { it > 0L }
+            ?.let { DateUtils.utcDate(it) }
+
+        val registrationStartDate = currentRegStartMillis
+            ?.takeIf { it > 0L }
+            ?.let { DateUtils.utcDate(it) }
+
+        val registrationEndDate = currentRegEndMillis
+            ?.takeIf { it > 0L }
+            ?.let { DateUtils.utcDate(it) }
+
+// Booking must begin the day after registration ends.
+        val earliestBooking = registrationEndDate?.let {
+            DateUtils.dayAfter(it)
+        }
+
+        val registrationError = when {
+            currentRegStartMillis != null &&
+                    currentRegEndMillis != null &&
+                    registrationStartDate != null &&
+                    registrationStartDate < today ->
+                "Registration dates can't be in the past."
+
+            currentRegStartMillis != null &&
+                    currentRegEndMillis != null &&
+                    currentRegEndMillis < currentRegStartMillis ->
+                "Registration end date must be on or after its start date."
+
+            else -> null
+        }
+
+        val bookingError = when {
+            currentBookingStartMillis != null &&
+                    currentBookingEndMillis != null &&
+                    currentRegEndMillis != null &&
+                    currentBookingStartMillis <= currentRegEndMillis ->
+                "Booking must start after the registration period ends."
+
+            currentBookingStartMillis != null &&
+                    currentBookingEndMillis != null &&
+                    currentBookingEndMillis < currentBookingStartMillis ->
+                "Booking end date must be on or after its start date."
+
+            else -> null
+        }
+        // Stays start the day after booking ends, and never in the past
+        val earliestAvailable = maxOf(today, bookingEndDate?.let { DateUtils.dayAfter(it) } ?: today)
+        val availabilityError = when {
+            // the owner moved the booking period after picking the range
+            availStart.isNotBlank() && bookingEndDate != null && availStart <= bookingEndDate ->
+                "Available dates must start after the booking period ends. Pick them again."
+            availStart.isNotBlank() && !isEditMode && availStart < today ->
+                "Available dates can't be in the past."
+            else -> null
+        }
+        // Create sets the range. Edit shows it read-only and blocks dates instead,
+        // unless the lottery predates this feature and has no range yet.
+        val canEditRange = !isEditMode || initialLottery?.availableStartDate.isNullOrBlank()
 
         Column(
             modifier = Modifier
@@ -467,43 +594,197 @@ class LotteryEditActivity(
 
                 // Registration Date Range Picker
                 OutlinedTextField(
-                    value = formatDateRange(regStartMillis, regEndMillis),
+                    value = if (regStartMillis == null || regEndMillis == null) {
+                        ""
+                    } else {
+                        "${DateUtils.pretty(DateUtils.utcDate(regStartMillis!!))} - ${
+                            DateUtils.pretty(DateUtils.utcDate(regEndMillis!!))
+                        }"
+                    },
                     onValueChange = {},
                     readOnly = true,
                     label = { Text("Registration Period") },
+                    isError = registrationError != null,
+                    supportingText = {
+                        Text(
+                            registrationError
+                                ?: "The period when users can enter the lottery"
+                        )
+                    },
                     trailingIcon = {
-                        TextButton(modifier = Modifier.testTag("reg_period_open"), onClick = { showRegDatePicker = true }) {
+                        TextButton(
+                            modifier = Modifier.testTag("registration_period_open"),
+                            onClick = { showRegDatePicker = true }
+                        ) {
                             Text("Select")
                         }
                     },
                     modifier = Modifier
                         .fillMaxWidth()
-                        .testTag("reg_period_open")
+                        .testTag("registration_period_field")
                         .clickable(
                             interactionSource = remember { MutableInteractionSource() },
                             indication = null
-                        ) { showRegDatePicker = true }
+                        ) {
+                            showRegDatePicker = true
+                        }
                 )
 
                 // Booking Date Range Picker
                 OutlinedTextField(
-                    value = formatDateRange(bookingStartMillis, bookingEndMillis),
+                    value = if (bookingStartMillis == null || bookingEndMillis == null) {
+                        ""
+                    } else {
+                        "${DateUtils.pretty(DateUtils.utcDate(bookingStartMillis!!))} - ${
+                            DateUtils.pretty(DateUtils.utcDate(bookingEndMillis!!))
+                        }"
+                    },
                     onValueChange = {},
                     readOnly = true,
                     label = { Text("Booking Period") },
+                    isError = bookingError != null,
+                    supportingText = {
+                        Text(
+                            bookingError
+                                ?: if (earliestBooking != null) {
+                                    "The period lottery winners can book their campsite"
+                                } else {
+                                    "Set the registration period first"
+                                }
+                        )
+                    },
                     trailingIcon = {
-                        TextButton(modifier = Modifier.testTag("booking_period_open"), onClick = { showBookingDatePicker = true }) {
+                        TextButton(
+                            modifier = Modifier.testTag("booking_period_open"),
+                            enabled = earliestBooking != null,
+                            onClick = { showBookingDatePicker = true }
+                        ) {
                             Text("Select")
                         }
                     },
                     modifier = Modifier
                         .fillMaxWidth()
-                        .testTag("booking_period_open")
+                        .testTag("booking_period_field")
                         .clickable(
+                            enabled = earliestBooking != null,
                             interactionSource = remember { MutableInteractionSource() },
                             indication = null
-                        ) { showBookingDatePicker = true }
+                        ) {
+                            showBookingDatePicker = true
+                        }
                 )
+
+                if (canEditRange) {
+                    AvailableDatesField(
+                        start = availStart,
+                        end = availEnd,
+                        earliestSelectable = earliestAvailable,
+                        enabled = bookingEndDate != null,
+                        errorText = availabilityError,
+                        onChange = { newStart, newEnd ->
+                            availStart = newStart
+                            availEnd = newEnd
+                            blockedDates = emptySet() // blocks belonged to the old range
+                        }
+                    )
+                } else {
+                    OutlinedTextField(
+                        value = "${DateUtils.pretty(availStart)} - ${DateUtils.pretty(availEnd)}",
+                        onValueChange = {},
+                        readOnly = true,
+                        label = { Text("Available Dates") },
+                        modifier = Modifier.testTag("available_dates_readonly").fillMaxWidth()
+                    )
+                }
+
+                // Optional maximum consecutive booking days.
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Checkbox(
+                            checked = limitBookingDays,
+                            enabled = availableDaysCount > 0,
+                            onCheckedChange = { enabled ->
+                                limitBookingDays = enabled
+
+                                if (enabled) {
+                                    maxBookingDays = 1
+                                }
+                            },
+                            modifier = Modifier.testTag("limit_booking_days_toggle")
+                        )
+
+                        Text(
+                            text = "Set maximum consecutive booking days",
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                    }
+
+                    Text(
+                        text = if (availableDaysCount == 0) {
+                            "Set available dates first"
+                        } else if (limitBookingDays) {
+                            "Winners can book up to this many consecutive days"
+                        } else {
+                            "No limit: winners can book up to $availableDaysCount available days"
+                        },
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(start = 12.dp)
+                    )
+
+                    if (limitBookingDays && availableDaysCount > 0) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 8.dp),
+                            horizontalArrangement = Arrangement.Center,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            RepeatableArrowButton(
+                                arrow = "↓",
+                                description = "Decrease maximum booking days",
+                                enabled = safeMaxBookingDays > 1,
+                                onClick = {
+                                    maxBookingDays = (safeMaxBookingDays - 1).coerceAtLeast(1)
+                                }
+                            )
+
+                            Text(
+                                text = safeMaxBookingDays.toString(),
+                                style = MaterialTheme.typography.headlineMedium,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier
+                                    .padding(horizontal = 32.dp)
+                                    .testTag("max_booking_days_value")
+                            )
+
+                            RepeatableArrowButton(
+                                arrow = "↑",
+                                description = "Increase maximum booking days",
+                                enabled = safeMaxBookingDays < availableDaysCount,
+                                onClick = {
+                                    maxBookingDays =
+                                        (safeMaxBookingDays + 1).coerceAtMost(availableDaysCount)
+                                }
+                            )
+                        }
+                    }
+                }
+
+                if (isEditMode && availStart.isNotBlank() && availEnd.isNotBlank()) {
+                    BlockedDatesField(
+                        availableStart = availStart,
+                        availableEnd = availEnd,
+                        blocked = blockedDates,
+                        onChange = { blockedDates = it }
+                    )
+                }
             } else {
                 Text(
                     text = "You joined this lottery, so only your own campsites can be changed.",
@@ -580,8 +861,14 @@ class LotteryEditActivity(
         }
 
         // Modals for Date Range Pickers
+        // Registration Date Picker
         if (showRegDatePicker) {
             DateRangePickerModal(
+                title = "Select registration period",
+                selectableDates = DateWindow(
+                    earliest = today
+                ),
+                initialDisplayedMonthMillis = regStartMillis ?: todayAsPickerMillis(),
                 onDateRangeSelected = { (start, end) ->
                     regStartMillis = start
                     regEndMillis = end
@@ -590,8 +877,15 @@ class LotteryEditActivity(
             )
         }
 
-        if (showBookingDatePicker) {
+        // Booking Date Picker
+        if (showBookingDatePicker && earliestBooking != null) {
             DateRangePickerModal(
+                title = "Select booking period",
+                selectableDates = DateWindow(
+                    earliest = earliestBooking
+                ),
+                initialDisplayedMonthMillis = bookingStartMillis
+                    ?: toPickerMillis(earliestBooking),
                 onDateRangeSelected = { (start, end) ->
                     bookingStartMillis = start
                     bookingEndMillis = end

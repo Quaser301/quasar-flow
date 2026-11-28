@@ -11,7 +11,9 @@ import com.example.campbnb.models.Campsite
  * [com.example.campbnb.controller.ReservationController].
  *
  * Commands:
- *  - [getOpenDates]: The owner's available dates for a campsite, minus blocked and past dates.
+ *  - [getOpenDates]: The campsite's own available dates, minus blocked and past dates.
+ *  - [getOpenDatesForLottery]: The dates a lottery winner may choose from at one of its campsites.
+ *  - [getCampsite]: Looks up one campsite, for checks like who owns it.
  *
  * @property campsites Read access to campsites and their availability settings.
  * @author Zino
@@ -20,36 +22,42 @@ import com.example.campbnb.models.Campsite
  */
 class Availability(private val campsites: QueryEngine<Campsite>) {
 
+    // getOpenDates(campsiteId, onSuccess, onFailure): unchanged, keep your existing version here.
+
     /**
-     * Gets the dates a campsite is open for booking, before subtracting existing reservations.
+     * Gets the dates a lottery winner may choose from at a campsite, before subtracting
+     * existing reservations.
      *
-     * The open dates are every date from the campsite's available start date to its available
-     * end date, minus any owner-blocked dates and any date already in the past. Dates already
-     * booked by reservations are removed later, by the controller.
+     * The open dates are the lottery's available range, minus the lottery's blocked dates,
+     * minus any dates blocked on the campsite itself, minus anything in the past or not after
+     * the booking period. Empty if the lottery doesn't cover the campsite or has no range.
      *
-     * @param campsiteId The campsite to look up.
-     * @param onSuccess Receives the open dates as yyyy-MM-dd strings. Empty if the campsite
-     * doesn't exist or the owner hasn't set an availability range.
+     * @param lottery The lottery the entrant won, already loaded by the caller.
+     * @param campsiteId The campsite they want to reserve. Must be one of the lottery's campsites.
+     * @param onSuccess Receives the open dates as yyyy-MM-dd strings.
      * @param onFailure Receives any Firestore error, or a parse error if a stored date is malformed.
      */
-    fun getOpenDates(
+    fun getOpenDatesForLottery(
+        lottery: Lottery,
         campsiteId: String,
         onSuccess: (Set<String>) -> Unit,
         onFailure: (Exception) -> Unit
     ) {
-        campsites.getById(campsiteId, onSuccess = { campsite ->
-            if (campsite == null ||
-                campsite.availableStartDate.isEmpty() ||
-                campsite.availableEndDate.isEmpty()
-            ) {
-                onSuccess(emptySet())
-                return@getById
-            }
+        if (campsiteId !in lottery.campsiteIds ||
+            lottery.availableStartDate.isEmpty() ||
+            lottery.availableEndDate.isEmpty()
+        ) {
+            onSuccess(emptySet())
+            return
+        }
 
-            val today = DateUtils.today()
+        campsites.getById(campsiteId, onSuccess = { campsite ->
             val open = try {
-                DateUtils.datesBetween(campsite.availableStartDate, campsite.availableEndDate)
-                    .filter { it >= today && it !in campsite.blockedDates }
+                val today = DateUtils.today()
+                val bookingEndDate = DateUtils.utcDate(lottery.bookingEnd)
+                val blocked = lottery.blockedDates.toSet() + campsite?.blockedDates.orEmpty()
+                DateUtils.datesBetween(lottery.availableStartDate, lottery.availableEndDate)
+                    .filter { it >= today && it > bookingEndDate && it !in blocked }
                     .toSet()
             } catch (e: Exception) {
                 onFailure(e)
