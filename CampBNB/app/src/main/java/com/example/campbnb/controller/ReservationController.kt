@@ -201,23 +201,14 @@ class ReservationController(
                     entrantId = entrantId,
                     campsiteId = campsiteId,
                     onEligible = {
-                        availability.getOpenDates(
+                        availability.getOpenDatesForLottery(
+                            lottery,
                             campsiteId,
                             onSuccess = { openDates ->
                                 reservations.getBookedDates(
                                     campsiteId,
                                     onSuccess = { bookedDates ->
-                                        val allowedDates = openDates
-                                            .filter { date ->
-                                                isInsideBookingWindow(
-                                                    date,
-                                                    lottery.bookingStart,
-                                                    lottery.bookingEnd
-                                                )
-                                            }
-                                            .toSet()
-
-                                        onSuccess(allowedDates - bookedDates)
+                                        onSuccess(openDates - bookedDates)
                                     },
                                     onFailure = onFailure
                                 )

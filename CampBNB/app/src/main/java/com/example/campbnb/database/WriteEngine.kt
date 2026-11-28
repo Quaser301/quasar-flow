@@ -40,6 +40,32 @@ class WriteEngine<T: Identifiable> (
     }
 
     /**
+     * Creates a new document only if it does not already exist.
+     * Fails if a document with the same ID already exists.
+     */
+    fun create(item: T, onComplete: (Result<Exception?>) -> Unit) {
+        val docRef = collection.document(item.id)
+        val db = collection.firestore // Automatically gets your FirebaseFirestore instance
+
+        db.runTransaction { transaction ->
+            val snapshot = transaction.get(docRef)
+            if (snapshot.exists()) {
+                // Throwing an exception inside a transaction aborts it
+                // and triggers addOnFailureListener below
+                throw IllegalStateException("Document with ID '${item.id}' already exists.")
+            }
+            transaction.set(docRef, item)
+            null // Transactions must return a result (null if nothing is needed)
+        }
+            .addOnSuccessListener {
+                onComplete(Result.success(null))
+            }
+            .addOnFailureListener { exception ->
+                onComplete(Result.failure(exception))
+            }
+    }
+
+    /**
      * Deletes an Item from the Firestore collection, given its [Identifiable] ID.
      *
      * @param onComplete The callback used when the transaction is complete. Passed parameter is
@@ -50,6 +76,34 @@ class WriteEngine<T: Identifiable> (
         collection.document(id).delete()
             .addOnSuccessListener { onComplete(Result.success(null)) }
             .addOnFailureListener { onComplete(Result.failure(it)) }
+    }
+
+    fun deleteIfFieldMatches(
+        id: String,
+        fieldName: String,
+        expectedValue: String,
+        onComplete: (Result<Boolean>) -> Unit
+    ) {
+        val docRef = collection.document(id)
+
+        collection.firestore.runTransaction { transaction ->
+            val snapshot = transaction.get(docRef)
+
+            if (!snapshot.exists()) {
+                false
+            } else if (snapshot.getString(fieldName) == expectedValue) {
+                transaction.delete(docRef)
+                true
+            } else {
+                false
+            }
+        }
+            .addOnSuccessListener { deleted ->
+                onComplete(Result.success(deleted))
+            }
+            .addOnFailureListener { exception ->
+                onComplete(Result.failure(exception))
+            }
     }
 
     /**

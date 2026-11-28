@@ -34,6 +34,8 @@ import com.example.campbnb.data.LotteryRepository
 import com.example.campbnb.database.Database
 import com.example.campbnb.models.Lottery
 import com.example.campbnb.models.LotteryEntryStatus
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import com.example.campbnb.models.WaitingListEntry
 import com.example.campbnb.controller.LotteryController
 import com.example.campbnb.controller.ReservationController
@@ -45,6 +47,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.AlertDialog
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -54,6 +57,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material3.SelectableDates
 import androidx.compose.ui.text.input.KeyboardType
 import com.example.campbnb.ui.lottery.DateRangePickerModal
 import com.example.campbnb.ui.lottery.fromPickerMillis
@@ -146,6 +150,18 @@ fun NavGraphBuilder.CorrespondenceGraph(
                 mutableStateOf<BookingCardData?>(null)
             }
 
+            var selectedLotteryCampsiteOptions by remember(userId) {
+                mutableStateOf<List<Pair<String, String>>>(emptyList())
+            }
+
+            var bookingCampsiteOptions by remember(userId) {
+                mutableStateOf<List<Pair<String, String>>>(emptyList())
+            }
+
+            var selectedBookingCampsiteId by remember(userId) {
+                mutableStateOf("")
+            }
+
             var availableBookingDates by remember(userId) {
                 mutableStateOf<Set<String>>(emptySet())
             }
@@ -202,6 +218,10 @@ fun NavGraphBuilder.CorrespondenceGraph(
                 mutableStateOf(BookingTab.CONFIRMED)
             }
 
+            var showCampsiteDropdown by remember(userId) {
+                mutableStateOf(false)
+            }
+
             LaunchedEffect(userId, bookingsRefreshKey) {
                 if (userId.isBlank()) {
                     toastGen("Unable to load bookings: user ID is missing.", Toast.LENGTH_LONG)
@@ -226,6 +246,10 @@ fun NavGraphBuilder.CorrespondenceGraph(
 
                         campsiteRepo.getAll(
                             onSuccess = { allCampsites ->
+
+                                bookingCampsiteOptions = allCampsites.map { campsite ->
+                                    campsite.id to campsite.campName
+                                }
 
                                 confirmedBookings = confirmedReservations.map { reservation ->
                                     val campsiteName = allCampsites
@@ -488,6 +512,21 @@ fun NavGraphBuilder.CorrespondenceGraph(
                             Toast.LENGTH_LONG
                         )
                     } else {
+                        val lotteryCampsites = bookingCampsiteOptions.filter { (campsiteId, _) ->
+                            campsiteId in lottery.campsiteIds
+                        }
+
+                        if (lotteryCampsites.isEmpty()) {
+                            toastGen(
+                                "Could not load the campsites for this lottery.",
+                                Toast.LENGTH_LONG
+                            )
+                            return@BookingsScreen
+                        }
+
+                        selectedLotteryCampsiteOptions = lotteryCampsites
+                        selectedBookingCampsiteId = lotteryCampsites.first().first
+
                         selectedBookingForDates = booking
                         selectedBookingOwnerId = lottery.ownerId
 
@@ -505,7 +544,7 @@ fun NavGraphBuilder.CorrespondenceGraph(
                             lotteryId = booking.lotteryId,
                             lotteryEntryId = booking.lotteryEntryId,
                             entrantId = userId,
-                            campsiteId = booking.campsiteId,
+                            campsiteId = selectedBookingCampsiteId,
 
                             onSuccess = { dates ->
                                 isLoadingAvailableDates = false
@@ -546,6 +585,77 @@ fun NavGraphBuilder.CorrespondenceGraph(
                             modifier = Modifier.fillMaxWidth(),
                             verticalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
+                            if (selectedLotteryCampsiteOptions.size > 1) {
+                                Box(modifier = Modifier.fillMaxWidth()) {
+                                    OutlinedTextField(
+                                        value = selectedLotteryCampsiteOptions
+                                            .firstOrNull { it.first == selectedBookingCampsiteId }
+                                            ?.second.orEmpty(),
+                                        onValueChange = {},
+                                        readOnly = true,
+                                        label = { Text("Choose campsite") },
+                                        modifier = Modifier.fillMaxWidth(),
+                                        trailingIcon = {
+                                            TextButton(
+                                                onClick = {
+                                                    showCampsiteDropdown = true
+                                                }
+                                            ) {
+                                                Text("Choose")
+                                            }
+                                        }
+                                    )
+
+                                    DropdownMenu(
+                                        expanded = showCampsiteDropdown,
+                                        onDismissRequest = {
+                                            showCampsiteDropdown = false
+                                        }
+                                    ) {
+                                        selectedLotteryCampsiteOptions.forEach { (campsiteId, campsiteName) ->
+                                            DropdownMenuItem(
+                                                text = { Text(campsiteName) },
+                                                onClick = {
+                                                    showCampsiteDropdown = false
+
+                                                    if (campsiteId != selectedBookingCampsiteId) {
+                                                        selectedBookingCampsiteId = campsiteId
+                                                        availableBookingDates = emptySet()
+                                                        selectedBookingDates = emptySet()
+                                                        selectedDateRangeText = ""
+                                                        dateSelectionError = null
+                                                        showBookingDatePicker = false
+
+                                                        isLoadingAvailableDates = true
+
+                                                        reservationController.getAvailableDates(
+                                                            lotteryId = booking.lotteryId,
+                                                            lotteryEntryId = booking.lotteryEntryId,
+                                                            entrantId = userId,
+                                                            campsiteId = campsiteId,
+                                                            onSuccess = { dates ->
+                                                                isLoadingAvailableDates = false
+                                                                availableBookingDates = dates
+
+                                                                if (dates.isEmpty()) {
+                                                                    dateSelectionError =
+                                                                        "There are currently no available dates for this campsite."
+                                                                }
+                                                            },
+                                                            onFailure = { error ->
+                                                                isLoadingAvailableDates = false
+                                                                dateSelectionError =
+                                                                    "Could not load available dates: ${error.message}"
+                                                            }
+                                                        )
+                                                    }
+                                                }
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+
                             Text(
                                 "Choose up to ${booking.maxBookingDays} consecutive days."
                             )
@@ -672,7 +782,7 @@ fun NavGraphBuilder.CorrespondenceGraph(
                                     lotteryEntryId = booking.lotteryEntryId,
                                     entrantId = userId,
                                     ownerId = selectedBookingOwnerId,
-                                    campsiteId = booking.campsiteId,
+                                    campsiteId = selectedBookingCampsiteId,
                                     dates = selectedBookingDates,
                                     onSuccess = {
                                         isCreatingReservation = false
@@ -728,6 +838,18 @@ fun NavGraphBuilder.CorrespondenceGraph(
 
             if (showBookingDatePicker) {
                 DateRangePickerModal(
+                    selectableDates = object : SelectableDates {
+
+                        override fun isSelectableDate(utcTimeMillis: Long): Boolean {
+                            return fromPickerMillis(utcTimeMillis) in availableBookingDates
+                        }
+
+                        override fun isSelectableYear(year: Int): Boolean {
+                            return availableBookingDates.any {
+                                it.startsWith("$year-")
+                            }
+                        }
+                    },
                     onDateRangeSelected = { (startMillis, endMillis) ->
 
                         if (startMillis == null || endMillis == null) {

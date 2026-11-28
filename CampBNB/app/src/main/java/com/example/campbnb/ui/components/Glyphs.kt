@@ -1,16 +1,32 @@
 package com.example.campbnb.ui.components
 
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.onClick
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.Path
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
 import kotlin.math.cos
 import kotlin.math.sin
 
@@ -86,6 +102,70 @@ fun SearchGlyph(modifier: Modifier = Modifier, color: Color = Color.DarkGray) {
             end = Offset(size.width - stroke, size.height - stroke),
             strokeWidth = stroke,
             cap = StrokeCap.Round
+        )
+    }
+}
+
+@Composable
+fun RepeatableArrowButton(
+    arrow: String,
+    description: String,
+    enabled: Boolean,
+    onClick: () -> Unit
+) {
+    val currentOnClick = rememberUpdatedState(onClick)
+
+    Box(
+        modifier = Modifier
+            .size(48.dp)
+            .pointerInput(enabled) {
+                if (enabled) {
+                    detectTapGestures(
+                        onPress = {
+                            // Change the value immediately on press.
+                            currentOnClick.value()
+
+                            // Continue changing while held.
+                            coroutineScope {
+                                val repeatJob = launch {
+                                    delay(400)
+
+                                    while (isActive) {
+                                        currentOnClick.value()
+                                        delay(100)
+                                    }
+                                }
+
+                                tryAwaitRelease()
+                                repeatJob.cancel()
+                            }
+                        }
+                    )
+                }
+            }
+            .semantics {
+                role = Role.Button
+                contentDescription = description
+
+                onClick {
+                    if (enabled) {
+                        currentOnClick.value()
+                        true
+                    } else {
+                        false
+                    }
+                }
+            },
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = arrow,
+            style = MaterialTheme.typography.headlineMedium,
+            color = if (enabled) {
+                MaterialTheme.colorScheme.primary
+            } else {
+                MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
+            }
         )
     }
 }
